@@ -39,9 +39,14 @@
 
     <!-- Windows -->
     <PropertyGroup Condition="'$(IsWindows)' == 'true'">
+        <!-- find the game path: the first way-->
+        <Sts2Path Condition="'$(Sts2Path)' == ''">$([MSBuild]::GetRegistryValueFromView('HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Steam App 2868840', 'InstallLocation', null, RegistryView.Registry64, RegistryView.Registry32))</Sts2Path>
+
+        <!-- find the game path: try another way if failed -->
         <SteamRoot Condition="'$(SteamRoot)' == ''">$(registry:HKEY_CURRENT_USER\Software\Valve\Steam@SteamPath)</SteamRoot>
         <SteamLibraryPath Condition="'$(SteamLibraryPath)' == '' and '$(SteamRoot)' != ''">$(SteamRoot)\steamapps</SteamLibraryPath>
         <Sts2Path Condition="'$(Sts2Path)' == ''">$(SteamLibraryPath)/common/Slay the Spire 2</Sts2Path>
+
         <Sts2DataDir Condition="'$(Sts2DataDir)' == ''">$(Sts2Path)/data_sts2_windows_x86_64</Sts2DataDir>
         <GodotPath>Z:\Projects\sts2\megadot\MegaDot_v4.5.1-stable_mono_win64.exe</GodotPath>
     </PropertyGroup>
