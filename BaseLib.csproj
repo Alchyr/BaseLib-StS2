@@ -101,7 +101,7 @@
         <!-- Temporary for including in .nupkg for template to auto export to mods folder -->
         <Content Include="build\BaseLib.props" PackagePath="/Content/" />
         <Content Include="build\BaseLib.pck" PackagePath="/Content/" />
-        <Content Include="mod_manifest.json" PackagePath="/Content/" />
+        <Content Include="BaseLib.json" PackagePath="/Content/" />
     </ItemGroup>
 
     <ItemGroup>
@@ -111,7 +111,7 @@
     <Target Name="CopyToModsFolderOnBuild" AfterTargets="PostBuildEvent">
         <Message Text="Copying .dll and manifest to mods folder." Importance="high" />
         <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(Sts2Path)/mods/$(MSBuildProjectName)/" />
-        <Copy SourceFiles="mod_manifest.json" DestinationFolder="$(Sts2Path)/mods/$(MSBuildProjectName)/" />
+        <Copy SourceFiles="BaseLib.json" DestinationFolder="$(Sts2Path)/mods/$(MSBuildProjectName)/" />
     </Target>
 
     <Target Name="GodotPublish" AfterTargets="Publish" Condition="'$(GodotPath)' != '' and Exists('$(GodotPath)') and '$(IsInnerGodotExport)' != 'true'">
