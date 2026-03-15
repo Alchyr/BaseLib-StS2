@@ -214,7 +214,8 @@ public abstract partial class ModConfig
         dropdownPositioner.SizeFlagsVertical = Control.SizeFlags.Fill;
         DropdownNode.SetValue(dropdownPositioner, dropdown);
 
-        container.GetParent().AddChild(dropdown);
+        dropdownPositioner.AddChild(dropdown);
+        dropdownPositioner.MouseFilter = Control.MouseFilterEnum.Ignore;
         container.AddChild(dropdownPositioner);
 
         return dropdownPositioner;

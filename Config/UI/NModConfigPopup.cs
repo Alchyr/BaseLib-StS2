@@ -37,7 +37,7 @@ public partial class NModConfigPopup : NClickableControl
 
     private ModConfig? _currentConfig;
     private NScrollableContainer _optionScrollContainer;
-    private Control _optionContainer;
+    private VBoxContainer _optionContainer;
     private NConfigButton? _opener;
     private double _saveTimer; //When any config option is changed, starts a timer. If enough time passes with no change, saves.
     private const double AutosaveDelay = 5;
@@ -66,8 +66,8 @@ public partial class NModConfigPopup : NClickableControl
 
         _optionScrollContainer = new();
         _optionScrollContainer.MouseFilter = MouseFilterEnum.Stop;
-        _optionScrollContainer.Size = new(Math.Max(480, Size.X * 0.5f), Size.Y * 0.75f);
-        Color back = new Color(0.1f, 0.1f, 0.1f, 0.85f); //Allow mods to change the color of their panel?
+        _optionScrollContainer.Size = new(Math.Max(480, Size.X * 0.5f), Size.Y * 0.81f);
+        Color back = new Color(0.1f, 0.1f, 0.1f); //Allow mods to change the color of their panel?
         Color border = new Color(239/255f, 198/255f, 93/255f); //Allow mods to change the color of their panel?
         _optionScrollContainer.Draw += () =>
         {
@@ -85,23 +85,31 @@ public partial class NModConfigPopup : NClickableControl
         scrollbar.Name = "Scrollbar";
         _optionScrollContainer.AddChild(scrollbar);
         scrollbar.Owner = _optionScrollContainer;
-        scrollbar.SetAnchorsAndOffsetsPreset(LayoutPreset.RightWide);
-        scrollbar.Size = new(48, _optionScrollContainer.Size.Y);
-        scrollbar.Position = new(_optionScrollContainer.Size.X + 4, 0);
+
+        scrollbar.SetAnchorsPreset(LayoutPreset.RightWide);
+        scrollbar.OffsetLeft = 0;
+        scrollbar.OffsetRight = 48;
+        scrollbar.OffsetTop = 32;
+        scrollbar.OffsetBottom = -32;
 
         Control mask = new();
         mask.Name = "Mask";
         mask.Size = _optionScrollContainer.Size;
         mask.MouseFilter = MouseFilterEnum.Ignore;
-        mask.ClipChildren = ClipChildrenMode.Only;
+        mask.ClipContents = true;
 
         _optionScrollContainer.AddChild(mask);
         mask.Owner = _optionScrollContainer;
 
-        _optionContainer = new Control();
+        _optionContainer = new VBoxContainer();
         _optionContainer.Name = "Content";
-        _optionContainer.Size = mask.Size;
+        _optionContainer.CustomMinimumSize = new Vector2(mask.Size.X, 0);
         mask.MouseFilter = MouseFilterEnum.Ignore;
+
+        _optionContainer.MinimumSizeChanged += () =>
+        {
+            _optionContainer.Size = new Vector2(mask.Size.X, _optionContainer.GetMinimumSize().Y);
+        };
 
         mask.AddChild(_optionContainer);
         _optionContainer.Owner = mask;
@@ -123,7 +131,9 @@ public partial class NModConfigPopup : NClickableControl
 
         try
         {
-            config.SetupConfigUI(_optionScrollContainer);
+            config.SetupConfigUI(_optionContainer);
+            _optionScrollContainer.DisableScrollingIfContentFits();
+            _optionScrollContainer.InstantlyScrollToTop();
             _currentConfig = config;
             config.ConfigChanged += OnConfigChanged;
             Show();

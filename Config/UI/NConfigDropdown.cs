@@ -1,6 +1,9 @@
-﻿using Godot;
+﻿using System.Reflection;
+using Godot;
+using HarmonyLib;
 using MegaCrit.Sts2.Core.Helpers;
 using MegaCrit.Sts2.Core.Nodes.CommonUi;
+using MegaCrit.Sts2.Core.Nodes.GodotExtensions;
 using MegaCrit.Sts2.Core.Nodes.Screens.Settings;
 
 namespace BaseLib.Config.UI;
@@ -9,6 +12,9 @@ public partial class NConfigDropdown : NSettingsDropdown
 {
     private List<NConfigDropdownItem.ConfigDropdownItem>? _items;
     private int _currentDisplayIndex = -1;
+    private float _lastGlobalY;
+
+    private static readonly FieldInfo DropdownContainerField = AccessTools.Field(typeof(NDropdown), "_dropdownContainer");
 
     public NConfigDropdown()
     {
@@ -16,6 +22,19 @@ public partial class NConfigDropdown : NSettingsDropdown
         SizeFlagsHorizontal = SizeFlags.ShrinkEnd;
         SizeFlagsVertical = SizeFlags.Fill;
         FocusMode = FocusModeEnum.All;
+    }
+
+    public override void _Process(double delta)
+    {
+        base._Process(delta);
+
+        if (DropdownContainerField.GetValue(this) is Control { Visible: true } &&
+            Mathf.Abs(_lastGlobalY - GlobalPosition.Y) > 0.5f)
+        {
+            CloseDropdown();
+        }
+
+        _lastGlobalY = GlobalPosition.Y;
     }
 
     public void SetItems(List<NConfigDropdownItem.ConfigDropdownItem> items, int initialIndex)
@@ -47,12 +66,20 @@ public partial class NConfigDropdown : NSettingsDropdown
         
 
         _dropdownItems.GetParent<NDropdownContainer>().RefreshLayout();
+
+        if (DropdownContainerField.GetValue(this) is Control container)
+        {
+            container.VisibilityChanged += () => {
+                container.TopLevel = container.Visible;
+                container.GlobalPosition = GlobalPosition + new Vector2(0, Size.Y);
+            };
+        }
     }
     
     private void OnDropdownItemSelected(NDropdownItem nDropdownItem)
     {
         var configDropdownItem = nDropdownItem as NConfigDropdownItem;
-        if (configDropdownItem == null || configDropdownItem.DisplayIndex == _currentDisplayIndex)
+        if (configDropdownItem == null)
             return;
         
         CloseDropdown();
