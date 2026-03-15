@@ -57,6 +57,7 @@ public partial class NConfigDropdown : NSettingsDropdown
         
         CloseDropdown();
         _currentOptionLabel.SetTextAutoSize(configDropdownItem.Data.Text);
+        _currentDisplayIndex = configDropdownItem.DisplayIndex; 
         configDropdownItem.Data.OnSet();
     }
 }
