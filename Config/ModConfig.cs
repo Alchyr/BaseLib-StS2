@@ -19,9 +19,6 @@ namespace BaseLib.Config;
 public abstract partial class ModConfig
 {
     private const string SettingsTheme = "res://themes/settings_screen_line_header.tres";
-    private static readonly Font KreonNormal = PreloadManager.Cache.GetAsset<Font>("res://themes/kreon_regular_shared.tres");
-    private static readonly Font KreonBold = PreloadManager.Cache.GetAsset<Font>("res://themes/kreon_bold_shared.tres");
-    
     public event EventHandler? ConfigChanged;
 
     private readonly string _path;
@@ -258,6 +255,9 @@ public abstract partial class ModConfig
         container.AddThemeConstantOverride("margin_right", 12);
         container.MouseFilter = Control.MouseFilterEnum.Ignore;
 
+        var kreonNormal = PreloadManager.Cache.GetAsset<Font>("res://themes/kreon_regular_shared.tres");
+        var kreonBold = PreloadManager.Cache.GetAsset<Font>("res://themes/kreon_bold_shared.tres");
+
         MegaRichTextLabel label = new();
         label.Name = "Label";
         label.Theme = PreloadManager.Cache.GetAsset<Theme>(SettingsTheme);
@@ -267,8 +267,8 @@ public abstract partial class ModConfig
         label.AddThemeFontSizeOverride("bold_italics_font_size", 20);
         label.AddThemeFontSizeOverride("italics_font_size", 20);
         label.AddThemeFontSizeOverride("mono_font_size", 20);
-        label.AddThemeFontOverride("normal_font", KreonNormal);
-        label.AddThemeFontOverride("bold_font", KreonBold);
+        label.AddThemeFontOverride("normal_font", kreonNormal);
+        label.AddThemeFontOverride("bold_font", kreonBold);
         label.MouseFilter = Control.MouseFilterEnum.Ignore;
 
         label.BbcodeEnabled = true;
