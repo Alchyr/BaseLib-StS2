@@ -182,36 +182,28 @@ public abstract partial class ModConfig
         return loc != null ? loc.GetFormattedText() : labelName;
     }
 
-    public NConfigTickbox MakeToggleOption(Control parent, PropertyInfo property)
+    // Creates a raw toggle control, with no layout (see SimpleModConfig.CreateToggleOption unless you want custom layout)
+    protected NConfigTickbox CreateRawTickboxControl(PropertyInfo property)
     {
-        //format varName. Or support localization keys. Check defining namespace.
-        
-        MarginContainer container = MakeOptionContainer(parent, "Toggle_" + property.Name, GetLabelText(property.Name));
         var tickbox = new NConfigTickbox().TransferAllNodes(SceneHelper.GetScenePath("screens/settings_tickbox"));
         tickbox.Initialize(this, property);
-        
-        container.AddChild(tickbox);
         return tickbox;
     }
 
-    public NConfigSlider MakeSliderOption(Control parent, PropertyInfo property)
+    // Creates a raw slider control, with no layout (see SimpleModConfig.CreateSliderOption unless you want custom layout)
+    protected NConfigSlider CreateRawSliderControl(PropertyInfo property)
     {
-        MarginContainer container = MakeOptionContainer(parent, "Slider_" + property.Name, GetLabelText(property.Name));
         var slider = new NConfigSlider().TransferAllNodes(SceneHelper.GetScenePath("screens/settings_slider"));
         slider.Initialize(this, property);
-        container.AddChild(slider);
         return slider;
     }
 
+    // Creates a raw dropdown control, with no layout (see SimpleModConfig.CreateDropdownOption unless you want custom layout)
     private static readonly FieldInfo DropdownNode = AccessTools.DeclaredField(typeof(NDropdownPositioner), "_dropdownNode");
-    public NDropdownPositioner MakeDropdownOption(Control parent, PropertyInfo property)
+    protected NDropdownPositioner CreateRawDropdownControl(PropertyInfo property)
     {
-        MarginContainer container = MakeOptionContainer(parent, "Dropdown_" + property.Name, GetLabelText(property.Name));
-
         var dropdown = new NConfigDropdown().TransferAllNodes(SceneHelper.GetScenePath("screens/settings_dropdown"));
-        
-        //Generate dropdown items
-        var items = MakeDropdownItems(property, out var currentIndex);
+        var items = CreateDropdownItems(property, out var currentIndex);
         dropdown.SetItems(items, currentIndex);
         
         var dropdownPositioner = new NDropdownPositioner();
@@ -223,12 +215,11 @@ public abstract partial class ModConfig
 
         dropdownPositioner.AddChild(dropdown);
         dropdownPositioner.MouseFilter = Control.MouseFilterEnum.Ignore;
-        container.AddChild(dropdownPositioner);
 
         return dropdownPositioner;
     }
 
-    private List<NConfigDropdownItem.ConfigDropdownItem> MakeDropdownItems(PropertyInfo property, out int currentIndex)
+    private List<NConfigDropdownItem.ConfigDropdownItem> CreateDropdownItems(PropertyInfo property, out int currentIndex)
     {
         List<NConfigDropdownItem.ConfigDropdownItem> items = [];
         var type = property.PropertyType;
@@ -258,33 +249,24 @@ public abstract partial class ModConfig
         return items;
     }
 
-    protected static MarginContainer MakeOptionContainer(Control parent, string name, string labelText)
-    {
-        MarginContainer container = new();
-        container.Name = name;
-        container.AddThemeConstantOverride("margin_left", 24);
-        container.AddThemeConstantOverride("margin_right", 24);
-        container.MouseFilter = Control.MouseFilterEnum.Ignore;
-
-        container.CustomMinimumSize = new Vector2(0, 64);
-        CreateLabel(labelText, container, 28);
-
-        parent.AddChild(container);
-        container.Owner = parent;
-
-        return container;
-    }
-
-    protected static MegaRichTextLabel CreateLabel(string labelText, Control container, int fontSize)
+    // Creates a raw label control, with no layout (see SimpleModConfig.Create*Option and CreateSectionHeader for
+    // layout-ready controls)
+    protected static MegaRichTextLabel CreateRawLabelControl(string labelText, int fontSize)
     {
         var kreonNormal = PreloadManager.Cache.GetAsset<Font>("res://themes/kreon_regular_shared.tres");
         var kreonBold = PreloadManager.Cache.GetAsset<Font>("res://themes/kreon_bold_shared.tres");
 
-        MegaRichTextLabel label = new();
-        label.Name = "Label";
-        label.Theme = PreloadManager.Cache.GetAsset<Theme>(SettingsTheme);
-        label.SetCustomMinimumSize(new Vector2(0, 64));
-        label.AutoSizeEnabled = false;
+        MegaRichTextLabel label = new()
+        {
+            Name = "Label",
+            Theme = PreloadManager.Cache.GetAsset<Theme>(SettingsTheme),
+            AutoSizeEnabled = false,
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+            BbcodeEnabled = true,
+            ScrollActive = false,
+            VerticalAlignment = VerticalAlignment.Center,
+            Text = labelText
+        };
 
         label.AddThemeFontOverride("normal_font", kreonNormal);
         label.AddThemeFontOverride("bold_font", kreonBold);
@@ -294,40 +276,10 @@ public abstract partial class ModConfig
         label.AddThemeFontSizeOverride("italics_font_size", fontSize);
         label.AddThemeFontSizeOverride("mono_font_size", fontSize);
 
-        label.MouseFilter = Control.MouseFilterEnum.Ignore;
-
-        label.BbcodeEnabled = true;
-        label.ScrollActive = false;
-        label.VerticalAlignment = VerticalAlignment.Center;
-
-        label.Text = labelText;
-
-        container.AddChild(label);
-        label.Owner = container;
-
         return label;
     }
 
-    protected MarginContainer CreateSectionLabel(string labelName, bool alignToTop = false)
-    {
-        MarginContainer container = new();
-        container.Name = "Container_" + labelName.Replace(" ", "");
-        container.AddThemeConstantOverride("margin_left", 24);
-        container.AddThemeConstantOverride("margin_right", 24);
-        container.MouseFilter = Control.MouseFilterEnum.Ignore;
-
-        var label = CreateLabel($"[center][b]{GetLabelText(labelName)}[/b][/center]", container, 40);
-        label.Name = "SectionLabel_" + labelName.Replace(" ", "");
-
-        if (alignToTop)
-        {
-            label.VerticalAlignment = VerticalAlignment.Top;
-        }
-
-        return container;
-    }
-
-    protected static ColorRect CreateDivider()
+    protected static ColorRect CreateDividerControl()
     {
         return new ColorRect
         {
