@@ -49,6 +49,13 @@ public abstract class CustomCharacterModel : CharacterModel, ICustomModel
     public virtual string? CustomCastSfx => null;
     public virtual string? CustomDeathSfx => null;
 
+    /// <summary>
+    /// Godot resource root for this mod's packaged audio (e.g. <c>res://mods/my_character</c>).
+    /// <see cref="ModAudioHub"/> resolves <c>audio/sfx/...</c> and <c>audio/bgm/...</c> under this path.
+    /// Override in your character model, or call <see cref="ModAudioHub.Register"/> directly. Return null to opt out.
+    /// </summary>
+    public virtual string? ModAudioPath => null;
+
     //Defaults
     public override int StartingGold => 99;
     public override float AttackAnimDelay => 0.15f;
