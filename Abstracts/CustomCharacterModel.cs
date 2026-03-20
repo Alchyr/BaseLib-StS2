@@ -19,6 +19,7 @@ public abstract class CustomCharacterModel : CharacterModel, ICustomModel
     public CustomCharacterModel()
     {
         ModelDbCustomCharacters.Register(this);
+        ModAudio.NotifyCharacterConstructed(this);
     }
 
     /// <summary>
@@ -50,9 +51,9 @@ public abstract class CustomCharacterModel : CharacterModel, ICustomModel
     public virtual string? CustomDeathSfx => null;
 
     /// <summary>
-    /// Godot resource root for this mod's packaged audio (e.g. <c>res://mods/my_character</c>).
-    /// <see cref="ModAudioHub"/> resolves <c>audio/sfx/...</c> and <c>audio/bgm/...</c> under this path.
-    /// Override in your character model, or call <see cref="ModAudioHub.Register"/> directly. Return null to opt out.
+    /// Godot path to this mod's <c>audio</c> folder — the folder that directly contains <c>sfx</c> and <c>bgm</c>
+    /// (e.g. <c>res://ThePaladin/audio</c>). Then use <see cref="ModAudio.PlaySfx"/>, <see cref="ModAudio.PlayMusic"/>, etc.
+    /// Optional: <see cref="ModAudio.SetRoot"/> overrides; <see cref="ModAudio.Register"/> for id-based calls.
     /// </summary>
     public virtual string? CustomAudioPath => null;
 

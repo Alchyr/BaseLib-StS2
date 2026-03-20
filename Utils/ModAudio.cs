@@ -1,24 +1,28 @@
 using System.Collections.Generic;
 using System.Reflection;
+using BaseLib.Abstracts;
 using Godot;
 using MegaCrit.Sts2.Core.Entities.Creatures;
 using MegaCrit.Sts2.Core.Nodes;
 using MegaCrit.Sts2.Core.Nodes.Rooms;
 using MegaCrit.Sts2.Core.Random;
 using MegaCrit.Sts2.Core.Saves;
-using BaseLib.Abstracts;
 
 namespace BaseLib.Utils;
 
 /// <summary>
-/// Central audio helper for mods depending on BaseLib. Resolves streams under each
-/// character's <see cref="CustomCharacterModel.CustomAudioPath"/> (mod res root).
+/// OGG audio: set <see cref="CustomCharacterModel.CustomAudioPath"/> to your Godot <c>audio</c> folder (the one that
+/// contains <c>sfx</c> and <c>bgm</c>), then e.g. <c>ModAudio.PlaySfx("clip", vol)</c>.
+/// Layout: <c>{audioRoot}/sfx/...</c> and <c>{audioRoot}/bgm/...</c>.
 /// </summary>
-public static class ModAudioHub
+public static class ModAudio
 {
     private static readonly Dictionary<string, AudioStream> CachedStreams = new();
     private static readonly Dictionary<string, string> CharacterIdToRoot = new();
+    private static readonly HashSet<string> DistinctCustomAudioRoots = new(StringComparer.Ordinal);
+    private static string? _implicitRootFromCharacters;
     private static bool _discovered;
+    private static string? _defaultAudioRoot;
 
     private static AudioStreamPlayer? _musicPlayer;
     private static string? _currentMusicPath;
@@ -34,7 +38,27 @@ public static class ModAudioHub
     private const float AmbienceVolumeOffset = -6f;
     private const float SfxVolumeOffset = -3f;
 
+    /// <summary>Optional override: same as <see cref="CustomCharacterModel.CustomAudioPath"/> — path to the <c>audio</c> folder (with <c>sfx</c> / <c>bgm</c> inside).</summary>
+    public static void SetRoot(string? resRoot)
+    {
+        _defaultAudioRoot = string.IsNullOrWhiteSpace(resRoot) ? null : resRoot.TrimEnd('/');
+    }
 
+    /// <summary>Effective root: <see cref="SetRoot"/> if set, else inferred from character(s).</summary>
+    public static string? DefaultAudioRoot => _defaultAudioRoot ?? _implicitRootFromCharacters;
+
+    internal static void NotifyCharacterConstructed(CustomCharacterModel model)
+    {
+        var p = model.CustomAudioPath?.TrimEnd('/');
+        if (string.IsNullOrEmpty(p))
+            return;
+        DistinctCustomAudioRoots.Add(p);
+        _implicitRootFromCharacters = DistinctCustomAudioRoots.Count == 1 ? p : null;
+    }
+
+    /// <summary>Manual id → audio root mapping for <c>ModAudio.Play(characterId, ...)</c> overloads.</summary>
+    /// <param name="characterId">Character id string (e.g. placeholder id).</param>
+    /// <param name="modAudioResRoot">Path to the <c>audio</c> folder (contains <c>sfx</c> and <c>bgm</c>).</param>
     public static void Register(string characterId, string modAudioResRoot)
     {
         if (string.IsNullOrWhiteSpace(characterId) || string.IsNullOrWhiteSpace(modAudioResRoot))
@@ -43,8 +67,8 @@ public static class ModAudioHub
     }
 
     /// <summary>
-    /// Scans loaded assemblies for concrete <see cref="PlaceholderCharacterModel"/> types,
-    /// instantiates them, and registers non-empty <see cref="CustomCharacterModel.CustomAudioPath"/>.
+    /// Scans assemblies for concrete <see cref="PlaceholderCharacterModel"/> types and registers their
+    /// <see cref="CustomCharacterModel.CustomAudioPath"/> (for id-based overloads).
     /// </summary>
     public static void DiscoverPlaceholderCharacters()
     {
@@ -104,13 +128,15 @@ public static class ModAudioHub
         DiscoverPlaceholderCharacters();
     }
 
-    private static bool TryResolveRoot(string characterId, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out string? root)
+    private static bool TryResolveRoot(string characterId,
+        [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out string? root)
     {
         EnsureDiscovered();
         return CharacterIdToRoot.TryGetValue(characterId, out root);
     }
 
-    private static bool TryResolveRoot(CustomCharacterModel? model, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out string? root)
+    private static bool TryResolveRoot(CustomCharacterModel? model,
+        [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out string? root)
     {
         root = model?.CustomAudioPath?.TrimEnd('/');
         if (!string.IsNullOrEmpty(root))
@@ -124,8 +150,38 @@ public static class ModAudioHub
         return false;
     }
 
-    public static void Play(string characterId, string folder, string soundName, float volume = 0f, float pitchVariation = 0f,
-        float basePitch = 1f)
+    private static bool TryResolveDefaultRoot([System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out string? root)
+    {
+        root = _defaultAudioRoot;
+        if (!string.IsNullOrEmpty(root))
+            return true;
+
+        root = _implicitRootFromCharacters;
+        if (!string.IsNullOrEmpty(root))
+            return true;
+
+        EnsureDiscovered();
+        root = _implicitRootFromCharacters;
+        if (!string.IsNullOrEmpty(root))
+            return true;
+
+        if (CharacterIdToRoot.Count == 0)
+            return false;
+
+        string? uniform = null;
+        foreach (var v in CharacterIdToRoot.Values)
+        {
+            uniform ??= v;
+            if (uniform != v)
+                return false;
+        }
+
+        root = uniform!;
+        return true;
+    }
+
+    public static void Play(string characterId, string folder, string soundName, float volume = 0f,
+        float pitchVariation = 0f, float basePitch = 1f)
     {
         if (!TryResolveRoot(characterId, out var modRoot))
             return;
@@ -136,6 +192,15 @@ public static class ModAudioHub
         float pitchVariation = 0f, float basePitch = 1f)
     {
         if (!TryResolveRoot(model, out var modRoot))
+            return;
+        PlayFromRoot(modRoot, folder, soundName, volume, pitchVariation, basePitch);
+    }
+
+    /// <summary>Combat SFX using <see cref="SetRoot"/> or your character's <see cref="CustomCharacterModel.CustomAudioPath"/>.</summary>
+    public static void Play(string folder, string soundName, float volume = 0f, float pitchVariation = 0f,
+        float basePitch = 1f)
+    {
+        if (!TryResolveDefaultRoot(out var modRoot))
             return;
         PlayFromRoot(modRoot, folder, soundName, volume, pitchVariation, basePitch);
     }
@@ -166,12 +231,20 @@ public static class ModAudioHub
         }
     }
 
-    /// <summary>Legacy-style call: creature parameter ignored (same as per-mod ModAudio).</summary>
+    /// <summary>Creature + character id (legacy); creature ignored.</summary>
     public static void Play(Creature creature, string characterId, string folder, string soundName, float volume = 0f) =>
         Play(characterId, folder, soundName, volume);
 
+    /// <summary>Creature ignored; uses resolved mod audio root.</summary>
+    public static void Play(Creature creature, string folder, string soundName, float volume = 0f) =>
+        Play(folder, soundName, volume);
+
     public static void PlaySfx(string characterId, string soundName, float volume = 0f, float pitchVariation = 0f) =>
         Play(characterId, "", soundName, volume, pitchVariation);
+
+    /// <summary><c>{audioRoot}/sfx/{soundName}.ogg</c> — see <see cref="CustomCharacterModel.CustomAudioPath"/> / <see cref="SetRoot"/>.</summary>
+    public static void PlaySfx(string soundName, float volume = 0f, float pitchVariation = 0f) =>
+        Play("", soundName, volume, pitchVariation);
 
     public static void PlayGlobalSfx(string characterId, string soundName, float volume = 0f)
     {
@@ -183,6 +256,13 @@ public static class ModAudioHub
     public static void PlayGlobalSfx(CustomCharacterModel model, string soundName, float volume = 0f)
     {
         if (!TryResolveRoot(model, out var modRoot))
+            return;
+        PlayGlobalSfxFromRoot(modRoot, soundName, volume);
+    }
+
+    public static void PlayGlobalSfx(string soundName, float volume = 0f)
+    {
+        if (!TryResolveDefaultRoot(out var modRoot))
             return;
         PlayGlobalSfxFromRoot(modRoot, soundName, volume);
     }
@@ -217,8 +297,8 @@ public static class ModAudioHub
             return cached;
 
         var path = string.IsNullOrEmpty(folder)
-            ? $"{modRoot}/audio/sfx/{soundName}.ogg"
-            : $"{modRoot}/audio/sfx/{folder}/{soundName}.ogg";
+            ? $"{modRoot}/sfx/{soundName}.ogg"
+            : $"{modRoot}/sfx/{folder}/{soundName}.ogg";
         var stream = GD.Load<AudioStream>(path);
         if (stream != null)
             CachedStreams[key] = stream;
@@ -232,9 +312,22 @@ public static class ModAudioHub
             return;
         if (!TryResolveRoot(characterId, out var modRoot))
             return;
+        PlayMusicAtRoot(modRoot, musicOptions, volumeDbOffset);
+    }
 
+    public static void PlayMusic(string[] musicOptions, float volumeDbOffset = 0f)
+    {
+        if (musicOptions == null || musicOptions.Length == 0)
+            return;
+        if (!TryResolveDefaultRoot(out var modRoot))
+            return;
+        PlayMusicAtRoot(modRoot, musicOptions, volumeDbOffset);
+    }
+
+    private static void PlayMusicAtRoot(string modRoot, string[] musicOptions, float volumeDbOffset)
+    {
         var musicName = musicOptions[GD.RandRange(0, musicOptions.Length - 1)];
-        var path = $"{modRoot}/audio/bgm/{musicName}.ogg";
+        var path = $"{modRoot}/bgm/{musicName}.ogg";
 
         if (_currentMusicPath == path && _musicPlayer?.Playing == true)
             return;
@@ -273,15 +366,29 @@ public static class ModAudioHub
             _musicPlayer.VolumeDb = Mathf.LinearToDb(Mathf.Pow(volume, 2f)) + _currentVolumeOffset + MusicVolumeOffset;
     }
 
-    public static void FadeIn(string characterId, string[] musicOptions, float duration = 1.0f, float volumeDbOffset = 0f)
+    public static void FadeIn(string characterId, string[] musicOptions, float duration = 1.0f,
+        float volumeDbOffset = 0f)
     {
         if (musicOptions == null || musicOptions.Length == 0)
             return;
         if (!TryResolveRoot(characterId, out var modRoot))
             return;
+        FadeInAtRoot(modRoot, musicOptions, duration, volumeDbOffset);
+    }
 
+    public static void FadeIn(string[] musicOptions, float duration = 1.0f, float volumeDbOffset = 0f)
+    {
+        if (musicOptions == null || musicOptions.Length == 0)
+            return;
+        if (!TryResolveDefaultRoot(out var modRoot))
+            return;
+        FadeInAtRoot(modRoot, musicOptions, duration, volumeDbOffset);
+    }
+
+    private static void FadeInAtRoot(string modRoot, string[] musicOptions, float duration, float volumeDbOffset)
+    {
         var musicName = musicOptions[GD.RandRange(0, musicOptions.Length - 1)];
-        var path = $"{modRoot}/audio/bgm/{musicName}.ogg";
+        var path = $"{modRoot}/bgm/{musicName}.ogg";
 
         if (_currentMusicPath == path && _musicPlayer?.Playing == true)
             return;
@@ -384,8 +491,19 @@ public static class ModAudioHub
     {
         if (!TryResolveRoot(characterId, out var modRoot))
             return;
+        PlayAmbienceAtRoot(modRoot, ambienceName, volumeDbOffset);
+    }
 
-        var path = $"{modRoot}/audio/bgm/{ambienceName}.ogg";
+    public static void PlayAmbience(string ambienceName, float volumeDbOffset = 0f)
+    {
+        if (!TryResolveDefaultRoot(out var modRoot))
+            return;
+        PlayAmbienceAtRoot(modRoot, ambienceName, volumeDbOffset);
+    }
+
+    private static void PlayAmbienceAtRoot(string modRoot, string ambienceName, float volumeDbOffset)
+    {
+        var path = $"{modRoot}/bgm/{ambienceName}.ogg";
 
         if (_currentAmbiencePath == path && _ambiencePlayer?.Playing == true)
             return;
@@ -406,7 +524,8 @@ public static class ModAudioHub
         };
 
         var ambienceVolume = SaveManager.Instance.SettingsSave.VolumeAmbience;
-        _ambiencePlayer.VolumeDb = Mathf.LinearToDb(Mathf.Pow(ambienceVolume, 2f)) + volumeDbOffset + AmbienceVolumeOffset;
+        _ambiencePlayer.VolumeDb =
+            Mathf.LinearToDb(Mathf.Pow(ambienceVolume, 2f)) + volumeDbOffset + AmbienceVolumeOffset;
 
         var runNode = NRun.Instance;
         if (runNode != null)
@@ -422,8 +541,19 @@ public static class ModAudioHub
     {
         if (!TryResolveRoot(characterId, out var modRoot))
             return;
+        FadeInAmbienceAtRoot(modRoot, ambienceName, duration, volumeDbOffset);
+    }
 
-        var path = $"{modRoot}/audio/bgm/{ambienceName}.ogg";
+    public static void FadeInAmbience(string ambienceName, float duration = 1.0f, float volumeDbOffset = 0f)
+    {
+        if (!TryResolveDefaultRoot(out var modRoot))
+            return;
+        FadeInAmbienceAtRoot(modRoot, ambienceName, duration, volumeDbOffset);
+    }
+
+    private static void FadeInAmbienceAtRoot(string modRoot, string ambienceName, float duration, float volumeDbOffset)
+    {
+        var path = $"{modRoot}/bgm/{ambienceName}.ogg";
 
         if (_currentAmbiencePath == path && _ambiencePlayer?.Playing == true)
             return;
