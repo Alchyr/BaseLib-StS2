@@ -52,7 +52,7 @@ public abstract class CustomCharacterModel : CharacterModel, ICustomModel
 
     /// <summary>
     /// Godot path to this mod's <c>audio</c> folder — the folder that directly contains <c>sfx</c> and <c>bgm</c>
-    /// (e.g. <c>res://ThePaladin/audio</c>). Then use <see cref="ModAudio.PlaySfx"/>, <see cref="ModAudio.PlayMusic"/>, etc.
+    /// (e.g. <c>res://TheCharacter/audio</c>). Then use <see cref="ModAudio.PlaySfx"/>, <see cref="ModAudio.PlayMusic"/>, etc.
     /// Optional: <see cref="ModAudio.SetRoot"/> overrides; <see cref="ModAudio.Register"/> for id-based calls.
     /// </summary>
     public virtual string? CustomAudioPath => null;
