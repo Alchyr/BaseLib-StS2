@@ -17,13 +17,11 @@ public partial class NConfigSlider : Control
     private PropertyInfo? _property;
     private string _displayFormat = "{0}";
 
+    private bool _fullyInitialized;
     private NSlider _slider;
     private MegaLabel _sliderLabel;
     private NSelectionReticle _selectionReticle;
 
-    // _realMin is a workaround to support negative numbers, without forcing
-    // the underlying NSlider to understand that such things really exist
-    private double _realMin;
     private const int LabelFontSize = 28;
 
     // Controller hold-to-accelerate stuff
@@ -52,12 +50,50 @@ public partial class NConfigSlider : Control
         _selectionReticle = GetNode<NSelectionReticle>((NodePath) "SelectionReticle");
     }
 
-    public override void _Ready()
+    // These store the real min/max values used in the UI. NSlider has different ones, as it does not support
+    // negative numbers.
+    public double MinValue { get; private set; }
+    public double MaxValue { get; private set; }
+    public double Step => _slider.Step;
+
+    /// <summary>
+    /// Updates the slider's limits (and optionally step) atomically, ensuring no issues where e.g. min > max occur,
+    /// even briefly.<br/>
+    /// The current value is clamped to fit inside [min, max].<br/>
+    /// Use <see cref="SliderRangeAttribute"/> instead if your values are known at compile time.
+    /// </summary>
+    /// <exception cref="ArgumentException">If min is greater than or equal to max</exception>
+    public void SetRange(double min, double max, double? step = null)
     {
-        _slider.FocusMode = FocusModeEnum.None;
+        if (min >= max)
+            throw new ArgumentException($"Invalid slider range: min ({min}) must be less than max ({max}).");
+
+        // We use an offset to enable negative value support in NSlider
+        var currentRealValue = _slider.Value + MinValue;
+
+        MinValue = min;
+        MaxValue = max;
+        if (step != null) _slider.Step = step.Value;
+
+        // _slider.MinValue is always 0, so we don't touch it here even if _realMin changes
+        _slider.MaxValue = MaxValue - MinValue;
+        RecalculateMinRepeatDelay();
+
+        // NSlider.SetValueWithoutAnimation crashes unless its _Ready has executed, but if SetRange is called prior
+        // to AddChild, we don't need call SetValue here anyhow: it happens in *our* _Ready, so prior to display.
+        if (_fullyInitialized) SetValue(currentRealValue);
+    }
+
+    public void RecalculateMinRepeatDelay()
+    {
         var numSteps = (float)((_slider.MaxValue - _slider.MinValue) / _slider.Step);
         var dynamicFloor = 1.5f / numSteps;
         _minRepeatDelay = Mathf.Max(0.002f, dynamicFloor);
+    }
+
+    public override void _Ready()
+    {
+        _slider.FocusMode = FocusModeEnum.None;
 
         _sliderLabel.AutoSizeEnabled = false;
         _sliderLabel.AddThemeFontSizeOverride("font_size", LabelFontSize);
@@ -74,41 +110,60 @@ public partial class NConfigSlider : Control
         _slider.Connect(Godot.Range.SignalName.ValueChanged, Callable.From<double>(OnValueChanged));
         Connect(Godot.Control.SignalName.FocusEntered, Callable.From(OnFocus));
         Connect(Godot.Control.SignalName.FocusExited, Callable.From(OnUnfocus));
+
+        _fullyInitialized = true;
     }
 
     public void Initialize(ModConfig modConfig, PropertyInfo property)
     {
-        if (property.PropertyType != typeof(double)) throw new ArgumentException("Attempted to assign NConfigSlider a non-double property");
+        if (property.PropertyType != typeof(double))
+            throw new ArgumentException("Attempted to assign NConfigSlider a non-double property");
 
         _config = modConfig;
         _property = property;
+
+        var rangeAttr = property.GetCustomAttribute<SliderRangeAttribute>();
+        var formatAttr = property.GetCustomAttribute<SliderLabelFormatAttribute>();
+
+        var min = rangeAttr?.Min ?? 0;
+        var max = rangeAttr?.Max ?? 100;
+        var step = rangeAttr?.Step ?? 1;
+        _displayFormat = formatAttr?.Format ?? "{0}";
+
+        if (min >= max)
+            throw new ArgumentException($"Invalid slider range: min ({min}) must be less than max ({max}).");
+
+        MinValue = min;
+        MaxValue = max;
+
+        // Force the internal Godot NSlider to run from 0 upwards, since it does not support negative numbers
+        _slider.MinValue = 0;
+        _slider.MaxValue = MaxValue - MinValue;
+        _slider.Step = step;
+
+        RecalculateMinRepeatDelay();
     }
 
     private void SetFromProperty()
     {
-        var rangeAttr = _property!.GetCustomAttribute<SliderRangeAttribute>();
-        var formatAttr = _property!.GetCustomAttribute<SliderLabelFormatAttribute>();
-
-        _realMin = rangeAttr?.Min ?? 0;
-        var realMax = rangeAttr?.Max ?? 100;
-
-        // Force the internal slider to run from 0 upwards
-        _slider.MinValue = 0;
-        _slider.MaxValue = realMax - _realMin;
-        _slider.Step = rangeAttr?.Step ?? 1;
-
-        _displayFormat = formatAttr?.Format ?? "{0}";
-
         var propValue = (double)_property!.GetValue(null)!;
-        var clampedValue = Math.Clamp(propValue, _realMin, realMax);
+        SetValue(propValue);
+    }
 
-        _slider.SetValueWithoutAnimation(clampedValue - _realMin);
+    private void SetValue(double value)
+    {
+        var clampedValue = Math.Clamp(value, MinValue, MaxValue);
+        _slider.SetValueWithoutAnimation(clampedValue - MinValue);
         UpdateLabel(clampedValue);
+
+        // Clamp always returns one of its parameters, so exactness isn't an issue here
+        // ReSharper disable once CompareOfFloatsByEqualityOperator
+        if (value != clampedValue) _property?.SetValue(null, clampedValue);
     }
 
     private void OnValueChanged(double proxyValue)
     {
-        var realValue = proxyValue + _realMin;
+        var realValue = proxyValue + MinValue;
 
         // Round to avoid floating point precision issues
         var step = _slider.Step;
