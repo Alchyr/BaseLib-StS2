@@ -18,4 +18,24 @@ public static class ControlExtensions
     {
         artist.DrawRect(new Rect2(child.Position, child.Size), new Color(1, 1, 1, 0.5f));
     }
+
+    /// <summary>
+    /// Calls AddThemeFontSizeOverride() for all font types: font_size, {normal,bold,italics,bold_italics,mono}_font_size.
+    /// </summary>
+    public static void AddThemeFontSizeOverrideAll(this Control control, int fontSize)
+    {
+        string[] fontTypes = [
+            "font_size",
+            "normal_font_size",
+            "bold_font_size",
+            "italics_font_size",
+            "bold_italics_font_size",
+            "mono_font_size"
+        ];
+
+        foreach (var fontType in fontTypes)
+        {
+            control.AddThemeFontSizeOverride(fontType, fontSize);
+        }
+    }
 }

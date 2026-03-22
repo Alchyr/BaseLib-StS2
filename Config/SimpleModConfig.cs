@@ -52,6 +52,7 @@ public class SimpleModConfig : ModConfig
         container.AddThemeConstantOverride("margin_left", 24);
         container.AddThemeConstantOverride("margin_right", 24);
         container.MouseFilter = Control.MouseFilterEnum.Ignore;
+        container.FocusMode = Control.FocusModeEnum.None;
 
         var label = CreateRawLabelControl($"[center][b]{GetLabelText(labelName)}[/b][/center]", 40);
         label.Name = "SectionLabel_" + labelName.Replace(" ", "");
@@ -147,14 +148,12 @@ public class SimpleModConfig : ModConfig
 
                 if (previousSetting != null)
                 {
-                    var path = currentSetting.GetPathTo(previousSetting);
-                    if (currentSetting.FocusNeighborLeft?.IsEmpty != false) currentSetting.FocusNeighborLeft = path;
-                    if (currentSetting.FocusNeighborTop?.IsEmpty != false) currentSetting.FocusNeighborTop = path;
-
-                    path = previousSetting.GetPathTo(currentSetting);
-                    if (previousSetting.FocusNeighborRight?.IsEmpty != false) previousSetting.FocusNeighborRight = path;
-                    if (previousSetting.FocusNeighborBottom?.IsEmpty != false) previousSetting.FocusNeighborBottom = path;
+                    currentSetting.FocusNeighborTop = currentSetting.GetPathTo(previousSetting);
+                    previousSetting.FocusNeighborBottom = previousSetting.GetPathTo(currentSetting);
                 }
+
+                currentSetting.FocusNeighborLeft = currentSetting.GetPath();
+                currentSetting.FocusNeighborRight = currentSetting.GetPath();
             }
             catch (NotSupportedException ex)
             {

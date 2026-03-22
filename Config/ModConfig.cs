@@ -4,16 +4,29 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using BaseLib.Config.UI;
 using BaseLib.Extensions;
-using BaseLib.Utils;
 using Godot;
 using HarmonyLib;
 using MegaCrit.Sts2.addons.mega_text;
 using MegaCrit.Sts2.Core.Assets;
 using MegaCrit.Sts2.Core.Helpers;
 using MegaCrit.Sts2.Core.Localization;
+using MegaCrit.Sts2.Core.Nodes.CommonUi;
+using MegaCrit.Sts2.Core.Nodes.Screens.MainMenu;
 using MegaCrit.Sts2.Core.Nodes.Screens.Settings;
 
 namespace BaseLib.Config;
+
+// NMainMenu is recreated every time you return from a run, etc., so this isn't a run-once as it seems.
+// We also check for errors when exiting the mod config submenu, as that won't trigger this code.
+[HarmonyPatch(typeof(NMainMenu), nameof(NMainMenu._Ready))]
+public static class NMainMenu_Ready_Patch
+{
+    public static void Postfix()
+    {
+        if (ModConfig.ModConfigLogger.PendingUserMessages.Count == 0) return;
+        Callable.From(ModConfig.ShowAndClearPendingErrors).CallDeferred();
+    }
+}
 
 public abstract partial class ModConfig
 {
@@ -26,7 +39,7 @@ public abstract partial class ModConfig
     public event EventHandler? ConfigChanged;
 
     private readonly string _path;
-    protected string ModPrefix { get; private set; }
+    public string ModPrefix { get; private set; }
 
     private readonly string _modConfigName;
     private bool _savingDisabled;
@@ -38,12 +51,17 @@ public abstract partial class ModConfig
     {
         public static List<string> PendingUserMessages { get; } = [];
 
+        /// <summary>
+        /// Show a message in the console, and optionally in the GUI. Only use showInGui=true if truly necessary;
+        /// players won't enjoy having warnings/errors shoved in their faces unless it's something that truly impacts them.
+        /// </summary>
         public static void Warn(string message, bool showInGui = false)
         {
             MainFile.Logger.Warn(message);
             if (showInGui && !PendingUserMessages.Contains(message)) PendingUserMessages.Add(message);
         }
 
+        /// <inheritdoc cref="Warn" />
         public static void Error(string message, bool showInGui = true)
         {
             MainFile.Logger.Error(message);
@@ -90,7 +108,7 @@ public abstract partial class ModConfig
             if (!property.CanRead || !property.CanWrite) continue;
             if (property.GetMethod?.IsStatic != true)
             {
-                ModConfigLogger.Warn($"Ignoring {_modConfigName} property {property.Name}: only static properties are supported", true);
+                ModConfigLogger.Warn($"Ignoring {_modConfigName} property {property.Name}: only static properties are supported");
                 continue;
             }
 
@@ -117,22 +135,36 @@ public abstract partial class ModConfig
     {
         if (_savingDisabled)
         {
-            ModConfigLogger.Error($"Skipping save for {_modConfigName} because the config file is currently in a corrupted, read-only state.");
+            // No GUI error here, because that would've been shown already when _savingDisabled was set.
+            ModConfigLogger.Warn($"Skipping save for {_modConfigName} because the config file is currently in a corrupted, read-only state.");
             return;
         }
 
         Dictionary<string, string> values = [];
-        foreach (var property in ConfigProperties)
+
+        try
         {
-            var value = property.GetValue(null);
+            foreach (var property in ConfigProperties)
+            {
+                var value = property.GetValue(null);
 
-            var converter = TypeDescriptor.GetConverter(property.PropertyType);
-            var stringValue = converter.ConvertToInvariantString(value);
+                var converter = TypeDescriptor.GetConverter(property.PropertyType);
+                var stringValue = converter.ConvertToInvariantString(value);
 
-            if (stringValue != null)
-                values.Add(property.Name, stringValue);
-            else
-                ModConfigLogger.Warn($"Failed to convert {_modConfigName} property {property.Name} to string for saving; it will be omitted.", true);
+                if (stringValue != null)
+                    values.Add(property.Name, stringValue);
+                else
+                {
+                    ModConfigLogger.Warn(
+                        $"Failed to convert {_modConfigName} property {property.Name} to string for saving; " +
+                        "it will be omitted.");
+                }
+            }
+        }
+        catch (Exception)
+        {
+            // During testing, I have never seen an exception here, but let's avoid a game crash/menu hang, etc.
+            ModConfigLogger.Error($"Failed to save config {_modConfigName}: unknown error during conversion.", false);
         }
 
         try
@@ -186,17 +218,20 @@ public abstract partial class ModConfig
                     if (!TryApplyPropertyValue(property, value)) hasSoftErrors = true;
                 }
 
-                MainFile.Logger.Info(!hasSoftErrors
-                    ? $"Loaded config {_modConfigName} successfully"
-                    : $"Loaded config {_modConfigName} with some missing or invalid fields.");
+                if (hasSoftErrors)
+                    ModConfigLogger.Warn($"Loaded config {_modConfigName} with some missing or invalid fields.");
             }
         }
         catch (JsonException jsonEx)
         {
-            ModConfigLogger.Error($"Failed to parse config file for {_modConfigName}. The JSON is likely invalid. " +
-                                  $"Error: {jsonEx.Message}");
-            ModConfigLogger.Warn("Config saving has been DISABLED for this session to protect any manual edits. " +
-                                 "Please fix the JSON formatting.", true);
+            // Unlikely to happen except for people who have modified the file manually, so let's be verbose and show in GUI.
+            var locationText = jsonEx.LineNumber.HasValue
+                ? $"Line {jsonEx.LineNumber + 1}, position {jsonEx.BytePositionInLine + 1}"
+                : "unknown line";
+            ModConfigLogger.Error($"Failed to parse config file for {_modConfigName}. The JSON is likely invalid.\n" +
+                                  $"File path: {_path}\n" +
+                                  $"Error location: {locationText}");
+            ModConfigLogger.Warn("Config saving has been DISABLED for this mod to protect any manual edits.", true);
             _savingDisabled = true;
             return;
         }
@@ -224,7 +259,7 @@ public abstract partial class ModConfig
             if (configVal == null)
             {
                 ModConfigLogger.Warn($"Failed to load saved config value \"{value}\" for property {property.Name}:" +
-                                     "Converter returned null.", true);
+                                     "Converter returned null.");
                 return false;
             }
 
@@ -239,7 +274,7 @@ public abstract partial class ModConfig
         catch (Exception ex)
         {
             ModConfigLogger.Warn($"Failed to load saved config value \"{value}\" for property {property.Name}. " +
-                                 $"Error: {ex.Message}", true);
+                                 $"Error: {ex.Message}");
             return false;
         }
     }
@@ -250,27 +285,27 @@ public abstract partial class ModConfig
         return loc != null ? loc.GetFormattedText() : labelName;
     }
 
-    // Creates a raw toggle control, with no layout (see SimpleModConfig.CreateToggleOption unless you want custom layout)
+    // Creates a raw toggle control, with no layout (use SimpleModConfig.CreateToggleOption unless you want custom layout)
     protected NConfigTickbox CreateRawTickboxControl(PropertyInfo property)
     {
-        var tickbox = new NConfigTickbox().TransferAllNodes(SceneHelper.GetScenePath("screens/settings_tickbox"));
+        var tickbox = new NConfigTickbox();
         tickbox.Initialize(this, property);
         return tickbox;
     }
 
-    // Creates a raw slider control, with no layout (see SimpleModConfig.CreateSliderOption unless you want custom layout)
+    // Creates a raw slider control, with no layout (use SimpleModConfig.CreateSliderOption unless you want custom layout)
     protected NConfigSlider CreateRawSliderControl(PropertyInfo property)
     {
-        var slider = new NConfigSlider().TransferAllNodes(SceneHelper.GetScenePath("screens/settings_slider"));
+        var slider = new NConfigSlider();
         slider.Initialize(this, property);
         return slider;
     }
 
-    // Creates a raw dropdown control, with no layout (see SimpleModConfig.CreateDropdownOption unless you want custom layout)
+    // Creates a raw dropdown control, with no layout (use SimpleModConfig.CreateDropdownOption unless you want custom layout)
     private static readonly FieldInfo DropdownNode = AccessTools.DeclaredField(typeof(NDropdownPositioner), "_dropdownNode");
     protected NDropdownPositioner CreateRawDropdownControl(PropertyInfo property)
     {
-        var dropdown = new NConfigDropdown().TransferAllNodes(SceneHelper.GetScenePath("screens/settings_dropdown"));
+        var dropdown = new NConfigDropdown();
         var items = CreateDropdownItems(property, out var currentIndex);
         dropdown.SetItems(items, currentIndex);
         
@@ -323,7 +358,7 @@ public abstract partial class ModConfig
 
     // Creates a raw label control, with no layout (see SimpleModConfig.Create*Option and CreateSectionHeader for
     // layout-ready controls)
-    protected static MegaRichTextLabel CreateRawLabelControl(string labelText, int fontSize)
+    public static MegaRichTextLabel CreateRawLabelControl(string labelText, int fontSize)
     {
         var kreonNormal = PreloadManager.Cache.GetAsset<Font>("res://themes/kreon_regular_shared.tres");
         var kreonBold = PreloadManager.Cache.GetAsset<Font>("res://themes/kreon_bold_shared.tres");
@@ -334,6 +369,7 @@ public abstract partial class ModConfig
             Theme = PreloadManager.Cache.GetAsset<Theme>(SettingsTheme),
             AutoSizeEnabled = false,
             MouseFilter = Control.MouseFilterEnum.Ignore,
+            FocusMode = Control.FocusModeEnum.None,
             BbcodeEnabled = true,
             ScrollActive = false,
             VerticalAlignment = VerticalAlignment.Center,
@@ -342,11 +378,7 @@ public abstract partial class ModConfig
 
         label.AddThemeFontOverride("normal_font", kreonNormal);
         label.AddThemeFontOverride("bold_font", kreonBold);
-        label.AddThemeFontSizeOverride("normal_font_size", fontSize);
-        label.AddThemeFontSizeOverride("bold_font_size", fontSize);
-        label.AddThemeFontSizeOverride("bold_italics_font_size", fontSize);
-        label.AddThemeFontSizeOverride("italics_font_size", fontSize);
-        label.AddThemeFontSizeOverride("mono_font_size", fontSize);
+        label.AddThemeFontSizeOverrideAll(fontSize);
 
         return label;
     }
@@ -360,6 +392,23 @@ public abstract partial class ModConfig
             MouseFilter = Control.MouseFilterEnum.Ignore,
             Color = new Color(0.909804f, 0.862745f, 0.745098f, 0.25098f)
         };
+    }
+
+    public static void ShowAndClearPendingErrors()
+    {
+        var pendingMessages = ModConfigLogger.PendingUserMessages;
+        if (pendingMessages.Count <= 0) return;
+
+        var errorPopup = NErrorPopup.Create("Mod configuration error",
+            string.Join('\n', pendingMessages), false);
+        if (errorPopup == null || NModalContainer.Instance == null) return;
+        NModalContainer.Instance.Add(errorPopup);
+
+        var vertPopup = errorPopup.GetNodeOrNull<NVerticalPopup>("VerticalPopup");
+        if (vertPopup == null) return;
+        vertPopup.BodyLabel.AddThemeFontSizeOverrideAll(22);
+
+        pendingMessages.Clear();
     }
 
     [GeneratedRegex("[^a-zA-Z0-9_.]")]

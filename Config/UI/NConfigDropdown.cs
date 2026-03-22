@@ -1,4 +1,5 @@
 ﻿using System.Reflection;
+using BaseLib.Utils;
 using Godot;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Helpers;
@@ -13,6 +14,7 @@ public partial class NConfigDropdown : NSettingsDropdown
     private List<NConfigDropdownItem.ConfigDropdownItem>? _items;
     private int _currentDisplayIndex = -1;
     private float _lastGlobalY;
+    private NodePath _selfNodePath = new(".");
 
     private static readonly FieldInfo DropdownContainerField = AccessTools.Field(typeof(NDropdown), "_dropdownContainer");
 
@@ -22,11 +24,20 @@ public partial class NConfigDropdown : NSettingsDropdown
         SizeFlagsHorizontal = SizeFlags.ShrinkEnd;
         SizeFlagsVertical = SizeFlags.Fill;
         FocusMode = FocusModeEnum.All;
+
+        this.TransferAllNodes(SceneHelper.GetScenePath("screens/settings_dropdown"));
     }
 
     public override void _Process(double delta)
     {
         base._Process(delta);
+
+        // Hacky, but this is overwritten and causes issues. Setting it in _Ready and on row creation isn't enough.
+        if (FocusNeighborLeft != _selfNodePath || FocusNeighborRight != _selfNodePath)
+        {
+            FocusNeighborLeft = _selfNodePath;
+            FocusNeighborRight = _selfNodePath;
+        }
 
         if (DropdownContainerField.GetValue(this) is Control { Visible: true } container)
         {
@@ -73,6 +84,11 @@ public partial class NConfigDropdown : NSettingsDropdown
             container.VisibilityChanged += () => {
                 container.TopLevel = container.Visible;
                 container.GlobalPosition = GlobalPosition + new Vector2(0, Size.Y);
+
+                // Focus the last selected entry (base class always selects the first)
+                if (_currentDisplayIndex < 0 || _currentDisplayIndex >= _items.Count) return;
+                var entry = _dropdownItems.GetChildOrNull<NConfigDropdownItem>(_currentDisplayIndex);
+                entry?.TryGrabFocus();
             };
         }
     }
