@@ -36,7 +36,7 @@ public static class InjectModConfigSubmenuPatch
 
 public partial class NModConfigSubmenu : NSubmenu
 {
-    private VBoxContainer _optionContainer;
+    private VBoxContainer? _optionContainer;
     private NScrollableContainer _scrollContainer;
     private Control _contentPanel;
     private MegaRichTextLabel _modTitle;
@@ -52,7 +52,7 @@ public partial class NModConfigSubmenu : NSubmenu
     private const float ModTitleHeight = 90f;
     private const float MinPadding = 30f;
 
-    protected override Control InitialFocusedControl => FindFirstFocusable(_optionContainer) ?? _optionContainer;
+    protected override Control InitialFocusedControl => FindFirstFocusable(_optionContainer) ?? _contentPanel;
 
     public NModConfigSubmenu()
     {
@@ -129,20 +129,6 @@ public partial class NModConfigSubmenu : NSubmenu
         };
         clipper.AddChild(_contentPanel);
 
-        // The container that we send to the ModConfig to populate
-        _optionContainer = new VBoxContainer
-        {
-            Name = "VBoxContainer",
-            CustomMinimumSize = new Vector2(ContentWidth, 0f),
-            AnchorRight = 1f,
-            GrowHorizontal = GrowDirection.Both,
-            MouseFilter = MouseFilterEnum.Ignore,
-        };
-
-        _optionContainer.MinimumSizeChanged += RefreshSize;
-
-        _contentPanel.AddChild(_optionContainer);
-
         var scrollbar = PreloadManager.Cache.GetScene(SceneHelper.GetScenePath("ui/scrollbar"))
             .Instantiate<NScrollbar>();
         scrollbar.Name = "Scrollbar";
@@ -193,18 +179,20 @@ public partial class NModConfigSubmenu : NSubmenu
         if (_currentConfig != null) _currentConfig.ConfigChanged -= OnConfigChanged;
         _currentConfig = config;
         _opener = opener;
-        _optionContainer.FreeChildren();
-        _optionContainer.AddThemeConstantOverride("separation", 8);
 
         try
         {
+            // Recreate the container to ensure the previous mod can't change something persistent by mistake
+            _optionContainer = CreateOptionContainer();
+            _contentPanel.AddChild(_optionContainer);
+
             config.SetupConfigUI(_optionContainer);
             SetModTitle(config);
             config.ConfigChanged += OnConfigChanged;
 
+            RefreshSize();
             _scrollContainer.DisableScrollingIfContentFits();
             _scrollContainer.InstantlyScrollToTop();
-            RefreshSize();
 
             ModConfig.ShowAndClearPendingErrors();
 
@@ -220,6 +208,20 @@ public partial class NModConfigSubmenu : NSubmenu
             MainFile.Logger.Error(e.ToString());
             _stack.Pop();
         }
+    }
+
+    private VBoxContainer CreateOptionContainer()
+    {
+        var container = new VBoxContainer {
+            Name = "VBoxContainer",
+            CustomMinimumSize = new Vector2(ContentWidth, 0f),
+            AnchorRight = 1f,
+            GrowHorizontal = GrowDirection.Both,
+            MouseFilter = MouseFilterEnum.Ignore,
+        };
+        container.AddThemeConstantOverride("separation", 8);
+        container.MinimumSizeChanged += RefreshSize;
+        return container;
     }
 
     private void SetModTitle(ModConfig config)
@@ -241,6 +243,7 @@ public partial class NModConfigSubmenu : NSubmenu
 
     private void RefreshSize()
     {
+        if (_optionContainer == null) return;
         var clipperSize = _contentPanel.GetParent<Control>().Size;
         var requiredHeight = _optionContainer.GetMinimumSize().Y;
         var paddedHeight = requiredHeight + MinPadding;
@@ -252,6 +255,7 @@ public partial class NModConfigSubmenu : NSubmenu
         }
 
         _contentPanel.CustomMinimumSize = new Vector2(ContentWidth, paddedHeight);
+        _contentPanel.Size = new Vector2(_contentPanel.Size.X, 0); // Force reset to new minimum height
         _optionContainer.Size = new Vector2(ContentWidth, requiredHeight);
         _scrollContainer.DisableScrollingIfContentFits();
     }
@@ -276,6 +280,13 @@ public partial class NModConfigSubmenu : NSubmenu
         if (_opener != null) _opener.IsConfigOpen = false;
         SaveCurrentConfig();
 
+        if (_optionContainer != null)
+        {
+            _optionContainer.MinimumSizeChanged -= RefreshSize;
+            _optionContainer.QueueFreeSafely();
+            _optionContainer = null;
+        }
+
         if (ModConfig.ModConfigLogger.PendingUserMessages.Count > 0)
         {
             // The main menu will only show this when recreated; if a player goes from settings to play a game,
@@ -291,8 +302,9 @@ public partial class NModConfigSubmenu : NSubmenu
         _saveTimer = AutosaveDelay;
     }
 
-    private static Control? FindFirstFocusable(Node parent)
+    private static Control? FindFirstFocusable(Node? parent)
     {
+        if (parent == null) return null;
         foreach (var child in parent.GetChildren())
         {
             if (child is Control { FocusMode: FocusModeEnum.All or FocusModeEnum.Click } control)
