@@ -18,16 +18,7 @@ public class SimpleModConfig : ModConfig
     public override void SetupConfigUI(Control optionContainer)
     {
         MainFile.Logger.Info($"Setting up SimpleModConfig {GetType().FullName}");
-
-        VBoxContainer options = new();
-        options.Size = optionContainer.Size;
-        options.AddThemeConstantOverride("separation", 8);
-        optionContainer.AddChild(options);
-
-        // Add "margin" to the top, to keep the edge-element distance same as on the left and right
-        options.AddChild(new Control { CustomMinimumSize = new Vector2(0, 16) });
-
-        GenerateOptionsForAllProperties(options);
+        GenerateOptionsForAllProperties(optionContainer);
     }
 
     /// <inheritdoc cref="CreateStandardOption"/>

@@ -219,6 +219,7 @@ public partial class NModConfigSubmenu : NSubmenu
             GrowHorizontal = GrowDirection.Both,
             MouseFilter = MouseFilterEnum.Ignore,
         };
+        container.AddChild(new Control { CustomMinimumSize = new Vector2(0, 16) });
         container.AddThemeConstantOverride("separation", 8);
         container.MinimumSizeChanged += RefreshSize;
         return container;
