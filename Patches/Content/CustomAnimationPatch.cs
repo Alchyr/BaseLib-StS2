@@ -60,6 +60,9 @@ namespace BaseLib.Patches.Content
 
         private static void UseAnimationPlayer(AnimationPlayer animPlayer, string animName, string trigger)
         {
+            if (animPlayer.CurrentAnimation.Equals(animName) || animPlayer.CurrentAnimation.Equals(trigger))
+                animPlayer.Stop();
+
             if (animPlayer.HasAnimation(animName))
                 animPlayer.Play(animName);
             else if (animPlayer.HasAnimation(trigger))
