@@ -117,9 +117,9 @@ public partial class NConfigButton : NTopBarButton
             return;
         }
 
+        IsConfigOpen = true;
+
         var modConfigSubmenu = stackInstance.PushSubmenuType<NModConfigSubmenu>();
         modConfigSubmenu.LoadModConfig(modConfig, this);
-
-        IsConfigOpen = true;
     }
 }

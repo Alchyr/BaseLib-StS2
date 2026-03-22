@@ -180,13 +180,27 @@ public partial class NModConfigSubmenu : NSubmenu
         _currentConfig = config;
         _opener = opener;
 
+        // Recreate the container to ensure the previous mod can't change something persistent by mistake
+        _optionContainer = CreateOptionContainer();
+        _contentPanel.AddChild(_optionContainer);
+
         try
         {
-            // Recreate the container to ensure the previous mod can't change something persistent by mistake
-            _optionContainer = CreateOptionContainer();
-            _contentPanel.AddChild(_optionContainer);
-
             config.SetupConfigUI(_optionContainer);
+        }
+        catch (Exception e)
+        {
+            ModConfig.ModConfigLogger.Error($"Failed setting up config for mod {GetType().Assembly.GetName().Name}.\n" +
+                                            "This is either because the mod set something up incorrectly, or a " +
+                                            "compatibility issue.\n" +
+                                            "Try updating BaseLib and the mod in question, if newer versions exist.");
+            MainFile.Logger.Error(e.ToString());
+            _stack.Pop();
+            return;
+        }
+
+        try
+        {
             SetModTitle(config);
             config.ConfigChanged += OnConfigChanged;
 
@@ -203,7 +217,7 @@ public partial class NModConfigSubmenu : NSubmenu
         }
         catch (Exception e)
         {
-            ModConfig.ModConfigLogger.Error("An error occurred while loading the mod config screen." +
+            ModConfig.ModConfigLogger.Error("An error occurred while loading the mod config screen.\n" +
                                             "Please report a bug at:\nhttps://github.com/Alchyr/BaseLib-StS2");
             MainFile.Logger.Error(e.ToString());
             _stack.Pop();
