@@ -13,7 +13,7 @@ public partial class NConfigTickbox : NSettingsTickbox
 
     public NConfigTickbox()
     {
-        SetCustomMinimumSize(new Vector2(320, 64));
+        SetCustomMinimumSize(new Vector2(324, 64));
         SizeFlagsHorizontal = SizeFlags.ShrinkEnd;
         SizeFlagsVertical = SizeFlags.Fill;
         FocusMode = FocusModeEnum.All;

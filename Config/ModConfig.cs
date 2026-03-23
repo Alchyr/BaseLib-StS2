@@ -285,7 +285,12 @@ public abstract partial class ModConfig
         return loc != null ? loc.GetFormattedText() : labelName;
     }
 
-    // Creates a raw toggle control, with no layout (use SimpleModConfig.CreateToggleOption unless you want custom layout)
+    /// <summary>
+    /// Creates a raw control, with no layout (label, margins), no automatic hover tip, etc.<br/>
+    /// Use the Create*Option methods instead unless you need a custom layout (or use them, and customize them).
+    /// </summary>
+    /// <param name="property">The property this control is bound to. Fetch with e.g. GetType().GetProperty() in
+    /// a ModConfig.</param>
     protected NConfigTickbox CreateRawTickboxControl(PropertyInfo property)
     {
         var tickbox = new NConfigTickbox();
@@ -293,7 +298,7 @@ public abstract partial class ModConfig
         return tickbox;
     }
 
-    // Creates a raw slider control, with no layout (use SimpleModConfig.CreateSliderOption unless you want custom layout)
+    /// <inheritdoc cref="CreateRawTickboxControl"/>
     protected NConfigSlider CreateRawSliderControl(PropertyInfo property)
     {
         var slider = new NConfigSlider();
@@ -301,8 +306,8 @@ public abstract partial class ModConfig
         return slider;
     }
 
-    // Creates a raw dropdown control, with no layout (use SimpleModConfig.CreateDropdownOption unless you want custom layout)
     private static readonly FieldInfo DropdownNode = AccessTools.DeclaredField(typeof(NDropdownPositioner), "_dropdownNode");
+    /// <inheritdoc cref="CreateRawTickboxControl"/>
     protected NDropdownPositioner CreateRawDropdownControl(PropertyInfo property)
     {
         var dropdown = new NConfigDropdown();
@@ -310,7 +315,7 @@ public abstract partial class ModConfig
         dropdown.SetItems(items, currentIndex);
         
         var dropdownPositioner = new NDropdownPositioner();
-        dropdownPositioner.SetCustomMinimumSize(new(320, 64));
+        dropdownPositioner.SetCustomMinimumSize(new(324, 64));
         dropdownPositioner.FocusMode = Control.FocusModeEnum.All;
         dropdownPositioner.SizeFlagsHorizontal = Control.SizeFlags.ShrinkEnd;
         dropdownPositioner.SizeFlagsVertical = Control.SizeFlags.Fill;
@@ -356,8 +361,7 @@ public abstract partial class ModConfig
         return items;
     }
 
-    // Creates a raw label control, with no layout (see SimpleModConfig.Create*Option and CreateSectionHeader for
-    // layout-ready controls)
+    /// <inheritdoc cref="CreateRawTickboxControl"/>
     public static MegaRichTextLabel CreateRawLabelControl(string labelText, int fontSize)
     {
         var kreonNormal = PreloadManager.Cache.GetAsset<Font>("res://themes/kreon_regular_shared.tres");
