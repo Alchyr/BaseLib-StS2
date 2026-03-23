@@ -105,6 +105,7 @@ public abstract partial class ModConfig
         ConfigProperties.Clear();
         foreach (var property in configType.GetProperties())
         {
+            if (property.GetCustomAttribute<ConfigIgnoreAttribute>() != null) continue;
             if (!property.CanRead || !property.CanWrite) continue;
             if (property.GetMethod?.IsStatic != true)
             {
@@ -147,7 +148,6 @@ public abstract partial class ModConfig
             foreach (var property in ConfigProperties)
             {
                 var value = property.GetValue(null);
-
                 var converter = TypeDescriptor.GetConverter(property.PropertyType);
                 var stringValue = converter.ConvertToInvariantString(value);
 

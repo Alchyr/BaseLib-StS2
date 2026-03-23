@@ -75,7 +75,8 @@ public class SimpleModConfig : ModConfig
     }
 
     /// <summary>
-    /// Auto-generates a UI row from a property, including a hover tip if [ConfigHoverTip] is specified.
+    /// Auto-generates a UI row from a property, including a hover tip if [ConfigHoverTip] is specified.<br/>
+    /// Properties with [ConfigHideinUI] will NOT be ignored, so you can use this to manually create them if you wish.
     /// </summary>
     /// <exception cref="NotSupportedException">Thrown for non-supported property types.</exception>
     protected NConfigOptionRow GenerateOptionFromProperty(PropertyInfo property)
@@ -104,8 +105,10 @@ public class SimpleModConfig : ModConfig
     }
 
     /// <summary>
-    /// Auto-generate option rows for all properties in this SimpleModConfig. Runs by default, so that a subclass
-    /// only needs to add its config properties, and nothing more, to get a reasonable UI.
+    /// <para>Auto-generate option rows for all properties in this SimpleModConfig. Runs by default, so that a subclass
+    /// only needs to add its config properties, and nothing more, to get a reasonable UI.</para>
+    /// Properties marked with [ConfigHideInUI] will be ignored. Properties marked with [ConfigIgnore] won't even make
+    /// it to this method.
     /// </summary>
     /// <param name="targetContainer">Container where the generated options are inserted.</param>
     protected void GenerateOptionsForAllProperties(Control targetContainer)
@@ -113,7 +116,9 @@ public class SimpleModConfig : ModConfig
         Control? currentSetting = null;
         string? currentSection = null;
 
-        var properties = ConfigProperties.ToArray();
+        var properties = ConfigProperties.Where(prop =>
+            prop.GetCustomAttribute<ConfigHideInUI>() == null).ToArray();
+
         for (var i = 0; i < properties.Length; i++)
         {
             var property = properties[i];

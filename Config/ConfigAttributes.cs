@@ -56,3 +56,18 @@ public class ConfigHoverTipAttribute(bool enabled = true) : Attribute
 /// </summary>
 [AttributeUsage(AttributeTargets.Class)]
 public class HoverTipsByDefaultAttribute : Attribute;
+
+/// <summary>
+/// Completely ignores this property. It will not be loaded or saved, and will not be shown for auto-generated UI.<br/>
+/// Intended for properties that aren't configuration options at all.
+/// </summary>
+[AttributeUsage(AttributeTargets.Property)]
+public class ConfigIgnoreAttribute : Attribute { }
+
+/// <summary>
+/// Saves and loads this property to the config file normally, but generate no UI for it in SimpleModConfig.<br/>
+/// Intended for when you want to create the UI manually, or easily persist things that aren't user-configurable (e.g.
+/// total gold gained / number of runs played with the mod active).
+/// </summary>
+[AttributeUsage(AttributeTargets.Property)]
+public class ConfigHideInUI : Attribute { }
