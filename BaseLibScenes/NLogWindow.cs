@@ -1,6 +1,4 @@
-﻿using System.Text;
-using Godot;
-using Range = System.Range;
+﻿using Godot;
 
 namespace BaseLib.BaseLibScenes;
 
@@ -9,7 +7,7 @@ public partial class NLogWindow : Window
 {
     private static readonly LimitedLog _log = new(256);
     private static readonly List<NLogWindow> _listeners = [];
-    
+
     public static void AddLog(string msg)
     {
         _log.Enqueue(msg);
@@ -19,9 +17,10 @@ public partial class NLogWindow : Window
         }
     }
 
-    private Label? _logLabel;
-    private int _scroll = 0;
-    
+    private ScrollContainer? _scrollContainer;
+    private RichTextLabel? _logLabel;
+    private bool _isFollowingLog = true;
+
     public override void _EnterTree()
     {
         base._EnterTree();
@@ -33,54 +32,80 @@ public partial class NLogWindow : Window
         base._ExitTree();
         _listeners.Remove(this);
     }
-    
+
     public override void _Ready()
     {
         base._Ready();
 
-        _logLabel = GetNode<Label>("Log");
+        _scrollContainer = GetNode<ScrollContainer>("Scroll");
+        _logLabel = GetNode<RichTextLabel>("Scroll/Log");
 
         SizeChanged += UpdateText;
         CloseRequested += QueueFree;
-        
-        Refresh();
-    }
 
-    public override void _Input(InputEvent @event)
-    {
-        base._Input(@event);
-        if (@event is not InputEventMouseButton mouseEvent) return;
-        switch (mouseEvent.ButtonIndex)
-        {
-            case MouseButton.WheelDown:
-                --_scroll;
-                if (_scroll < 0) _scroll = 0;
-                break;
-            case MouseButton.WheelUp:
-                ++_scroll;
-                if (_log.Count == 0) _scroll = 0;
-                else if (_scroll >= _log.Count) _scroll = _log.Count - 1;
-                break;
-        }
+        var scrollbar = _scrollContainer.GetVScrollBar();
+        scrollbar.ValueChanged += OnScrollbarValueChanged;
+
+        _isFollowingLog = true;
+        Refresh();
     }
 
     public void Refresh()
     {
-        _scroll = 0;
         UpdateText();
     }
-    
+
     public void UpdateText()
     {
-        if (_logLabel is null) return;
+        if (_logLabel is null || _scrollContainer is null) return;
+
+        _isFollowingLog = _isFollowingLog || IsNearBottom();
+
+        _log.Render(_logLabel);
+
+        if (_isFollowingLog)
+        {
+            CallDeferred(nameof(ScrollToBottom));
+        }
+    }
+
+    private void ScrollToBottom()
+    {
+        if (_scrollContainer is null) return;
+
+        _scrollContainer.ScrollVertical = (int)_scrollContainer.GetVScrollBar().MaxValue;
+        _isFollowingLog = true;
+    }
+
+    private void OnScrollbarValueChanged(double value)
+    {
+        if (_scrollContainer is null) return;
         
-        _logLabel.Text = _log.GetTail(_scroll, 1 + Size.Y / 13);
+        _isFollowingLog = IsNearBottom(_scrollContainer.GetVScrollBar(), value);
+    }
+
+    private bool IsNearBottom()
+    {
+        if (_scrollContainer is null) return true;
+
+        var scrollbar = _scrollContainer.GetVScrollBar();
+        return IsNearBottom(scrollbar, scrollbar.Value);
+    }
+
+    private static bool IsNearBottom(VScrollBar scrollbar, double value)
+    {
+        double bottomValue = scrollbar.MaxValue - scrollbar.Page;
+        return bottomValue - value <= 8;
     }
 
     private class LimitedLog : Queue<string>
     {
         private int Limit { get; }
-        
+
+        private static readonly Color ErrorColor = Color.FromHtml("#ff6d6d");
+        private static readonly Color WarnColor = Color.FromHtml("#ffd866");
+        private static readonly Color DebugColor = Color.FromHtml("#7fdfff");
+
         public LimitedLog(int limit) : base(limit)
         {
             Limit = limit;
@@ -95,25 +120,50 @@ public partial class NLogWindow : Window
             base.Enqueue(item);
         }
 
-        public string GetTail(int offset, int lineCount)
+        public void Render(RichTextLabel label)
         {
-            StringBuilder sb = new();
-            
-            int start = Count - (offset + lineCount);
-            while (start < 0 && lineCount > 0)
+            label.Clear();
+
+            foreach (var line in this)
             {
-                sb.Append('\n');
-                ++start;
-                --lineCount;
+                var color = GetColorForLine(line);
+                if (color is not null)
+                {
+                    label.PushColor(color.Value);
+                }
+
+                label.AddText(line);
+                label.Newline();
+
+                if (color is not null)
+                {
+                    label.Pop();
+                }
             }
-            
-            if (lineCount <= 0) return sb.ToString();
-            
-            foreach (var line in this.Take(new Range(start, start + lineCount)))
+        }
+
+        private static Color? GetColorForLine(string line)
+        {
+            string? level = TryGetBracketLevel(line);
+            if (level is null) return null;
+
+            return level switch
             {
-                sb.Append('\n').Append(line);
-            }
-            return sb.ToString();
+                "ERROR" or "FATAL" or "EXCEPTION" => ErrorColor,
+                "WARN" or "WARNING" => WarnColor,
+                "DEBUG" or "TRACE" or "VERYDEBUG" => DebugColor,
+                _ => null
+            };
+        }
+
+        private static string? TryGetBracketLevel(string line)
+        {
+            if (!line.StartsWith('[')) return null;
+
+            int closeIndex = line.IndexOf(']');
+            if (closeIndex <= 1) return null;
+
+            return line[1..closeIndex].ToUpperInvariant();
         }
     }
 }
