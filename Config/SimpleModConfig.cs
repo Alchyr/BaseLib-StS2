@@ -1,7 +1,9 @@
 ﻿using System.Reflection;
 using BaseLib.Config.UI;
-using BaseLib.Extensions;
 using Godot;
+using MegaCrit.Sts2.Core.Localization;
+using MegaCrit.Sts2.Core.Nodes.CommonUi;
+using MegaCrit.Sts2.Core.Nodes.Multiplayer;
 
 // ReSharper disable MemberCanBePrivate.Global
 
@@ -19,6 +21,49 @@ public class SimpleModConfig : ModConfig
     {
         MainFile.Logger.Info($"Setting up SimpleModConfig {GetType().FullName}");
         GenerateOptionsForAllProperties(optionContainer);
+        AddRestoreDefaultsButton(optionContainer);
+    }
+
+    protected void AddRestoreDefaultsButton(Control optionContainer)
+    {
+        var resetButton = CreateRawButtonControl(GetBaseLibLabelText("RestoreDefaults"), async void () =>
+        {
+            try
+            {
+                await ConfirmRestoreDefaults();
+            }
+            catch (Exception e)
+            {
+                // Seems exceedingly unlikely, but still
+                ModConfigLogger.Error($"Unable to show restore confirmation dialog: {e.Message}");
+            }
+        });
+        resetButton.CustomMinimumSize = new Vector2(360, resetButton.CustomMinimumSize.Y);
+        resetButton.SetColor(0.45f, 1.5f, 0.8f);
+
+        var centerContainer = new CenterContainer();
+        centerContainer.CustomMinimumSize = new Vector2(0, 128);
+        centerContainer.AddChild(resetButton);
+
+        optionContainer.AddChild(centerContainer);
+    }
+
+    public async Task ConfirmRestoreDefaults()
+    {
+        var confirmationModal = NGenericPopup.Create();
+        if (confirmationModal == null || NModalContainer.Instance == null) return;
+        NModalContainer.Instance.Add(confirmationModal);
+
+        // Only the body is from BaseLib, the others are reused from the game
+        var confirmed = await confirmationModal.WaitForConfirmation(
+            body: new LocString("settings_ui", "BASELIB-RESET_MODCONFIG_CONFIRMATION.body"),
+            header: new LocString("settings_ui", "RESET_CONFIRMATION.header"),
+            noButton: new LocString("main_menu_ui", "GENERIC_POPUP.cancel"),
+            yesButton: new LocString("main_menu_ui", "GENERIC_POPUP.confirm")
+        );
+
+        if (confirmed)
+            RestoreDefaultsNoConfirm();
     }
 
     /// <inheritdoc cref="CreateStandardOption"/>

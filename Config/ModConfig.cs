@@ -37,6 +37,7 @@ public abstract partial class ModConfig
     /// a property.
     /// </summary>
     public event EventHandler? ConfigChanged;
+    public event Action? OnConfigReloaded;
 
     private readonly string _path;
     public string ModPrefix { get; private set; }
@@ -127,7 +128,19 @@ public abstract partial class ModConfig
 
         return default;
     }
-    
+
+    protected void RestoreDefaultsNoConfirm()
+    {
+        foreach (var property in ConfigProperties)
+        {
+            var defaultValue = GetDefaultValue<object?>(property.Name);
+            property.SetValue(null, defaultValue);
+        }
+
+        Save();
+        OnConfigReloaded?.Invoke();
+    }
+
     public abstract void SetupConfigUI(Control optionContainer);
 
     private void Init()
@@ -295,7 +308,13 @@ public abstract partial class ModConfig
 
     protected string GetLabelText(string labelName)
     {
-        var loc = LocString.GetIfExists("settings_ui", ModPrefix + StringHelper.Slugify(labelName) + ".title");
+        var loc = LocString.GetIfExists("settings_ui", $"{ModPrefix}{StringHelper.Slugify(labelName)}.title");
+        return loc != null ? loc.GetFormattedText() : labelName;
+    }
+
+    protected static string GetBaseLibLabelText(string labelName)
+    {
+        var loc = LocString.GetIfExists("settings_ui", $"BASELIB-{StringHelper.Slugify(labelName)}.title");
         return loc != null ? loc.GetFormattedText() : labelName;
     }
 

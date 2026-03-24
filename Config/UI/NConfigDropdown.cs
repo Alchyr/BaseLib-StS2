@@ -52,6 +52,8 @@ public partial class NConfigDropdown : NSettingsDropdown
                 onChanged?.Invoke();
             }));
         }
+
+        _config.OnConfigReloaded += SetFromProperty;
     }
 
     public void SetFromProperty()
@@ -138,5 +140,11 @@ public partial class NConfigDropdown : NSettingsDropdown
         _currentOptionLabel.SetTextAutoSize(configDropdownItem.Data.Text);
         _currentDisplayIndex = configDropdownItem.DisplayIndex; 
         configDropdownItem.Data.OnSet();
+    }
+
+    public override void _ExitTree()
+    {
+        base._ExitTree();
+        if (_config != null) _config.OnConfigReloaded -= SetFromProperty;
     }
 }

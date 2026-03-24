@@ -91,7 +91,7 @@ public partial class NModConfigSubmenu : NSubmenu
                 Gradient = new Gradient
                 {
                     // Note: these are ordered bottom-to-top!
-                    Offsets = [0f, 0.08f, 0.805f, 0.827f],
+                    Offsets = [0f, 0.04f, 0.805f, 0.827f],
                     Colors =
                     [
                         new Color(1f, 1f, 1f, 0f),

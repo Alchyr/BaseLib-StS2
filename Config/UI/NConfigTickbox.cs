@@ -34,6 +34,8 @@ public partial class NConfigTickbox : NSettingsTickbox
         if (property.PropertyType != typeof(bool)) throw new ArgumentException("Attempted to assign NConfigTickbox a non-bool property");
         _config = modConfig;
         _property = property;
+
+        _config.OnConfigReloaded += SetFromProperty;
     }
 
     private void SetFromProperty()
@@ -51,5 +53,11 @@ public partial class NConfigTickbox : NSettingsTickbox
     {
         _property?.SetValue(null, false);
         _config?.Changed();
+    }
+
+    public override void _ExitTree()
+    {
+        base._ExitTree();
+        if (_config != null) _config.OnConfigReloaded -= SetFromProperty;
     }
 }

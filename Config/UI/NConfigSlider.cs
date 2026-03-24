@@ -142,6 +142,8 @@ public partial class NConfigSlider : Control
         _slider.Step = step;
 
         RecalculateMinRepeatDelay();
+
+        _config.OnConfigReloaded += SetFromProperty;
     }
 
     private void SetFromProperty()
@@ -187,6 +189,12 @@ public partial class NConfigSlider : Control
         var labelRightEdge = _sliderLabel.Position.X + _sliderLabel.Size.X;
         var labelLeftEdge = labelRightEdge - textWidth;
         _selectionReticle.OffsetLeft = labelLeftEdge - 10f;
+    }
+
+    public override void _ExitTree()
+    {
+        base._ExitTree();
+        if (_config != null) _config.OnConfigReloaded -= SetFromProperty;
     }
 
     private void OnFocus()

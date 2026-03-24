@@ -62,6 +62,7 @@ public partial class NConfigLineEdit : NMegaLineEdit
     public override void _Ready()
     {
        SetFromProperty();
+       if (_config != null) _config.OnConfigReloaded += SetFromProperty;
 
        // We can also duplicate the current and change BorderColor, but if the game changes from a StyleboxFlat in the
        // future, that won't work. This will always work, but will instead look bad if the base game style changes.
@@ -83,8 +84,8 @@ public partial class NConfigLineEdit : NMegaLineEdit
 
         if (!ValidateString(propValue))
         {
-            MainFile.Logger.Warn($"{_property.Name}: stored value '{propValue}' violates the validation regex; resetting value");
-            propValue = "";
+            MainFile.Logger.Warn($"{_property.Name}: stored value '{propValue}' violates the validation regex; resetting value to default");
+            propValue = _config?.GetDefaultValue<string>(_property.Name) ?? "";
             _property.SetValue(null, propValue);
             _config?.Changed();
         }
@@ -136,5 +137,11 @@ public partial class NConfigLineEdit : NMegaLineEdit
         {
             CaretColumn = Text.Length;
         }
+    }
+
+    public override void _ExitTree()
+    {
+        base._ExitTree();
+        if (_config != null) _config.OnConfigReloaded -= SetFromProperty;
     }
 }
