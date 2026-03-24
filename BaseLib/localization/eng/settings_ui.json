@@ -3,6 +3,7 @@
 
   "BASELIB-FIRST_SECTION.title": "These are just example options",
   "BASELIB-SECOND_SECTION.title": "Nothing here does anything at all",
+  "BASELIB-LOG_SECTION.title": "Log window/Console",
 
   "BASELIB-ENABLE_DEBUG_LOGGING.title": "Enable debug logging",
   "BASELIB-ENABLE_DEBUG_LOGGING.hover.title": "Explicit hover title",
@@ -20,5 +21,11 @@
 
   "BASELIB-STARTING_HEALTH_OFFSET.title": "Starting health offset",
   "BASELIB-STARTING_ACT.title": "Starting act",
-  "BASELIB-MINIMUM_ELITES_PER_ACT.title": "Minimum elites per act"
+  "BASELIB-MINIMUM_ELITES_PER_ACT.title": "Minimum elites per act",
+
+  "BASELIB-OPEN_LOG_WINDOW_ON_STARTUP.title": "Open log window on startup",
+  "BASELIB-OPEN_LOG_WINDOW_ON_STARTUP.hover.desc": "Opens the BaseLib log window automatically when the main menu loads.",
+
+  "BASELIB-LIMITED_LOG_SIZE.title": "Log history size",
+  "BASELIB-LIMITED_LOG_SIZE.hover.desc": "Maximum number of lines retained in the in-game log window."
 }

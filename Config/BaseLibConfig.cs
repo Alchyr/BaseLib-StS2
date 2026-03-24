@@ -47,4 +47,11 @@ internal class BaseLibConfig : SimpleModConfig
     [SliderRange(0, 10)] // Default step value is 1
     [ConfigHoverTip(false)]
     public static double MinimumElitesPerAct { get; set; } = 6;
+
+    [ConfigSection("LogSection")]
+    public static bool OpenLogWindowOnStartup { get; set; } = false;
+
+    [SliderRange(128, 2048, 64)]
+    [SliderLabelFormat("{0:0}")]
+    public static double LimitedLogSize { get; set; } = 256;
 }

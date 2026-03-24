@@ -1,15 +1,17 @@
-﻿using Godot;
+﻿using BaseLib.Config;
+using Godot;
 
 namespace BaseLib.BaseLibScenes;
 
 [GlobalClass]
 public partial class NLogWindow : Window
 {
-    private static readonly LimitedLog _log = new(256);
+    private static LimitedLog _log = new(256);
     private static readonly List<NLogWindow> _listeners = [];
 
     public static void AddLog(string msg)
     {
+        EnsureLogLimit();
         _log.Enqueue(msg);
         foreach (var window in _listeners)
         {
@@ -36,6 +38,7 @@ public partial class NLogWindow : Window
     public override void _Ready()
     {
         base._Ready();
+        EnsureLogLimit();
 
         _scrollContainer = GetNode<ScrollContainer>("Scroll");
         _logLabel = GetNode<RichTextLabel>("Scroll/Log");
@@ -98,9 +101,17 @@ public partial class NLogWindow : Window
         return bottomValue - value <= 8;
     }
 
+    private static void EnsureLogLimit()
+    {
+        int configuredLimit = (int)BaseLibConfig.LimitedLogSize;
+        if (_log.Limit == configuredLimit) return;
+
+        _log.SetLimit(configuredLimit);
+    }
+
     private class LimitedLog : Queue<string>
     {
-        private int Limit { get; }
+        public int Limit { get; private set; }
 
         private static readonly Color ErrorColor = Color.FromHtml("#ff6d6d");
         private static readonly Color WarnColor = Color.FromHtml("#ffd866");
@@ -109,6 +120,15 @@ public partial class NLogWindow : Window
         public LimitedLog(int limit) : base(limit)
         {
             Limit = limit;
+        }
+
+        public void SetLimit(int limit)
+        {
+            Limit = limit;
+            while (Count > Limit)
+            {
+                Dequeue();
+            }
         }
 
         public new void Enqueue(string item)

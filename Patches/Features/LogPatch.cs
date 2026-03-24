@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics;
 using BaseLib.BaseLibScenes;
+using BaseLib.Config;
 using Godot;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Assets;
@@ -9,6 +10,7 @@ using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.Helpers;
 using MegaCrit.Sts2.Core.Logging;
 using MegaCrit.Sts2.Core.Nodes;
+using MegaCrit.Sts2.Core.Nodes.Screens.MainMenu;
 
 namespace BaseLib.Patches.Features;
 
@@ -49,7 +51,7 @@ public class OpenLogWindow : AbstractConsoleCmd
         return new CmdResult(true, "Opened log window.");
     }
 
-    private void OpenWindow()
+    public static void OpenWindow()
     {
         var instance = NGame.Instance;
         if (instance == null) return;
@@ -60,5 +62,20 @@ public class OpenLogWindow : AbstractConsoleCmd
         var scene = PreloadManager.Cache.GetScene("res://BaseLib/scenes/LogWindow.tscn").Instantiate<NLogWindow>();
         scene.Size = DisplayServer.ScreenGetSize() * 2 / 3;
         window.AddChildSafely(scene);
+    }
+}
+
+[HarmonyPatch(typeof(NMainMenu), nameof(NMainMenu._Ready))]
+class NMainMenuReadyOpenLogWindowPatch
+{
+    private static bool _hasOpenedOnStartup;
+
+    [HarmonyPostfix]
+    private static void Postfix()
+    {
+        if (_hasOpenedOnStartup || !BaseLibConfig.OpenLogWindowOnStartup) return;
+
+        _hasOpenedOnStartup = true;
+        OpenLogWindow.OpenWindow();
     }
 }
