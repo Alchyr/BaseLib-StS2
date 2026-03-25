@@ -1,6 +1,6 @@
 using MegaCrit.Sts2.Core.Entities.Creatures;
 
-namespace BaseLib.Abstracts;
+namespace BaseLib.Hooks;
 
 public interface IHealAmountModifier
 {

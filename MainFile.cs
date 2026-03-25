@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using BaseLib.Config;
 using BaseLib.Patches.Content;
+using BaseLib.Utils.NodeFactories;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Modding;
 
@@ -29,6 +30,8 @@ public static class MainFile
         TheBigPatchToCardPileCmdAdd.Patch(harmony);
 
         harmony.PatchAll();
+        
+        NodeFactory.Init();
     }
 
     //Hopefully temporary fix for linux

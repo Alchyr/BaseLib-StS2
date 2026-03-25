@@ -1,4 +1,5 @@
 using BaseLib.Abstracts;
+using BaseLib.Hooks;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Entities.Creatures;

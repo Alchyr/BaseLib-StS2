@@ -17,9 +17,9 @@
         <PackageId>Alchyr.Sts2.BaseLib</PackageId>
         <Title>BaseLib-StS2</Title>
         <Description>Mod for Slay the Spire 2 providing utilities and features for other mods.</Description>
-        <Version>0.1.9</Version>
+        <Version>0.2.0</Version>
         <Authors>Alchyr</Authors>
-        <PackageReleaseNotes>alternate card definition, another character compatibility patch, mod config work, creature visuals from static image</PackageReleaseNotes>
+        <PackageReleaseNotes>rewrite node gen into NodeFactory, energy orb factory, CustomOrbModel, showlog polish, more config improvements</PackageReleaseNotes>
         <PackageTags>c#</PackageTags>
         <NoWarn>$(NoWarn);NU5128;MSB3270</NoWarn>
 
@@ -111,8 +111,8 @@
 
     <ItemGroup>
         <!-- For including in .nupkg for template to auto export to mods folder -->
-        <Content Include="build\BaseLib.props" PackagePath="/Content/" />
-        <Content Include="build\$(MSBuildProjectName).pck" PackagePath="/Content/" />
+        <Content Condition="Exists('build\BaseLib.props')" Include="build\BaseLib.props" PackagePath="/Content/" />
+        <Content Condition="Exists('build\BaseLib.pck')" Include="build\$(MSBuildProjectName).pck" PackagePath="/Content/" />
         <Content Include="$(MSBuildProjectName).json" PackagePath="/Content/" />
     </ItemGroup>
     
