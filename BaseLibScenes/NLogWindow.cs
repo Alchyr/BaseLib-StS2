@@ -70,6 +70,7 @@ public partial class NLogWindow : Window
 
         SizeChanged += UpdateText;
         CloseRequested += QueueFree;
+        _logLabel.Finished += () => { if (_isFollowingLog) ScrollToBottomAsync(); };
 
         var scrollbar = _scrollContainer.GetVScrollBar();
         scrollbar.ValueChanged += OnScrollbarValueChanged;
@@ -98,6 +99,9 @@ public partial class NLogWindow : Window
         }
 
         Refresh();
+
+        // Jump to the end on filter changes. If we ARE following, Refresh does this.
+        if (!_isFollowingLog) ScrollToBottomAsync();
     }
 
     public void Refresh()
@@ -119,9 +123,26 @@ public partial class NLogWindow : Window
             LimitedLog.RenderLine(line, minLevel, _logLabel);
         }
 
-        if (_isFollowingLog)
+        if (_isFollowingLog) ScrollToBottomAsync();
+    }
+
+    private async void ScrollToBottomAsync()
+    {
+        try
         {
-            CallDeferred(nameof(ScrollToBottom));
+            // If we got here because RichTextLabel.Finished fired, we still need to draw the frame
+            // before scroll offsets are valid
+            await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+
+            if (_scrollContainer is null) return;
+
+            var scrollbar = _scrollContainer.GetVScrollBar();
+            _scrollContainer.ScrollVertical = (int)scrollbar.MaxValue;
+            _isFollowingLog = true;
+        }
+        catch (Exception)
+        {
+            // ignored
         }
     }
 
@@ -129,14 +150,6 @@ public partial class NLogWindow : Window
     {
         if (string.IsNullOrEmpty(_filterText)) return true;
         return _regex?.IsMatch(line) ?? line.Contains(_filterText, StringComparison.OrdinalIgnoreCase);
-    }
-
-    private void ScrollToBottom()
-    {
-        if (_scrollContainer is null) return;
-
-        _scrollContainer.ScrollVertical = (int)_scrollContainer.GetVScrollBar().MaxValue;
-        _isFollowingLog = true;
     }
 
     private void OnScrollbarValueChanged(double value)
