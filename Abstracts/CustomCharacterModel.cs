@@ -169,14 +169,11 @@ public class EnergyCounterOutlineColorPatch {
     private static readonly FieldInfo? PlayerProp = typeof(NEnergyCounter).GetField("_player", BindingFlags.NonPublic | BindingFlags.Instance);
 
     static bool Prefix(NEnergyCounter __instance, ref Color __result) {
-        if (PlayerProp?.GetValue(__instance) is not Player {
-                Character: CustomCharacterModel { CustomEnergyCounter: { } counter }
-            })
-        {
-            return true;
+        if (PlayerProp?.GetValue(__instance) is Player player && player.Character is CustomCharacterModel model && model.CustomEnergyCounter is CustomEnergyCounter counter) {
+            __result = counter.OutlineColor;
+            return false;
         }
-        __result = counter.OutlineColor;
-        return false;
+        return true;
     }
 }
 
