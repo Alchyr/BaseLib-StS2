@@ -46,6 +46,9 @@ public partial class NLogWindow : Window
 
     public override void _Ready()
     {
+        // Fix hilarious issue of resting causing the log window to fade to gray
+        OwnWorld3D = true;
+
         base._Ready();
         EnsureLogLimit();
 
