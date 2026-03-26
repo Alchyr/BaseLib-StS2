@@ -24,10 +24,11 @@ public class CustomPetModel: CustomMonsterModel ,ICustomModel{
     /// By default, will convert a scene containing the necessary nodes into a NCreatureVisuals even if it is not one.
     /// </summary>
     /// <returns></returns>
-    public virtual NCreatureVisuals? CreateCustomVisuals()
+    public override NCreatureVisuals? CreateCustomVisuals()
     {
-        if (CustomVisualPath == null) return null;
-        return GodotUtils.CreatureVisualsFromScene(CustomVisualPath);
+        string? path = (CustomVisualPath ?? VisualsPath);
+        if (path == null) return null;
+        return GodotUtils.CreatureVisualsFromScene(path);
     }
 
     protected override MonsterMoveStateMachine GenerateMoveStateMachine()
