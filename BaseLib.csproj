@@ -30,6 +30,7 @@
         <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
         <LocalizeTemplates>false</LocalizeTemplates>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
     </PropertyGroup>
 
     <!-- OS Detection -->

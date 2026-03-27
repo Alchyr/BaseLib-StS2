@@ -25,7 +25,15 @@ public abstract class CustomCharacterModel : CharacterModel, ICustomModel
     public virtual string? CustomVisualPath => null;
     public virtual string? CustomTrailPath => null;
     public virtual string? CustomIconTexturePath => null; //smaller icon used in popup showing saved run info
-    public virtual string? CustomIconPath => null; //top left while in run, and also icon for compendium pool filter
+    /// <summary>
+    /// Path to a scene for top left in-run icon and compendium pool filter
+    /// </summary>
+    public virtual string? CustomIconPath => null;
+    /// <summary>
+    /// Generate icon for in-run top left and compendium pool filter.
+    /// Takes precedence over CustomIconPath.
+    /// </summary>
+    public virtual Control? CustomIcon => null;
     /// <summary>
     /// A pure Godot scene that BaseLib will convert into a usable NEnergyCounter at runtime.
     /// The scene may use only engine nodes such as Control, Label, TextureRect, Node2D, and GpuParticles2D.
@@ -331,6 +339,20 @@ class IconTexturePath
             return true;
 
         __result = customChar.CustomIconTexturePath;
+        return __result == null;
+    }
+}
+
+[HarmonyPatch(typeof(CharacterModel), "Icon", MethodType.Getter)]
+class Icon
+{
+    [HarmonyPrefix]
+    static bool Custom(CharacterModel __instance, ref Control? __result)
+    {
+        if (__instance is not CustomCharacterModel customChar)
+            return true;
+
+        __result = customChar.CustomIcon;
         return __result == null;
     }
 }

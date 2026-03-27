@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Reflection.Emit;
 using BaseLib.Abstracts;
 using BaseLib.Extensions;
@@ -242,28 +243,36 @@ public class TheBigPatchToCardPileCmdAdd
     static List<CodeInstruction> BigPatch(IEnumerable<CodeInstruction> instructions)
     {
         if (stateMachineType == null) throw new Exception("Failed to get state machine type for async CardPileCmd.Add");
+
+        FieldInfo fullHandAdd = stateMachineType.FindStateMachineField("isFullHandAdd");
+        FieldInfo oldPile = stateMachineType.FindStateMachineField("oldPile");
+        FieldInfo targetPile = stateMachineType.FindStateMachineField("targetPile");
+        FieldInfo newPile = AccessTools.Field(stateMachineType, "newPile");
+        FieldInfo card = stateMachineType.FindStateMachineField("card");
+        MethodInfo pileTypeGetter = AccessTools.PropertyGetter(typeof(CardPile), "Type");
         
         return new InstructionPatcher(instructions)
             .Match(new InstructionMatcher() //patch createCardNode
-                .ldfld(stateMachineType.FindStateMachineField("isFullHandAdd"))
+                .ldfld(fullHandAdd)
                 .brtrue_s()
                 .ldarg_0()
-                .ldfld(stateMachineType.FindStateMachineField("oldPile"))
+                .ldfld(oldPile)
                 .brtrue_s()
             )
             .Step(-1).GetOperandLabel(out var createCardNodeLabel)
             .Step(1)
             .Insert([ // || IsPileCustomPileWithCardsVisible(targetPile), createCardNode = true
                 CodeInstruction.LoadArgument(0),
-                new CodeInstruction(OpCodes.Ldfld, stateMachineType.FindStateMachineField("targetPile")),
+                new CodeInstruction(OpCodes.Ldfld, targetPile),
                 CodeInstruction.LoadArgument(0),
-                new CodeInstruction(OpCodes.Ldfld, stateMachineType.FindStateMachineField("card")),
+                new CodeInstruction(OpCodes.Ldfld, card),
                 new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(TheBigPatchToCardPileCmdAdd), "IsPileCustomPileWhereCardShouldBeVisible")),
                 new CodeInstruction(OpCodes.Brtrue_S, createCardNodeLabel)
             ])
-            .Match(new InstructionMatcher() //patch isChangingPileWithoutNode
-                .stloc_s(24)
-                .ldloc_s(24)
+            .Match(new InstructionMatcher() //patch isChangingPileWithoutNode, checking oldPile type
+                .callvirt(pileTypeGetter) //Start match here as rest of match is very generic
+                .stloc_s() //no variable index to reduce issues with different index usage
+                .ldloc_s()
                 .ldc_i4_1()
                 .sub()
                 .switch_()
@@ -274,15 +283,17 @@ public class TheBigPatchToCardPileCmdAdd
             .Step(-1) //This is the default branch of the switch
             .Insert([ // || IsPileCustomPileWithCardsNotVisible(oldPile)
                 CodeInstruction.LoadArgument(0),
-                new CodeInstruction(OpCodes.Ldfld, stateMachineType.FindStateMachineField("oldPile")),
+                new CodeInstruction(OpCodes.Ldfld, oldPile),
                 CodeInstruction.LoadArgument(0),
-                new CodeInstruction(OpCodes.Ldfld, stateMachineType.FindStateMachineField("card")),
+                new CodeInstruction(OpCodes.Ldfld, card),
                 new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(TheBigPatchToCardPileCmdAdd), "IsPileCustomPileWithCardNotVisible")),
                 new CodeInstruction(OpCodes.Brtrue_S, isChangingPileWithoutNodeLabelA[0])
             ])
-            .Match(new InstructionMatcher()
-                .stloc_s(24)
-                .ldloc_s(24)
+            .Match(new InstructionMatcher() //Checking targetPile type for isChangingPileWithoutNode
+                .ldfld(targetPile)
+                .callvirt(pileTypeGetter)
+                .stloc_s().StoreOperand("index")
+                .ldloc_s().OperandFromStore("index")
                 .ldc_i4_1()
                 .beq_s()
             )
@@ -290,16 +301,16 @@ public class TheBigPatchToCardPileCmdAdd
             .Step(1)
             .Insert([ // || targetPile
                 CodeInstruction.LoadArgument(0),
-                new CodeInstruction(OpCodes.Ldfld, stateMachineType.FindStateMachineField("targetPile")),
+                new CodeInstruction(OpCodes.Ldfld, targetPile),
                 CodeInstruction.LoadArgument(0),
-                new CodeInstruction(OpCodes.Ldfld, stateMachineType.FindStateMachineField("card")),
+                new CodeInstruction(OpCodes.Ldfld, card),
                 new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(TheBigPatchToCardPileCmdAdd), "CustomPileWithoutCustomTransition")),
                 new CodeInstruction(OpCodes.Brtrue_S, isChangingPileWithoutNodeLabelB)
             ])
-            .Match(new InstructionMatcher() //patch for update visuals
+            .Match(new InstructionMatcher() //patch for cardNode?.UpdateVisuals condition
                 .ldarg_0()
-                .ldfld(AccessTools.Field(stateMachineType, "newPile"))
-                .callvirt(AccessTools.PropertyGetter(typeof(CardPile), "Type"))
+                .ldfld(newPile)
+                .callvirt(pileTypeGetter)
                 .ldc_i4_2()
                 .beq_s()
             )
@@ -307,27 +318,40 @@ public class TheBigPatchToCardPileCmdAdd
             .Step(1)
             .Insert([ // || IsPileCustomPileWithCardsVisible(newPile)
                 CodeInstruction.LoadArgument(0),
-                new CodeInstruction(OpCodes.Ldfld, AccessTools.Field(stateMachineType, "newPile")),
+                new CodeInstruction(OpCodes.Ldfld, newPile),
                 CodeInstruction.LoadArgument(0),
-                new CodeInstruction(OpCodes.Ldfld, stateMachineType.FindStateMachineField("card")),
+                new CodeInstruction(OpCodes.Ldfld, card),
                 new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(TheBigPatchToCardPileCmdAdd), "IsPileCustomPileWhereCardShouldBeVisible")),
                 new CodeInstruction(OpCodes.Brtrue_S, updateVisualsLabel)
             ])
-            .Match(new InstructionMatcher() //Get cardNode field
-                .ldloc_s(35)
-                .ldloc_s(35)
+            .Match(new InstructionMatcher() //get local index of tween
+                .callvirt(typeof(Node), nameof(Node.CreateTween))
+                .ldc_i4_1()
+                .callvirt(typeof(Tween), nameof(Tween.SetParallel))
+                .stloc_any()
+            )
+            .Step(-1).GetIndexOperand(out var tweenIndex)
+            .Match(new InstructionMatcher() //get fields of generated DisplayClass
+                .newobj(null) //long match due to using entirely generic matches
+                .stloc_s().StoreOperand("index")
+                .ldloc_s().OperandFromStore("index")
+                .ldloc_s()
+                .stfld(null)
+                .ldloc_s().OperandFromStore("index")
+                .ldloc_s().OperandFromStore("index")
                 .ldfld(null)
                 .ldfld(null)
             )
             .Step(-1).GetOperand(out var cardNodeField)
             .Step(-1).GetOperand(out var cardNodeDisplayClassField)
+            .Step(-1).GetIndexOperand(out var displayClassLocIndex)
             .Match(new InstructionMatcher() //patch for generic goaway tween
-                .ldloc_s(35)
+                .ldloc_s(displayClassLocIndex)
                 .ldfld(null)
                 .callvirt(AccessTools.PropertyGetter(typeof(CardModel), "Pile"))
                 .callvirt(AccessTools.PropertyGetter(typeof(CardPile), "Type"))
-                .stloc_s(24)
-                .ldloc_s(24)
+                .stloc_s()
+                .ldloc_s()
                 .ldc_i4_1()
                 .sub()
                 .ldc_i4_2()
@@ -347,23 +371,23 @@ public class TheBigPatchToCardPileCmdAdd
             )
             .Step(-1).GetOperandLabel(out var tweenLoopEnd)
             .Match(new InstructionMatcher()
-                .ldloc_s(35)
-                .ldfld(null)
+                .ldloc_s(displayClassLocIndex)
+                .ldfld(null).PredicateMatch(obj => obj is FieldInfo field && field.Name.Equals("card"))
                 .callvirt(AccessTools.PropertyGetter(typeof(CardModel), "Pile"))
                 .callvirt(AccessTools.PropertyGetter(typeof(CardPile), "Type"))
-                .stloc_s(40)
-                .ldloc_s(40)
+                .stloc_s()
+                .ldloc_s()
                 .ldc_i4_2()
                 .sub()
                 .switch_()
             )
             .InsertCopy(-9, 2) //load card
             .Insert([
-                CodeInstruction.LoadLocal(35),
+                CodeInstruction.LoadLocal(displayClassLocIndex),
                 new CodeInstruction(OpCodes.Ldfld, cardNodeDisplayClassField),
                 new CodeInstruction(OpCodes.Ldfld, cardNodeField), //three instructions to load cardnode
-                CodeInstruction.LoadLocal(37), //oldpile
-                CodeInstruction.LoadLocal(2), //tween
+                CodeInstruction.LoadLocal(displayClassLocIndex + 2), //oldpile
+                CodeInstruction.LoadLocal(tweenIndex), //tween
                 new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(TheBigPatchToCardPileCmdAdd), "CustomPileUseCustomTween")),
                 new CodeInstruction(OpCodes.Brtrue_S, tweenLoopEnd)
             ]);

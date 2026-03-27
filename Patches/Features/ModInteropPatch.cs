@@ -19,7 +19,7 @@ internal class ModInterop
     {
         MainFile.Logger.Info("Generating interop methods and properties");
         
-        _loadedIds = ModManager.LoadedMods
+        _loadedIds = ModManager.GetLoadedMods()
             .Where(mod => mod.manifest != null && mod.assembly != null)
             .ToDictionary(mod => mod.manifest?.id ?? "", mod => mod.assembly);
     }

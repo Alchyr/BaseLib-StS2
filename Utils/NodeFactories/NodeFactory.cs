@@ -196,6 +196,7 @@ public abstract class NodeFactory
 {
     public static void Init()
     {
+        new ControlFactory();
         new NCreatureVisualsFactory();
         new NEnergyCounterFactory();
     }

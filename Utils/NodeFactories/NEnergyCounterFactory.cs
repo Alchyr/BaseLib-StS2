@@ -286,7 +286,7 @@ internal class NEnergyCounterFactory : NodeFactory<NEnergyCounter>
             {
                 label.AutoSizeEnabled = true;
                 label.MinFontSize = 32;
-                label.MaxFontSize = Math.Max(36, sourceLabel.GetThemeFontSize(ThemeConstants.Label.fontSize, "Label"));
+                label.MaxFontSize = Math.Max(36, sourceLabel.GetThemeFontSize(ThemeConstants.Label.FontSize, "Label"));
             }
             
             source?.Free();
@@ -317,33 +317,33 @@ internal class NEnergyCounterFactory : NodeFactory<NEnergyCounter>
             MaxFontSize = 36
         };
         EnsureLabelFont(label, null);
-        label.AddThemeColorOverride(ThemeConstants.Label.fontColor, new Color(1f, 0.964706f, 0.886275f, 1f));
-        label.AddThemeColorOverride(ThemeConstants.Label.fontShadowColor, new Color(0f, 0f, 0f, 0.188235f));
-        label.AddThemeColorOverride(ThemeConstants.Label.fontOutlineColor, new Color(0.3f, 0.0759f, 0.051f, 1f));
+        label.AddThemeColorOverride(ThemeConstants.Label.FontColor, new Color(1f, 0.964706f, 0.886275f, 1f));
+        label.AddThemeColorOverride(ThemeConstants.Label.FontShadowColor, new Color(0f, 0f, 0f, 0.188235f));
+        label.AddThemeColorOverride(ThemeConstants.Label.FontOutlineColor, new Color(0.3f, 0.0759f, 0.051f, 1f));
         label.AddThemeConstantOverride(ShadowOffsetX, 3);
         label.AddThemeConstantOverride(ShadowOffsetY, 2);
-        label.AddThemeConstantOverride(ThemeConstants.Label.outlineSize, 16);
+        label.AddThemeConstantOverride(ThemeConstants.Label.OutlineSize, 16);
         label.AddThemeConstantOverride(ShadowOutlineSize, 16);
-        label.AddThemeFontSizeOverride(ThemeConstants.Label.fontSize, 36);
+        label.AddThemeFontSizeOverride(ThemeConstants.Label.FontSize, 36);
         return label;
     }
 
     private static void EnsureLabelFont(MegaLabel target, Label? source)
     {
-        Font? font = source?.GetThemeFont(ThemeConstants.Label.font, "Label");
+        Font? font = source?.GetThemeFont(ThemeConstants.Label.Font, "Label");
         font ??= PreloadManager.Cache.GetAsset<Font>(DefaultLabelFontPath);
-        target.AddThemeFontOverride(ThemeConstants.Label.font, font);
+        target.AddThemeFontOverride(ThemeConstants.Label.Font, font);
     }
 
     private static void CopyLabelThemeOverrides(MegaLabel target, Label source)
     {
-        target.AddThemeColorOverride(ThemeConstants.Label.fontColor, source.GetThemeColor(ThemeConstants.Label.fontColor, "Label"));
-        target.AddThemeColorOverride(ThemeConstants.Label.fontShadowColor, source.GetThemeColor(ThemeConstants.Label.fontShadowColor, "Label"));
-        target.AddThemeColorOverride(ThemeConstants.Label.fontOutlineColor, source.GetThemeColor(ThemeConstants.Label.fontOutlineColor, "Label"));
+        target.AddThemeColorOverride(ThemeConstants.Label.FontColor, source.GetThemeColor(ThemeConstants.Label.FontColor, "Label"));
+        target.AddThemeColorOverride(ThemeConstants.Label.FontShadowColor, source.GetThemeColor(ThemeConstants.Label.FontShadowColor, "Label"));
+        target.AddThemeColorOverride(ThemeConstants.Label.FontOutlineColor, source.GetThemeColor(ThemeConstants.Label.FontOutlineColor, "Label"));
         target.AddThemeConstantOverride(ShadowOffsetX, source.GetThemeConstant(ShadowOffsetX, "Label"));
         target.AddThemeConstantOverride(ShadowOffsetY, source.GetThemeConstant(ShadowOffsetY, "Label"));
-        target.AddThemeConstantOverride(ThemeConstants.Label.outlineSize, source.GetThemeConstant(ThemeConstants.Label.outlineSize, "Label"));
+        target.AddThemeConstantOverride(ThemeConstants.Label.OutlineSize, source.GetThemeConstant(ThemeConstants.Label.OutlineSize, "Label"));
         target.AddThemeConstantOverride(ShadowOutlineSize, source.GetThemeConstant(ShadowOutlineSize, "Label"));
-        target.AddThemeFontSizeOverride(ThemeConstants.Label.fontSize, source.GetThemeFontSize(ThemeConstants.Label.fontSize, "Label"));
+        target.AddThemeFontSizeOverride(ThemeConstants.Label.FontSize, source.GetThemeFontSize(ThemeConstants.Label.FontSize, "Label"));
     }
 }
