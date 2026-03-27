@@ -31,7 +31,7 @@ public static class ModConfigFillPatch
         var configButton = ModConfigButtonPatch.ConfigButton.Get(__instance);
         if (configButton != null)
         {
-            if (mod.wasLoaded && mod.manifest != null && ModConfigRegistry.Get(mod.manifest.id) != null)
+            if (mod.state == ModLoadState.Loaded && mod.manifest != null && ModConfigRegistry.Get(mod.manifest.id) != null)
             {
                 configButton.Show();
             }

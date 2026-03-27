@@ -11,7 +11,8 @@ namespace BaseLib.Utils.Patching;
 /// </summary>
 public class InstructionMatcher() : IMatcher
 {
-    private readonly List<CodeInstruction> _target = [];
+    private readonly List<InstructionMatch> _target = [];
+    private readonly Dictionary<string, object?> _operandDict = [];
 
     public bool Match(List<string> log, List<CodeInstruction> code, int startIndex, out int matchStart, out int matchEnd)
     {
@@ -21,11 +22,20 @@ public class InstructionMatcher() : IMatcher
         int matchIndex = 0;
         for (int i = startIndex; i < code.Count; ++i)
         {
-            if (code[i].opcode == _target[matchIndex].opcode)
+            InstructionMatch matchTarget = _target[matchIndex];
+            CodeInstruction matchTest = code[i];
+            if (matchTarget.OpcodeMatch(matchTest))
             {
-                if (_target[matchIndex].operand == null || Equals(ComparisonOperand(code[i]), _target[matchIndex].operand))
+                if (matchTarget.OperandMatch(matchTest))
                 {
-                    log.Add($"Instruction match {code[i]}");
+                    log.Add($"Instruction match {matchTest}");
+
+                    if (matchTarget.StoreOperandKey != null)
+                    {
+                        log.Add($"Stored operand {matchTarget.StoreOperandKey}:{matchTest.operand}");
+                        _operandDict[matchTarget.StoreOperandKey] = matchTest.operand;
+                    }
+                    
                     ++matchIndex;
                     if (matchIndex >= _target.Count)
                     {
@@ -35,32 +45,16 @@ public class InstructionMatcher() : IMatcher
                     }
                     continue;
                 }
-                else
-                {
-                    log.Add($"Opcode match but operand mismatch {code[i].opcode} | [{code[i].operand?.GetType() ?? null}]{code[i].operand} vs {_target[matchIndex].operand}");
-                }
+
+                log.Add($"Opcode match but operand mismatch {code[i].opcode} | [{code[i].operand?.GetType() ?? null}]{code[i].operand} vs {_target[matchIndex].Operand}");
             }
 
-            if (matchIndex > 0)
-            {
-                log.Add($"Match ended, opcodes do not match ({code[i].opcode}, {_target[matchIndex].opcode})");
-                matchIndex = 0;
-            }
+            if (matchIndex <= 0) continue;
+            
+            log.Add($"Match ended, opcodes do not match ({code[i].opcode}, {_target[matchIndex].Opcodes})");
+            matchIndex = 0;
         }
         return false;
-    }
-
-    private object ComparisonOperand(CodeInstruction codeInstruction)
-    {
-        switch (codeInstruction.opcode.Value)
-        {
-            case 0x11: //OpCodes.Ldloc_S
-            case 0x12: //OpCodes.Ldloca_S
-            case 0x13: //OpCodes.Stloc_S
-                return ((LocalBuilder)codeInstruction.operand).LocalIndex;
-            default:
-                return codeInstruction.operand;
-        }
     }
 
     public override string ToString()
@@ -69,7 +63,80 @@ public class InstructionMatcher() : IMatcher
     }
 
 
+    private class InstructionMatch
+    {
+        public Func<object?>? OperandFunc { get; set; } = null;
+        public Predicate<object?>? OperandMatchPredicate { get; set; } = null;
+        public string? StoreOperandKey { get; set; } = null;
+        private readonly object? _operand;
 
+        public InstructionMatch(OpCode opcode, object? operand = null)
+        {
+            Opcodes = [ opcode ];
+            Operand = operand;
+        }
+        
+        public InstructionMatch(OpCode[] opcodes)
+        {
+            Opcodes = opcodes;
+            Operand = null;
+        }
+
+        public OpCode[] Opcodes { get; }
+
+        public object? Operand
+        {
+            get => OperandFunc?.Invoke() ?? _operand;
+            private init => _operand = value;
+        }
+
+        public bool OperandMatch(CodeInstruction matchTest)
+        {
+            return (OperandMatchPredicate?.Invoke(matchTest.operand) == true) || (Operand == null) || (Equals(ComparisonOperand(matchTest), Operand)) || Equals(matchTest.operand, Operand);
+        }
+        
+        private object ComparisonOperand(CodeInstruction codeInstruction)
+        {
+            if (codeInstruction.operand is LocalBuilder localBuilder)
+            {
+                return localBuilder.LocalIndex;
+            }
+            return codeInstruction.operand;
+        }
+
+        public bool OpcodeMatch(CodeInstruction matchTest)
+        {
+            return Opcodes.Contains(matchTest.opcode);
+        }
+
+        public override string ToString()
+        {
+            return $"[{Opcodes.AsReadable()}] {(OperandMatchPredicate == null ? Operand?.ToString() : "Operand Predicate")}";
+        }
+    }
+
+    public InstructionMatcher OperandFromStore(string storeKey)
+    {
+        if (_target.Count == 0)
+            throw new InvalidOperationException("Cannot apply stored operand without adding any instructions");
+        _target[^1].OperandFunc = () => _operandDict[storeKey];
+        return this;
+    }
+    public InstructionMatcher StoreOperand(string storeKey)
+    {
+        if (_target.Count == 0)
+            throw new InvalidOperationException("Cannot store operand without adding any instructions");
+        _target[^1].StoreOperandKey = storeKey;
+        return this;
+    }
+
+    public InstructionMatcher PredicateMatch(Predicate<object?> operandCondition)
+    {
+        if (_target.Count == 0)
+            throw new InvalidOperationException("Cannot use predicate for operand without adding any instructions");
+        _target[^1].OperandMatchPredicate = operandCondition;
+        return this;
+    }
 
 
     //Building
@@ -81,72 +148,84 @@ public class InstructionMatcher() : IMatcher
     }
     public InstructionMatcher nop()
     {
-        _target.Add(new(opcode: OpCodes.Nop));
+        _target.Add(new(OpCodes.Nop));
         return this;
     }
     public InstructionMatcher Break()
     {
-        _target.Add(new(opcode: OpCodes.Break));
+        _target.Add(new(OpCodes.Break));
         return this;
     }
     public InstructionMatcher ldarg_0()
     {
-        _target.Add(new(opcode: OpCodes.Ldarg_0));
+        _target.Add(new(OpCodes.Ldarg_0));
         return this;
     }
     public InstructionMatcher ldarg_1()
     {
-        _target.Add(new(opcode: OpCodes.Ldarg_1));
+        _target.Add(new(OpCodes.Ldarg_1));
         return this;
     }
     public InstructionMatcher ldarg_2()
     {
-        _target.Add(new(opcode: OpCodes.Ldarg_2));
+        _target.Add(new(OpCodes.Ldarg_2));
         return this;
     }
     public InstructionMatcher ldarg_3()
     {
-        _target.Add(new(opcode: OpCodes.Ldarg_3));
+        _target.Add(new(OpCodes.Ldarg_3));
         return this;
     }
     public InstructionMatcher ldloc_0()
     {
-        _target.Add(new(opcode: OpCodes.Ldloc_0));
+        _target.Add(new(OpCodes.Ldloc_0));
         return this;
     }
     public InstructionMatcher ldloc_1()
     {
-        _target.Add(new(opcode: OpCodes.Ldloc_1));
+        _target.Add(new(OpCodes.Ldloc_1));
         return this;
     }
     public InstructionMatcher ldloc_2()
     {
-        _target.Add(new(opcode: OpCodes.Ldloc_2));
+        _target.Add(new(OpCodes.Ldloc_2));
         return this;
     }
     public InstructionMatcher ldloc_3()
     {
-        _target.Add(new(opcode: OpCodes.Ldloc_3));
+        _target.Add(new(OpCodes.Ldloc_3));
+        return this;
+    }
+    public InstructionMatcher stloc_any()
+    {
+        _target.Add(new InstructionMatch([
+            OpCodes.Stloc,
+            OpCodes.Stloc_0,
+            OpCodes.Stloc_1,
+            OpCodes.Stloc_2,
+            OpCodes.Stloc_3,
+            OpCodes.Stloc_S,
+        ]));
         return this;
     }
     public InstructionMatcher stloc_0()
     {
-        _target.Add(new(opcode: OpCodes.Stloc_0));
+        _target.Add(new(OpCodes.Stloc_0));
         return this;
     }
     public InstructionMatcher stloc_1()
     {
-        _target.Add(new(opcode: OpCodes.Stloc_1));
+        _target.Add(new(OpCodes.Stloc_1));
         return this;
     }
     public InstructionMatcher stloc_2()
     {
-        _target.Add(new(opcode: OpCodes.Stloc_2));
+        _target.Add(new(OpCodes.Stloc_2));
         return this;
     }
     public InstructionMatcher stloc_3()
     {
-        _target.Add(new(opcode: OpCodes.Stloc_3));
+        _target.Add(new(OpCodes.Stloc_3));
         return this;
     }
     /*  
@@ -155,77 +234,82 @@ public class InstructionMatcher() : IMatcher
         Starg_S = 0x10,*/
     public InstructionMatcher ldloc_s(int index) //0x11
     {
-        _target.Add(new(opcode: OpCodes.Ldloc_S, index));
+        _target.Add(new(OpCodes.Ldloc_S, index));
+        return this;
+    }
+    public InstructionMatcher ldloc_s()
+    {
+        _target.Add(new(OpCodes.Ldloc_S));
         return this;
     }
     public InstructionMatcher ldloca_s(int index) //0x12
     {
-        _target.Add(new(opcode: OpCodes.Ldloca_S, index));
+        _target.Add(new(OpCodes.Ldloca_S, index));
         return this;
     }
     public InstructionMatcher stloc_s(int index)
     {
-        _target.Add(new(opcode: OpCodes.Stloc_S, index));
+        _target.Add(new(OpCodes.Stloc_S, index));
         return this;
     }
     public InstructionMatcher stloc_s()
     {
-        _target.Add(new(opcode: OpCodes.Stloc_S));
+        _target.Add(new(OpCodes.Stloc_S));
         return this;
     }
     public InstructionMatcher ldnull()
     {
-        _target.Add(new(opcode: OpCodes.Ldnull));
+        _target.Add(new(OpCodes.Ldnull));
         return this;
     }
     public InstructionMatcher ldc_i4_m1() //-1
     {
-        _target.Add(new(opcode: OpCodes.Ldc_I4_M1));
+        _target.Add(new(OpCodes.Ldc_I4_M1));
         return this;
     }
     public InstructionMatcher ldc_i4_0()
     {
-        _target.Add(new(opcode: OpCodes.Ldc_I4_0));
+        _target.Add(new(OpCodes.Ldc_I4_0));
         return this;
     }
     public InstructionMatcher ldc_i4_1()
     {
-        _target.Add(new(opcode: OpCodes.Ldc_I4_1));
+        _target.Add(new(OpCodes.Ldc_I4_1));
         return this;
     }
     public InstructionMatcher ldc_i4_2()
     {
-        _target.Add(new(opcode: OpCodes.Ldc_I4_2));
+        _target.Add(new(OpCodes.Ldc_I4_2));
         return this;
     }
     public InstructionMatcher ldc_i4_3()
     {
-        _target.Add(new(opcode: OpCodes.Ldc_I4_3));
+        _target.Add(new(OpCodes.Ldc_I4_3));
         return this;
     }
     public InstructionMatcher ldc_i4_4()
     {
-        _target.Add(new(opcode: OpCodes.Ldc_I4_4));
+        _target.Add(new(OpCodes.Ldc_I4_4));
         return this;
     }
     public InstructionMatcher ldc_i4_5()
     {
-        _target.Add(new(opcode: OpCodes.Ldc_I4_5));
+        _target.Add(new(OpCodes.Ldc_I4_5));
         return this;
     }
     public InstructionMatcher ldc_i4_6()
     {
-        _target.Add(new(opcode: OpCodes.Ldc_I4_6));
+        _target.Add(new(OpCodes.Ldc_I4_6));
         return this;
     }
     public InstructionMatcher ldc_i4_7()
     {
-        _target.Add(new(opcode: OpCodes.Ldc_I4_7));
+        _target.Add(new(OpCodes.Ldc_I4_7));
         return this;
     }
     public InstructionMatcher ldc_i4_8()
     {
-        _target.Add(new(opcode: OpCodes.Ldc_I4_8));
+        _target.Add(new(OpCodes.Ldc_I4_8));
         return this;
     }
     /*public InstructionMatcher ldc_i4_s()
@@ -240,12 +324,12 @@ public class InstructionMatcher() : IMatcher
     Ldc_R8 = 0x23,*/
     public InstructionMatcher dup()
     {
-        _target.Add(new(opcode: OpCodes.Dup));
+        _target.Add(new(OpCodes.Dup));
         return this;
     }
     public InstructionMatcher pop()
     {
-        _target.Add(new(opcode: OpCodes.Pop));
+        _target.Add(new(OpCodes.Pop));
         return this;
     }
     //Jmp = 0x27,
@@ -255,53 +339,53 @@ public class InstructionMatcher() : IMatcher
     }
     public InstructionMatcher call(MethodInfo? method)
     {
-        _target.Add(new(opcode: OpCodes.Call, operand: method));
+        _target.Add(new(OpCodes.Call, method));
         return this;
     }
     /*Calli = 0x29,*/
     public InstructionMatcher ret()
     {
-        _target.Add(new(opcode: OpCodes.Ret));
+        _target.Add(new(OpCodes.Ret));
         return this;
     }
     public InstructionMatcher br_s(Label label)
     {
-        _target.Add(new(opcode: OpCodes.Br_S, label));
+        _target.Add(new(OpCodes.Br_S, label));
         return this;
     }
     public InstructionMatcher br_s()
     {
-        _target.Add(new(opcode: OpCodes.Br_S));
+        _target.Add(new(OpCodes.Br_S));
         return this;
     }
     public InstructionMatcher brfalse_s(Label label)
     {
-        _target.Add(new(opcode: OpCodes.Brfalse_S, label));
+        _target.Add(new(OpCodes.Brfalse_S, label));
         return this;
     }
     public InstructionMatcher brfalse_s()
     {
-        _target.Add(new(opcode: OpCodes.Brfalse_S));
+        _target.Add(new(OpCodes.Brfalse_S));
         return this;
     }
     public InstructionMatcher brtrue_s(Label label)
     {
-        _target.Add(new(opcode: OpCodes.Brtrue_S, label));
+        _target.Add(new(OpCodes.Brtrue_S, label));
         return this;
     }
     public InstructionMatcher brtrue_s()
     {
-        _target.Add(new(opcode: OpCodes.Brtrue_S));
+        _target.Add(new(OpCodes.Brtrue_S));
         return this;
     }
     public InstructionMatcher beq_s(Label label)
     {
-        _target.Add(new(opcode: OpCodes.Beq_S, label));
+        _target.Add(new(OpCodes.Beq_S, label));
         return this;
     }
     public InstructionMatcher beq_s()
     {
-        _target.Add(new(opcode: OpCodes.Beq_S));
+        _target.Add(new(OpCodes.Beq_S));
         return this;
     }
     /*Bge_S = 0x2f,
@@ -313,23 +397,23 @@ public class InstructionMatcher() : IMatcher
     Bgt_Un_S = 0x35,*/
     public InstructionMatcher ble_un_s(Label label)
     {
-        _target.Add(new(opcode: OpCodes.Ble_Un_S, label));
+        _target.Add(new(OpCodes.Ble_Un_S, label));
         return this;
     }
     public InstructionMatcher ble_un_s()
     {
-        _target.Add(new(opcode: OpCodes.Ble_Un_S));
+        _target.Add(new(OpCodes.Ble_Un_S));
         return this;
     }
     //Blt_Un_S = 0x37,
     public InstructionMatcher br(Label label) //0x38
     {
-        _target.Add(new(opcode: OpCodes.Br, label));
+        _target.Add(new(OpCodes.Br, label));
         return this;
     }
     public InstructionMatcher br()
     {
-        _target.Add(new(opcode: OpCodes.Br));
+        _target.Add(new(OpCodes.Br));
         return this;
     }
     /*Brfalse = 0x39,
@@ -346,7 +430,7 @@ public class InstructionMatcher() : IMatcher
     Blt_Un = 0x44,*/
     public InstructionMatcher switch_()
     {
-        _target.Add(new(opcode: OpCodes.Switch));
+        _target.Add(new(OpCodes.Switch));
         return this;
     }
     /*Ldind_I1 = 0x46,
@@ -369,22 +453,22 @@ public class InstructionMatcher() : IMatcher
     Stind_R8 = 0x57,*/
     public InstructionMatcher add()
     {
-        _target.Add(new(opcode: OpCodes.Add));
+        _target.Add(new(OpCodes.Add));
         return this;
     }
     public InstructionMatcher sub()
     {
-        _target.Add(new(opcode: OpCodes.Sub));
+        _target.Add(new(OpCodes.Sub));
         return this;
     }
     public InstructionMatcher mul()
     {
-        _target.Add(new(opcode: OpCodes.Mul));
+        _target.Add(new(OpCodes.Mul));
         return this;
     }
     public InstructionMatcher div()
     {
-        _target.Add(new(opcode: OpCodes.Div));
+        _target.Add(new(OpCodes.Div));
         return this;
     }
     /*Div_Un = 0x5c,
@@ -412,14 +496,18 @@ public class InstructionMatcher() : IMatcher
     }
     public InstructionMatcher callvirt(MethodInfo? method)
     {
-        _target.Add(new(opcode: OpCodes.Callvirt, operand: method));
+        _target.Add(new(OpCodes.Callvirt, method));
         return this;
     }
     /*Cpobj = 0x70,
     Ldobj = 0x71,
-    Ldstr = 0x72,
-    Newobj = 0x73,
-    Castclass = 0x74,
+    Ldstr = 0x72,*/
+    public InstructionMatcher newobj(ConstructorInfo? constructor) //0x73
+    {
+        _target.Add(new(OpCodes.Newobj, constructor));
+        return this;
+    }
+    /*Castclass = 0x74,
     Isinst = 0x75,
     Conv_R_Un = 0x76,
     Unbox = 0x79,
@@ -430,7 +518,7 @@ public class InstructionMatcher() : IMatcher
     }
     public InstructionMatcher ldfld(FieldInfo? field)
     {
-        _target.Add(new(opcode: OpCodes.Ldfld, operand: field));
+        _target.Add(new(OpCodes.Ldfld, field));
         return this;
     }
 
@@ -441,7 +529,7 @@ public class InstructionMatcher() : IMatcher
     }
     public InstructionMatcher stfld(FieldInfo? field)
     {
-        _target.Add(new(opcode: OpCodes.Stfld, operand: field));
+        _target.Add(new(OpCodes.Stfld, field));
         return this;
     }
 /*Ldsfld = 0x7e,
@@ -461,7 +549,7 @@ Conv_Ovf_U_Un = 0x8b,
 Box = 0x8c,*/
     public InstructionMatcher newarr(Type? type)
     {
-        _target.Add(new(opcode: OpCodes.Newarr, operand: type));
+        _target.Add(new(OpCodes.Newarr, type));
         return this;
     }
     /*Ldlen = 0x8e,
@@ -487,7 +575,7 @@ Box = 0x8c,*/
     */
     public InstructionMatcher stelem_ref()
     {
-        _target.Add(new(opcode: OpCodes.Stelem_Ref));
+        _target.Add(new(OpCodes.Stelem_Ref));
         return this;
     }
 /*Ldelem = 0xa3,
