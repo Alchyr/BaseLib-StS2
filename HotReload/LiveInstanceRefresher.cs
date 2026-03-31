@@ -86,7 +86,12 @@ internal static class LiveInstanceRefresher
                     if (refreshFunc(typed))
                         count++;
                 }
-                catch { /* best effort — don't crash the whole refresh for one node */ }
+                catch (Exception ex)
+                {
+                    // Don't crash the whole refresh for one broken node, but log it
+                    // so the modder knows something went wrong
+                    BaseLibMain.Logger.Warn($"[HotReload] Failed to refresh {typed.GetType().Name} node: {ex.Message}");
+                }
             }
             foreach (var child in node.GetChildren())
                 queue.Enqueue(child);
@@ -329,7 +334,12 @@ internal static class LiveInstanceRefresher
                 items[i] = mutable;
                 refreshed++;
             }
-            catch { /* best effort — leave existing instance if migration fails */ }
+            catch (Exception ex)
+            {
+                // Leave the existing runtime instance in place — better than crashing mid-combat.
+                // But log it so the modder can investigate.
+                BaseLibMain.Logger.Warn($"[HotReload] Failed to refresh model instance: {ex.Message}");
+            }
         }
 
         return refreshed;

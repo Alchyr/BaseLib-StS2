@@ -110,19 +110,25 @@ public sealed class ModFileWatcher : IDisposable
         if (_lastTriggeredPath == e.FullPath && (now - _lastTriggeredTime).TotalMilliseconds < _debounceMs * 2)
             return;
 
-        // Cancel any pending debounce timer and start a new one
-        _debounceCts?.Cancel();
+        // Cancel and dispose the previous debounce timer, then start a new one.
+        // Without the dispose, each file event leaks a CTS — adds up fast during
+        // rapid rebuild cycles.
+        var oldCts = _debounceCts;
         _debounceCts = new CancellationTokenSource();
         var token = _debounceCts.Token;
+        try { oldCts?.Cancel(); oldCts?.Dispose(); } catch { /* already disposed */ }
 
         try
         {
             // Wait for the build to finish writing
             await Task.Delay(_debounceMs, token);
 
+            // The file might have been deleted or renamed between debounce and now
+            if (!File.Exists(e.FullPath)) return;
+
             _lastTriggeredPath = e.FullPath;
             _lastTriggeredTime = DateTime.UtcNow;
-            _lastKnownWriteTime = File.GetLastWriteTimeUtc(e.FullPath);
+            try { _lastKnownWriteTime = File.GetLastWriteTimeUtc(e.FullPath); } catch { }
             OnModDllChanged?.Invoke(e.FullPath);
         }
         catch (OperationCanceledException)

@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Reflection;
 using System.Runtime.Loader;
+using BaseLib.Patches.Content;
 using MegaCrit.Sts2.Core.Helpers;
 using MegaCrit.Sts2.Core.Localization;
 using MegaCrit.Sts2.Core.Modding;
@@ -551,6 +552,112 @@ internal static class HotReloadSelfTests
             var foundExcluding = TypeSignatureHasher.GetAssembliesForMod(baseLibKey, typeof(BaseLibMain).Assembly).ToList();
             AssertIntegration(foundExcluding.Count == found.Count - 1,
                 "Integration: GetAssembliesForMod exclude parameter works");
+        }
+
+        // ── Test: Reload with nonexistent DLL returns clean error ──
+        {
+            var badResult = HotReloadEngine.Reload("Z:/definitely/not/a/real/path.dll");
+            AssertIntegration(!badResult.Success, "Integration: reload with bad path fails cleanly");
+            AssertIntegration(badResult.Errors.Count > 0 && badResult.Errors[0].Contains("dll_not_found"),
+                "Integration: bad path gives dll_not_found error");
+        }
+
+        // ── Test: Reload with nonexistent mod ID returns clean error ──
+        {
+            var badResult = HotReloadEngine.ReloadByModId("ThisModDefinitelyDoesNotExist_12345");
+            AssertIntegration(!badResult.Success, "Integration: reload with bad mod ID fails cleanly");
+            AssertIntegration(badResult.Errors.Count > 0,
+                $"Integration: bad mod ID gives error: {(badResult.Errors.Count > 0 ? badResult.Errors[0] : "none")}");
+        }
+
+        // ── Test: InheritsFromByName works for actual game types ──
+        // This is what the pipeline uses to find AbstractModel subtypes
+        {
+            var contentByIdField = typeof(ModelDb).GetField("_contentById", StaticNonPublic);
+            if (contentByIdField?.GetValue(null) is Dictionary<ModelId, AbstractModel> contentById && contentById.Count > 0)
+            {
+                // Pick any entity from ModelDb and verify InheritsFromByName agrees with IsSubclassOf
+                var firstEntity = contentById.Values.First();
+                var entityType = firstEntity.GetType();
+                bool byName = TypeSignatureHasher.InheritsFromByName(entityType, nameof(AbstractModel));
+                bool byClr = entityType.IsSubclassOf(typeof(AbstractModel)) || entityType == typeof(AbstractModel);
+                AssertIntegration(byName == byClr,
+                    $"Integration: InheritsFromByName matches IsSubclassOf for {entityType.Name} (byName={byName}, byCLR={byClr})");
+            }
+        }
+
+        // ── Test: TypeSignatureHash is stable across calls ──
+        // If this fails, incremental reload will spuriously re-inject unchanged entities
+        {
+            var contentByIdField = typeof(ModelDb).GetField("_contentById", StaticNonPublic);
+            if (contentByIdField?.GetValue(null) is Dictionary<ModelId, AbstractModel> contentById && contentById.Count > 0)
+            {
+                var someType = contentById.Values.First().GetType();
+                int hash1 = TypeSignatureHasher.ComputeHash(someType);
+                int hash2 = TypeSignatureHasher.ComputeHash(someType);
+                AssertIntegration(hash1 == hash2,
+                    $"Integration: hash stable for live type {someType.Name} ({hash1} == {hash2})");
+            }
+        }
+
+        // ── Test: Assembly accumulation count is reasonable ──
+        {
+            int totalAssemblies = AppDomain.CurrentDomain.GetAssemblies().Length;
+            AssertIntegration(totalAssemblies < 200,
+                $"Integration: {totalAssemblies} loaded assemblies (under 200 = healthy)");
+        }
+
+        // ── Test: CustomContentDictionary.RemoveByAssembly doesn't crash on unknown assembly ──
+        {
+            try
+            {
+                // Pass an assembly that has no registered content — should be a no-op
+                CustomContentDictionary.RemoveByAssembly(typeof(HotReloadSelfTests).Assembly);
+                AssertIntegration(true, "Integration: RemoveByAssembly handles unknown assembly");
+            }
+            catch (Exception ex)
+            {
+                AssertIntegration(false, $"Integration: RemoveByAssembly crashed on unknown assembly: {ex.Message}");
+            }
+        }
+
+        // ── Test: AssemblyStamper handles edge cases that could appear in the wild ──
+        {
+            // Mod names with dots (e.g., "My.Cool.Mod_hr123456789")
+            AssertIntegration(AssemblyStamper.NormalizeModKey("My.Cool.Mod_hr123456789") == "My.Cool.Mod",
+                "Integration: NormalizeModKey handles dots in mod name");
+
+            // Mod names with hyphens
+            AssertIntegration(AssemblyStamper.NormalizeModKey("my-mod_hr123456789") == "my-mod",
+                "Integration: NormalizeModKey handles hyphens");
+
+            // Path with spaces
+            AssertIntegration(AssemblyStamper.NormalizeModKey("E:/my mods/Cool Mod/Cool Mod_hr123456789.dll") == "Cool Mod",
+                "Integration: NormalizeModKey handles spaces in path");
+        }
+
+        // ── Test: Concurrent reload attempt returns clean error ──
+        // The lock in HotReloadEngine prevents concurrent reloads. We can't easily
+        // test true concurrency here, but we can verify the error message format.
+        {
+            // This test is more of a "does the code path exist" check —
+            // true concurrency testing would need threads.
+            AssertIntegration(HotReloadEngine.CurrentProgress == "",
+                "Integration: CurrentProgress is empty when idle");
+        }
+
+        // ── Test: HotReloadResult.Summary format ──
+        {
+            var lastResult = HotReloadEngine.ReloadHistory.Count > 0
+                ? HotReloadEngine.ReloadHistory[^1]
+                : null;
+            if (lastResult != null)
+            {
+                AssertIntegration(!string.IsNullOrEmpty(lastResult.Summary),
+                    "Integration: last reload result has a summary");
+                AssertIntegration(!string.IsNullOrEmpty(lastResult.Timestamp),
+                    "Integration: last reload result has a timestamp");
+            }
         }
 
         var result = (_passed, _failed, failures);

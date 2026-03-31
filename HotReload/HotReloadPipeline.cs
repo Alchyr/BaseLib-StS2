@@ -515,9 +515,18 @@ internal static class HotReloadPipeline
                         continue;
                     }
 
+                    // Verify the type has a parameterless constructor before we try to create it.
+                    // Types without one (abstract helpers, static classes) should be skipped, not crash.
+                    if (newType.GetConstructor(Type.EmptyTypes) == null)
+                    {
+                        warnings.Add($"skip_{newType.Name}: no parameterless constructor");
+                        continue;
+                    }
+
                     // Create a fresh instance — this triggers BaseLib constructor auto-registration
                     // (CustomContentDictionary.AddModel → ModHelper.AddModelToPool)
-                    var instance = Activator.CreateInstance(newType);
+                    var instance = Activator.CreateInstance(newType)
+                        ?? throw new InvalidOperationException($"Activator.CreateInstance returned null for {newType.FullName}");
                     if (instance is not AbstractModel model)
                         throw new InvalidOperationException($"{newType.FullName} is not assignable to AbstractModel at runtime");
 
@@ -548,10 +557,13 @@ internal static class HotReloadPipeline
         }
         catch (Exception ex)
         {
-            // ── ROLLBACK: restore ModelDb to pre-reload state ────────
+            // ── ROLLBACK: undo everything we changed ────────────────
+            // Entity staging failed — we need to put ModelDb, pools, mod references,
+            // and BaseLib's internal tracking back to how they were before we started.
             errors.Add($"entity_reload: {ex.Message}");
             BaseLibMain.Logger.Error($"[HotReload] Entity reload error, rolling back: {ex}");
 
+            // 1. Restore ModelDb._contentById from our snapshot
             try
             {
                 var contentByIdField = typeof(ModelDb).GetField("_contentById", StaticNonPublic);
@@ -560,18 +572,40 @@ internal static class HotReloadPipeline
             }
             catch (Exception rbEx) { errors.Add($"rollback_entities: {rbEx.Message}"); }
 
-            // Restore Mod.assembly references to previous values
+            // 2. Restore Mod.assembly references to previous values
             foreach (var (modRef, field, prev) in previousModAssemblyRefs)
             {
                 try { field.SetValue(modRef, prev); }
                 catch (Exception rbEx) { warnings.Add($"rollback_mod_ref: {rbEx.Message}"); }
             }
 
-            // Re-invalidate type cache so it rebuilds without new assembly
+            // 3. Re-invalidate type cache so it rebuilds without the new assembly's types
             try { typeof(ReflectionHelper).GetField("_modTypes", StaticNonPublic)?.SetValue(null, null); }
             catch { /* best effort */ }
 
+            // 4. Restore serialization cache (undo step 5 entity ID registrations)
             serializationSnapshot?.Restore();
+
+            // 5. Undo the pool cleanup we did before entity creation — null ModelDb
+            //    caches so pools re-enumerate from the restored _contentById on next access.
+            //    This effectively rebuilds pool state from the restored entities.
+            try
+            {
+                string[] cacheFields =
+                [
+                    "_allCards", "_allCardPools", "_allCharacterCardPools",
+                    "_allSharedEvents", "_allEvents", "_allEncounters", "_allPotions",
+                    "_allPotionPools", "_allCharacterPotionPools", "_allSharedPotionPools",
+                    "_allPowers", "_allRelics", "_allCharacterRelicPools", "_achievements"
+                ];
+                foreach (var fieldName in cacheFields)
+                    typeof(ModelDb).GetField(fieldName, StaticNonPublic)?.SetValue(null, null);
+                NullPoolInstanceCaches(typeof(CardPoolModel), "_allCards", "_allCardIds");
+                NullPoolInstanceCaches(typeof(RelicPoolModel), "_relics", "_allRelicIds");
+                NullPoolInstanceCaches(typeof(PotionPoolModel), "_allPotions", "_allPotionIds");
+            }
+            catch (Exception rbEx) { warnings.Add($"rollback_pool_caches: {rbEx.Message}"); }
+
             CleanupStaged();
             return Finish();
         }
@@ -716,7 +750,15 @@ internal static class HotReloadPipeline
         }
 
         if (!alcCollectible)
-            warnings.Add("Old assembly loaded into default ALC (non-collectible); memory will accumulate");
+        {
+            // Count how many old versions of this mod are sitting in the AppDomain.
+            // Each one is ~0.5-2 MB that can't be reclaimed until game restart.
+            var oldVersionCount = TypeSignatureHasher.GetAssembliesForMod(modKey, assembly).Count();
+            if (oldVersionCount >= 10)
+                warnings.Add($"Memory warning: {oldVersionCount} old assemblies for {modKey} in memory. Consider restarting the game.");
+            else
+                warnings.Add("Old assembly loaded into default ALC (non-collectible); memory will accumulate");
+        }
         stepTimings["step10_pck"] = sw.ElapsedMilliseconds - lastLap;
         lastLap = sw.ElapsedMilliseconds;
 
@@ -878,7 +920,12 @@ internal static class HotReloadPipeline
                     new Harmony(patch.owner).Unpatch(method, patch.PatchMethod);
                     staleRemoved++;
                 }
-                catch { /* best effort */ }
+                catch (Exception ex)
+                {
+                    // Stale patch couldn't be removed — it'll stay active alongside the new one.
+                    // This is usually harmless (old patch references dead types) but log it.
+                    BaseLibMain.Logger.Warn($"[HotReload] Couldn't remove stale patch from {patchAsm.GetName().Name}: {ex.Message}");
+                }
             }
         }
         if (staleRemoved > 0) actions.Add($"stale_patches_removed:{staleRemoved}");
