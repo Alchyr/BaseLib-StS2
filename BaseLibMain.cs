@@ -40,6 +40,7 @@ public static class BaseLibMain
 
         harmony.PatchAll();
 
+        NodeFactory.RunSelfTests();
         HotReloadEngine.Init();
     }
 

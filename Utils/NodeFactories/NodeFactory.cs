@@ -217,8 +217,6 @@ public abstract class NodeFactory
         new NCreatureVisualsFactory();
         new NMerchantCharacterFactory();
         new NEnergyCounterFactory();
-
-        RunSelfTests();
     }
 
     /// <summary>
@@ -358,7 +356,7 @@ public abstract class NodeFactory
     private static int _testsPassed;
     private static int _testsFailed;
 
-    private static void RunSelfTests()
+    internal static void RunSelfTests()
     {
         _testsPassed = 0;
         _testsFailed = 0;
