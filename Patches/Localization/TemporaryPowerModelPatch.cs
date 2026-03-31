@@ -13,6 +13,6 @@ class TemporaryPowerModelPatch
     {
         if (__instance is not CustomTemporaryPowerModel customTemporaryPowerModel)
             return;
-        description.Add("BaseLibTitle", customTemporaryPowerModel.InternallyAppliedPower.Title);
+        description.Add("TemporaryPowerTitle", customTemporaryPowerModel.InternallyAppliedPower.Title);
     }
 }
