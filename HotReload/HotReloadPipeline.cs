@@ -5,8 +5,8 @@ using System.Runtime.Loader;
 using BaseLib.Abstracts;
 using BaseLib.Patches;
 using BaseLib.Patches.Content;
+using BaseLib.Patches.Localization;
 using BaseLib.Patches.Utils;
-// NodeFactory scene cleanup will be added when the auto-conversion branch merges
 using Godot;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Helpers;
