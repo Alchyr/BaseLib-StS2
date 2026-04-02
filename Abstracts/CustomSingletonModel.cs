@@ -9,7 +9,7 @@ using MegaCrit.Sts2.Core.Runs;
 
 namespace BaseLib.Abstracts;
 
-public abstract class CustomSingletonModel : SingletonModel {
+public abstract class CustomSingletonModel : SingletonModel, ICustomModel {
 
     public override bool ShouldReceiveCombatHooks => registerSettings.SubscribeToCombatStateHooks;
 
@@ -108,20 +108,6 @@ public abstract class CustomSingletonModel : SingletonModel {
             }
             unregisteredModsCustomSingleton.RemoveAll((s)=>registeredMods.Contains(s));
             return;
-        }
-    }
-
-    [HarmonyPatch(typeof(ModelDb), nameof(ModelDb.GetCategory))]
-    class CustomSingletonModelUniqueID {
-        [HarmonyPrefix]
-        static bool Prefix(Type type, ref string __result) {
-            if(!type.IsSubclassOf(typeof(CustomSingletonModel))) return true;
-            var name = type.FullName;
-            name = Regex.Replace(name, "\\.[A-Za-z0-9]+$", "").Replace(".", "_");
-            name += "_CustomSingletonModel";
-            name = name.ToUpper();
-            __result = name;
-            return false;
         }
     }
 
