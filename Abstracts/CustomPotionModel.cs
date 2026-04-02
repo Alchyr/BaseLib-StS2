@@ -15,7 +15,18 @@ public abstract class CustomPotionModel : PotionModel, ICustomModel, ILocalizati
         if (autoAdd) CustomContentDictionary.AddModel(GetType());
     }
 
+    /// <summary>
+    /// Override this or place your potion's image at
+    /// "res://images/atlases/potion_atlas.sprites/modid-potion_name.tres"
+    /// You may pass the path to a png or any other file that Godot can load as a Texture2D.
+    /// </summary>
     public virtual string? CustomPackedImagePath => null;
+
+    /// <summary>
+    /// Override this or place your potion's outline image at
+    /// "res://images/atlases/potion_outline_atlas.sprites/modid-potion_name.tres"
+    /// You may pass the path to a png or any other file that Godot can load as a Texture2D.
+    /// </summary>
     public virtual string? CustomPackedOutlinePath => null;
     
     /// <summary>
