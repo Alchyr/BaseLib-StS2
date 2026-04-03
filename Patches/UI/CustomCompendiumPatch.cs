@@ -57,7 +57,7 @@ public class CustomPoolFilters
             return newCondition || oldFilter(c);
         };
 
-        Node filterParent = characterFilters[ModelDb.Character<Ironclad>()].GetParent();
+        Node lastfilter = characterFilters[ModelDb.Character<Defect>()];
 
         FieldInfo lastHovered = AccessTools.DeclaredField(typeof(NCardLibrary), "_lastHoveredControl");
         foreach (CustomCharacterModel model in ModelDbCustomCharacters.CustomCharacters)
@@ -65,7 +65,8 @@ public class CustomPoolFilters
             NCardPoolFilter filter = GenerateFilter(model);
 
             //Add Filter to UI
-            filterParent.AddChild(filter, forceReadableName: true);
+            lastfilter.AddSibling(filter, forceReadableName: true);
+            lastfilter = filter;
 
             //Add filter to filter list
             characterFilters.Add(model, filter);
