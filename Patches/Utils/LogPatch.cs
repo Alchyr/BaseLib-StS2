@@ -1,49 +1,16 @@
-﻿using System.Diagnostics;
-using BaseLib.BaseLibScenes;
+﻿using BaseLib.BaseLibScenes;
 using BaseLib.Commands;
 using BaseLib.Config;
-using Godot;
 using HarmonyLib;
-using MegaCrit.Sts2.Core.Logging;
 using MegaCrit.Sts2.Core.Nodes.Screens.MainMenu;
 
 namespace BaseLib.Patches.Utils;
 
-[HarmonyPatch(typeof(ConsoleLogPrinter), nameof(ConsoleLogPrinter.Print))]
-class LogPatch
+public partial class LogListener : Godot.Logger
 {
-    [HarmonyPrefix]
-    static void Prefix(ConsoleLogPrinter __instance, LogLevel logLevel, string text, int skipFrames)
+    public override void _LogMessage(string message, bool error)
     {
-        ++skipFrames;
-        string upperInvariant = logLevel.ToString().ToUpperInvariant();
-        switch (logLevel)
-        {
-            case LogLevel.Error:
-                var stackTrace = new StackTrace(skipFrames, true);
-                NLogWindow.AddLog($"[{upperInvariant}] {text}\n{stackTrace}");
-                break;
-            case LogLevel.VeryDebug:
-            case LogLevel.Load:
-            case LogLevel.Debug:
-            case LogLevel.Info:
-            case LogLevel.Warn:
-            default:
-                NLogWindow.AddLog($"[{upperInvariant}] {text}");
-                break;
-        }
-    }
-}
-
-[HarmonyPatch("Godot.NativeInterop.ExceptionUtils", "LogException")]
-public static class GodotLogExceptionPatch
-{
-    public static void Prefix(Exception e)
-    {
-        Callable.From(() =>
-        {
-            NLogWindow.AddLog($"[ERROR] {e}");
-        }).CallDeferred();
+        NLogWindow.AddLog(message);
     }
 }
 

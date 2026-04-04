@@ -314,7 +314,7 @@ public partial class NLogWindow : Window
             if (color is not null) label.PushColor(color.Value);
 
             label.AddText(line);
-            label.Newline();
+            //label.Newline();
 
             if (color is not null) label.Pop();
         }

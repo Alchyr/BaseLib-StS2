@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using BaseLib.Config;
 using BaseLib.Patches.Content;
+using BaseLib.Patches.Utils;
 using BaseLib.Utils.NodeFactories;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Modding;
@@ -23,6 +24,7 @@ public static class BaseLibMain
         Libgcc();
 
         IsMainThread = true;
+        Godot.OS.AddLogger(new LogListener());
         
         try
         {
