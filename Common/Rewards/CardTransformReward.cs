@@ -1,4 +1,5 @@
 using BaseLib.Abstracts;
+using BaseLib.Patches.Content;
 using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.Helpers;
 using MegaCrit.Sts2.Core.Localization;
@@ -11,6 +12,7 @@ namespace BaseLib.Common.Rewards;
 public class CardTransformReward(Player player) : CustomReward(player)
 {
     public static RewardType CardTransform;
+    public required bool Upgrade;
     protected override RewardType RewardType => CardTransform;
     public override LocString Description => new LocString("gameplay_ui", "COMBAT_REWARD_CARD_TRANSFORM");
     public override bool IsPopulated => true;
@@ -30,6 +32,6 @@ public class CardTransformReward(Player player) : CustomReward(player)
     protected override async Task<bool> OnSelect()
     {
         BaseLibMain.Logger.Info("Obtained card transformation from reward");
-        return await RunManager.Instance.RewardSynchronizer.DoLocalCardTransform();
+        return await RunManager.Instance.RewardSynchronizer.DoLocalCardTransform(true);
     }
 }

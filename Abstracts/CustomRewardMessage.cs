@@ -10,7 +10,7 @@ public abstract class CustomRewardMessage : CustomMessage
 {
     public required RewardType rewardType;
     public required RunLocation location;
-    public required bool wasSkipped;
+    // public required bool wasSkipped;
 
     public override bool ShouldBroadcast => true;
     public override NetTransferMode Mode => NetTransferMode.Reliable;
