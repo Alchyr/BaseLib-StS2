@@ -35,15 +35,22 @@ public static class CustomContentDictionary
     {
         if (!RegisterType(modelType)) return;
         
-        var poolAttribute = modelType.GetCustomAttribute<PoolAttribute>()
-            ?? throw new Exception($"Model {modelType.FullName} must be marked with a PoolAttribute to determine which pool to add it to.");
-
-        if (!IsValidPool(modelType, poolAttribute.PoolType))
+        IEnumerable<PoolAttribute> poolAttributes = modelType.GetCustomAttributes<PoolAttribute>();
+        if (poolAttributes == null || !poolAttributes.Any())
         {
-            throw new Exception($"Model {modelType.FullName} is assigned to incorrect type of pool {poolAttribute.PoolType.FullName}.");
+            throw new Exception(
+                $"Model {modelType.FullName} must be marked with a PoolAttribute to determine which pool to add it to.");
         }
+
+        foreach (var poolAttribute in poolAttributes)
+        {
+            if (!IsValidPool(modelType, poolAttribute.PoolType))
+            {
+                throw new Exception($"Model {modelType.FullName} is assigned to incorrect type of pool {poolAttribute.PoolType.FullName}.");
+            }
         
-        ModHelper.AddModelToPool(poolAttribute.PoolType, modelType);
+            ModHelper.AddModelToPool(poolAttribute.PoolType, modelType);
+        }
     }
 
     public static void AddEncounter(CustomEncounterModel encounter)
