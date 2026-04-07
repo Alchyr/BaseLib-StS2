@@ -1,4 +1,6 @@
-﻿namespace BaseLib.Config;
+﻿using BaseLib.Config.UI;
+
+namespace BaseLib.Config;
 
 /// <summary>
 /// Creates a new section in the ModConfig UI, where the next property will be the first entry after the section header.
@@ -140,10 +142,14 @@ public class ConfigTextInputAttribute : Attribute
 ///   <b>NConfigOptionRow</b>: Injects the instance of the row the button belongs to (the node that handles its layout, hover tip, etc.).<br />
 /// </summary>
 /// <param name="buttonLabelKey">LocString key for the text on the button.</param>
+/// <param name="Color">The color to use for this button (HTML/hex color code).</param>
 [AttributeUsage(AttributeTargets.Method)]
 public class ConfigButtonAttribute(string buttonLabelKey) : Attribute
 {
     public string ButtonLabelKey { get; } = buttonLabelKey;
+
+    /// <summary>The color to use for the button, as an HTML color code.</summary>
+    public string Color { get; set; } = NConfigButton.DefaultColor;
 }
 
 /// <summary>

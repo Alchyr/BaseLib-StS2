@@ -46,7 +46,7 @@ public class SimpleModConfig : ModConfig
             }
         });
         resetButton.CustomMinimumSize = new Vector2(360, resetButton.CustomMinimumSize.Y);
-        resetButton.SetColor(0.45f, 1.5f, 0.8f);
+        resetButton.SetColor(Color.FromHtml("#c24242"));
 
         var centerContainer = new CenterContainer();
         centerContainer.CustomMinimumSize = new Vector2(0, 128);
@@ -206,7 +206,7 @@ public class SimpleModConfig : ModConfig
             }
             catch (Exception e)
             {
-                BaseLibMain.Logger.Error($"Error executing [ConfigButton] method {method.Name}: {e.Message}");
+                BaseLibMain.Logger.Error($"Error executing [ConfigButton] method {method.Name}:\n{e}");
 
                 // no return; we still need to call ConfigReloaded in case the method changed something
             }
@@ -217,6 +217,7 @@ public class SimpleModConfig : ModConfig
         };
 
         optionRow = CreateButton(method.Name, attr.ButtonLabelKey, onButtonClicked);
+        if (optionRow.SettingControl is NConfigButton button) button.SetColor(Color.FromHtml(attr.Color));
         AddHoverTipToOptionRowIfEnabled(optionRow, method);
         return optionRow;
     }

@@ -1,6 +1,5 @@
 ﻿using Godot;
 using MegaCrit.Sts2.Core.Assets;
-using MegaCrit.Sts2.Core.ControllerInput;
 using MegaCrit.Sts2.Core.Helpers;
 using MegaCrit.Sts2.Core.Nodes.Combat;
 using MegaCrit.Sts2.Core.Nodes.GodotExtensions;
@@ -11,7 +10,8 @@ namespace BaseLib.Config.UI;
 public partial class NConfigButton : NSettingsButton
 {
     private Action? _onPressedAction;
-    private ShaderMaterial _colorShader;
+    private TextureRect _image;
+    public static readonly string DefaultColor = "#3b7a83";
 
     public NConfigButton()
     {
@@ -20,19 +20,16 @@ public partial class NConfigButton : NSettingsButton
         SizeFlagsVertical = SizeFlags.Fill;
         FocusMode = FocusModeEnum.All;
 
-        _colorShader = new ShaderMaterial { Shader = ResourceLoader.Load<Shader>("res://shaders/hsv.gdshader") };
-
-        var image = new TextureRect
+        _image = new TextureRect
         {
             Name = "Image",
-            Material = _colorShader,
             CustomMinimumSize = new Vector2(64, 64),
-            Texture = PreloadManager.Cache.GetAsset<Texture2D>("res://images/ui/reward_screen/reward_skip_button.png"),
+            Texture = PreloadManager.Cache.GetAsset<Texture2D>("res://BaseLib/images/configbutton.png"),
             ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
             StretchMode = TextureRect.StretchModeEnum.Scale
         };
-        image.SetAnchorsPreset(LayoutPreset.FullRect);
-        AddChild(image);
+        _image.SetAnchorsPreset(LayoutPreset.FullRect);
+        AddChild(_image);
 
         var label = new Label
         {
@@ -60,16 +57,29 @@ public partial class NConfigButton : NSettingsButton
     }
 
     /// <summary>
-    /// Sets the color using an HSV shader.
+    /// OBSOLETE: Sets the color using an HSV shader. Broken and will be removed soon; ONLY kept for binary compatibility.
     /// </summary>
     /// <param name="h">Hue, range 0-1</param>
     /// <param name="s">Saturation, 0-1 or higher for boosted saturation</param>
     /// <param name="v">Value, range 0-1</param>
+    [Obsolete("BROKEN: Use SetColor(Color) instead")]
     public void SetColor(float h, float s, float v)
     {
-        _colorShader.SetShaderParameter("h", h);
-        _colorShader.SetShaderParameter("s", s);
-        _colorShader.SetShaderParameter("v", v);
+        // TODO: remove this method, perhaps in May or June 2026. It likely has no external users and is kept for a while just in case.
+        const float baseHue = 0.48f;
+        var outputHue = (baseHue + (1f - h)) % 1f;
+        SetColor(Color.FromHsv(outputHue, Math.Clamp(s * 0.4f, 0f, 1f), v));
+    }
+
+    /// <summary>
+    /// Sets the button's color using Godot's SelfModulate property.<br/>
+    /// The overall color will be slightly darker than the color specified, since it's a modulation of the existing
+    /// colors, that aren't fully white.
+    /// </summary>
+    /// <param name="color">The color to use for SelfModulate.</param>
+    public void SetColor(Color color)
+    {
+        _image.SelfModulate = color;
     }
 
     public override void _Ready()
@@ -79,6 +89,7 @@ public partial class NConfigButton : NSettingsButton
 
     public void Initialize(string buttonText, Action onPressed)
     {
+        SetColor(Color.FromHtml(DefaultColor));
         _onPressedAction = onPressed;
 
         var label = GetNodeOrNull<Label>("Label");
