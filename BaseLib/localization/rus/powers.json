@@ -1,0 +1,9 @@
+{
+  "BASELIB-CUSTOM_TEMPORARY_POWER_MODEL.title": "Временный талант",
+  "BASELIB-CUSTOM_TEMPORARY_POWER_MODEL.description": "Временно накладывает эффект на существо.",
+  "BASELIB-CUSTOM_TEMPORARY_POWER_MODEL.smartDescription": "Временно накладывает эффект на существо.",
+  "BASELIB-CUSTOM_TEMPORARY_POWER_MODEL.UP.description": "Временно усиливает эффект [gold]таланта[/gold].",
+  "BASELIB-CUSTOM_TEMPORARY_POWER_MODEL.UP.smartDescription": "Дает [blue]{Amount:abs()}[/blue] [gold]{BaseLibTitle}[/gold] до конца хода{UntilEndOfOtherSideTurn:cond:| врага}.{Repeat:cond:>0?\\nДействует еще [blue]{Repeat:diff()}[/blue] доп. {Repeat:plural(ru):ход|хода|ходов}.|}",
+  "BASELIB-CUSTOM_TEMPORARY_POWER_MODEL.DOWN.description": "Временно ослабляет эффект [gold]таланта[/gold].",
+  "BASELIB-CUSTOM_TEMPORARY_POWER_MODEL.DOWN.smartDescription": "Вы теряете [blue]{Amount:abs()}[/blue] [gold]{BaseLibTitle}[/gold] до конца хода {UntilEndOfOtherSideTurn:cond:| врага}.{Repeat:cond:>0?\\nДействует еще [blue]{Repeat:diff()}[/blue] доп. {Repeat:plural(ru):ход|хода|ходов}.|}"
+}

@@ -1,0 +1,44 @@
+{
+  "BASELIB.mod_title": "BaseLib",
+  "BASELIB.MOD_CONFIG_SETTINGS_ROW.title": "Конфигурация модов (BaseLib)",
+  "BASELIB.MOD_CONFIG_SETTINGS_ROW.button": "Открыть настройки",
+
+  "BASELIB-UNKNOWN_MOD_NAME": "Unknown mod name",
+  "BASELIB-RESTORE_DEFAULTS_BUTTON.title": "Настройки по умолчанию",
+  "BASELIB-RESTORE_MODCONFIG_CONFIRMATION.header": "Подтвердить восстановление",
+  "BASELIB-RESTORE_MODCONFIG_CONFIRMATION.body": "Восстановить настройки мода по умолчанию?",
+
+  "BASELIB-SHOW_MOD_CONFIG_IN_MAIN_MENU.title": "Показывать кнопку «Конфигурация модов» в главном меню (требуется рестарт)",
+  "BASELIB-SHOW_MOD_CONFIG_IN_MAIN_MENU.hover.title": "Отображает кнопку «Конфигурация модов» в главном меню",
+  "BASELIB-SHOW_MOD_CONFIG_IN_MAIN_MENU.hover.desc": "Доступ к конфигурации всегда остается в меню настроек игры.",
+
+  "BASELIB-LOG_SECTION.title": "Окно логов/Консоль",
+
+  "BASELIB-OPEN_LOG_WINDOW_ON_STARTUP.title": "Открывать окно логов при запуске",
+  "BASELIB-OPEN_LOG_WINDOW_ON_STARTUP.hover.desc": "Открывает окно логов BaseLib автоматически при загрузке главного меню.",
+
+  "BASELIB-LIMITED_LOG_SIZE.title": "Размер истории логов",
+  "BASELIB-LIMITED_LOG_SIZE.hover.desc": "Максимальное число строк, отображаемых в окне логов.",
+
+  "BASELIB-LOG_FONT_SIZE.title": "Размер шрифта логов",
+  "BASELIB-LOG_FONT_SIZE.hover.desc": "Может также быть изменен с помощью Ctrl и Колесика мыши в меню логов.",
+
+  "BASELIB-HARMONY_DUMP_SECTION.title": "Дамп Harmony patch",
+
+  "BASELIB-HARMONY_PATCH_DUMP_OUTPUT_PATH.title": "Путь сохранения файла",
+  "BASELIB-HARMONY_PATCH_DUMP_OUTPUT_PATH.placeholder": "Абсолютный путь или user://… (например: user://baselib_harmony_patch_dump.log)",
+  "BASELIB-HARMONY_PATCH_DUMP_OUTPUT_PATH.hover.desc": "Место, где будет сохранен дамп патча. Используйте «Выбрать», введите полный путь или Godot user:// путь.",
+
+  "BASELIB-HARMONY_PATCH_DUMP_ON_FIRST_MAIN_MENU.title": "Создавать дамп при первой загрузке главного меню",
+  "BASELIB-HARMONY_PATCH_DUMP_ON_FIRST_MAIN_MENU.hover.desc": "Один раз за игровую сессию, после полной загрузки главного меню, записывает дамп, если был установлен путь сохранения.",
+
+  "BASELIB-HARMONY_DUMP_BROWSE_FOR_OUTPUT.title": "Выбрать путь сохранения",
+  "BASELIB-HARMONY_DUMP_BROWSE.title": "Выбрать…",
+  "BASELIB-HARMONY_DUMP_BROWSE_FOR_OUTPUT.hover.desc": "Открывает диалоговое окно сохранения и подставляет путь сохранения, указанный выше.",
+
+  "BASELIB-HARMONY_DUMP_WRITE_NOW.title": "Записать дамп сейчас",
+  "BASELIB-HARMONY_DUMP_NOW.title": "Записать дамп",
+  "BASELIB-HARMONY_DUMP_WRITE_NOW.hover.desc": "Создает дамп немедленно по указанному пути сохранения. Отслеживайте результат в окне логов.",
+
+  "BASELIB-HARMONY_DUMP_BROWSE_TITLE.title": "Сохранить дамп Harmony patch"
+}

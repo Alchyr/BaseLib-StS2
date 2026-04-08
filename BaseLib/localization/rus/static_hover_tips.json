@@ -1,0 +1,8 @@
+{
+  "BASELIB-PERSIST.title": "Настойчивость",
+  "BASELIB-PERSIST.description": "Эта карта возвращается в [gold]руку[/gold] при разыгрывании в {Persist:cond:>1?первые [blue]{Persist}[/blue] |первый}{Persist:plural(ru):раз|раза|раз} за ход.",
+  "BASELIB-EXHAUSTIVE.title": "Угасание",
+  "BASELIB-EXHAUSTIVE.description": "Эта карта [gold]сжигается[/gold] после того, как будет разыграна еще {Exhaustive:cond:>1?[blue]{Exhaustive}[/blue] |}{Exhaustive:plural(ru):раз|раза|раз}.",
+  "BASELIB-REFUND.title": "Возврат",
+  "BASELIB-REFUND.description": "Когда вы тратите энергию при разыгрывании этой карты, возвращает до [blue]{Refund}[/blue] {energyPrefix:energyIcons(1)} назад."
+}
