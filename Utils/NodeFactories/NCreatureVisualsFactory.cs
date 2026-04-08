@@ -49,7 +49,7 @@ internal class NCreatureVisualsFactory : NodeFactory<NCreatureVisuals>
     {
         switch (required.Path)
         {
-            case "%Bounds":
+            case "Bounds":
                 var bounds = new Control();
                 bounds.Size = new(240, 280);
                 bounds.Position = new(-120, -280);
@@ -58,7 +58,7 @@ internal class NCreatureVisualsFactory : NodeFactory<NCreatureVisuals>
             case "%Visuals":
                 BaseLibMain.Logger.Warn("'Visuals' node must be provided for NCreatureVisuals");
                 break;
-            case "%IntentPos":
+            case "IntentPos":
                 bounds = target.GetNode<Control>("%Bounds");
                 
                 var intent = new Marker2D();
