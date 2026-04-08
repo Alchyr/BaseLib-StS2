@@ -5,20 +5,39 @@ using MegaCrit.Sts2.Core.Helpers;
 using MegaCrit.Sts2.Core.Localization;
 using MegaCrit.Sts2.Core.Rewards;
 using MegaCrit.Sts2.Core.Runs;
+using MegaCrit.Sts2.Core.Saves.Runs;
 
 namespace BaseLib.Common.Rewards;
 
 #pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
-public class CardTransformReward(Player player) : CustomReward(player)
+public class CardTransformReward(Player player, bool upgrade = false) : CustomReward(player)
 {
+    [CustomEnum]
     public static RewardType CardTransform;
-    public required bool Upgrade;
     protected override RewardType RewardType => CardTransform;
+
+    public required bool Upgrade;
+
     public override LocString Description => new LocString("gameplay_ui", "COMBAT_REWARD_CARD_TRANSFORM");
     public override bool IsPopulated => true;
-
     public static string RewardIcon => ImageHelper.GetImagePath("ui/reward_screen/reward_icon_card_removal.png");
     protected override string IconPath => RewardIcon;
+
+    public static CardTransformReward CreateFromSerializable(SerializableReward save, Player player)
+    {
+        return new CardTransformReward(player) { Upgrade = save.WasGoldStolenBack}; // temp hack before worrying about extending the serialized values
+    }
+
+    public override SerializableReward ToSerializable()
+    {
+        return new SerializableReward()
+        {
+            RewardType = CardTransform,
+            WasGoldStolenBack = Upgrade
+        };
+    }
+
+    public override SerializableCustomReward<CustomReward> SerializeMethod => CreateFromSerializable;
 
     public override void MarkContentAsSeen()
     {
