@@ -10,13 +10,14 @@ using MegaCrit.Sts2.Core.Saves.Runs;
 namespace BaseLib.Common.Rewards;
 
 #pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
-public class CardTransformReward(Player player, bool upgrade = false) : CustomReward(player)
+public class CardTransformReward(Player player, int amount, bool upgrade = false) : CustomReward(player)
 {
     [CustomEnum]
     public static RewardType CardTransform;
     protected override RewardType RewardType => CardTransform;
 
     public bool Upgrade = upgrade;
+    public int Amount = amount;
 
     public override LocString Description => new LocString("gameplay_ui", "COMBAT_REWARD_CARD_TRANSFORM");
     public override bool IsPopulated => true;
@@ -25,7 +26,7 @@ public class CardTransformReward(Player player, bool upgrade = false) : CustomRe
 
     public static CardTransformReward CreateFromSerializable(SerializableReward save, Player player)
     {
-        return new CardTransformReward(player) { Upgrade = save.WasGoldStolenBack}; // temp hack before worrying about extending the serialized values
+        return new CardTransformReward(player, save.GoldAmount, save.WasGoldStolenBack); // temp hack before worrying about extending the serialized values
     }
 
     public override SerializableReward ToSerializable()
@@ -51,6 +52,6 @@ public class CardTransformReward(Player player, bool upgrade = false) : CustomRe
     protected override async Task<bool> OnSelect()
     {
         BaseLibMain.Logger.Info("Obtained card transformation from reward");
-        return await RunManager.Instance.RewardSynchronizer.DoLocalCardTransform(true);
+        return await RunManager.Instance.RewardSynchronizer.DoLocalCardTransform(Amount, true);
     }
 }

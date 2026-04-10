@@ -2,6 +2,7 @@ using BaseLib.Abstracts;
 using BaseLib.Common.Rewards;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.CardSelection;
+using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.Factories;
@@ -9,16 +10,19 @@ using MegaCrit.Sts2.Core.Helpers;
 using MegaCrit.Sts2.Core.Localization;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Multiplayer.Game;
-using MegaCrit.Sts2.Core.Multiplayer.Serialization;
 using MegaCrit.Sts2.Core.Runs;
 
 namespace BaseLib.Patches.Content;
 
+/// <summary>
+/// Extensions to <see cref="RewardSynchronizer"/> to provide public getters to internal properties and common reward functions
+/// </summary>
 [HarmonyPatch(typeof(RewardSynchronizer))]
 public static class RewardSynchronizerExtensions
 {
     /// <summary>
     /// Struct to save a custom reward message until combat ends
+    /// Prefer creating with <see cref="BufferCustomRewardMessage"/>
     /// </summary>
     public struct BufferedCustomRewardMessage
     {
@@ -43,6 +47,9 @@ public static class RewardSynchronizerExtensions
 
         internal List<BufferedCustomRewardMessage> BufferedCustomRewardMessages { get { return _bufferedCustomRewardMessages; } }
 
+        /// <summary>
+        /// Add a <see cref="CustomRewardMessage"/> to the combat buffer
+        /// </summary>
         public void BufferCustomRewardMessage(CustomRewardMessage message, ulong senderId)
         {
             var bufferedMessage = new BufferedCustomRewardMessage
@@ -74,86 +81,59 @@ public static class RewardSynchronizerExtensions
         /// <summary>
         /// Method to handle transforming a card as a combat reward
         /// </summary>
-        public async Task<bool> DoLocalCardTransform(bool upgrade = false)
+        public async Task<bool> DoLocalCardTransform(int amount = 1, bool upgrade = false)
         {
             CardTransformRewardMessage message = new CardTransformRewardMessage
             {
-                location = rewardSynchronizer.MessageBuffer.CurrentLocation,
-                rewardType = CardTransformReward.CardTransform,
+                Location = rewardSynchronizer.MessageBuffer!.CurrentLocation,
+                wasSkipped = false,
                 Upgrade = upgrade,
-
+                Amount = amount
             };
+            BaseLibMain.Logger.Debug($"Transforming card for local player {rewardSynchronizer.LocalPlayerRef}");
+
             rewardSynchronizer.GameService?.SendMessage(message);
-            return await rewardSynchronizer.DoCardTransform(rewardSynchronizer.LocalPlayerRef, upgrade);
+            return await rewardSynchronizer.DoCardTransform(rewardSynchronizer.LocalPlayerRef!, amount, upgrade);
         }
 
-        public async Task<bool> DoCardTransform(Player player, bool upgrade = false)
+        /// <summary>
+        /// Transform a card for a specific player as a combat reward
+        /// </summary>
+        public async Task<bool> DoCardTransform(Player player, int amount = 1, bool upgrade = false)
         {
-            CardSelectorPrefs prefs = new CardSelectorPrefs(new LocString("gameplay_ui", "COMBAT_REWARD_CARD_REMOVAL.selection_screen_prompt"), 1)
+            CardSelectorPrefs prefs = new CardSelectorPrefs(new LocString("gameplay_ui", "COMBAT_REWARD_CARD_TRANSFORM"), amount)
             {
-                Cancelable = false,
+                Cancelable = true,
                 RequireManualConfirmation = true
             };
-            CardModel? card = (await CardSelectCmd.FromDeckForTransformation(player, prefs)).FirstOrDefault();
-            if (card != null)
+
+            List<CardModel> cards = (await CardSelectCmd.FromDeckForTransformation(player, prefs)).ToList();
+
+            BaseLibMain.Logger.Debug($"Current combat state for transform rewards is: IsEnding={CombatManager.Instance.IsEnding}");
+            foreach (CardModel card in cards)
             {
                 CardModel newCard = CardFactory.CreateRandomCardForTransform(card, isInCombat: false, player.RunState.Rng.Niche);
-                if (upgrade)
+
+                if (upgrade || card.IsUpgraded) // need a more robust handler for multi-upgrade at some point
                 {
-                    newCard.UpgradeInternal();
+                    CardCmd.Upgrade(newCard);
                 }
+
                 await CardCmd.Transform(card, newCard);
                 BaseLibMain.Logger.Debug($"Player {player.NetId} transformed {card.Id} in their deck into {newCard.Id}" + (upgrade ? " and upgraded it." : "."));
-                return true;
             }
-            return false;
-        }
-    }
 
-
-
-    internal static readonly List<Type> _rewardMessageCache = [..ReflectionHelper.GetSubtypesInMods<CustomRewardMessage>()];
-
-    [HarmonyPatch(MethodType.Constructor, [typeof(RunLocationTargetedMessageBuffer), typeof(INetGameService), typeof(IPlayerCollection), typeof(ulong)])]
-    [HarmonyPostfix]
-    public static void InitializeCustomRewardHandlers(RewardSynchronizer __instance)
-    {
-        foreach (var rewardMessageType in _rewardMessageCache)
-        {
-            if (rewardMessageType.CreateInstance() is not CustomRewardMessage dummyMessage)
-            {
-                BaseLibMain.Logger.Error($"Message instance creation for type {rewardMessageType.GetType()} from {rewardMessageType.Assembly} failed during Initialize");
-                continue;
-            }
-            dummyMessage.Initialize(__instance.MessageBuffer);
-        }
-    }
-
-    [HarmonyPatch(nameof(RewardSynchronizer.Dispose))]
-    [HarmonyPostfix]
-    public static void UnregisterCustomRewardHandlers(RewardSynchronizer __instance)
-    {
-        foreach (var rewardMessageType in _rewardMessageCache)
-        {
-            if (rewardMessageType.CreateInstance() is not CustomRewardMessage dummyMessage)
-            {
-                BaseLibMain.Logger.Error($"Message instance creation for type {rewardMessageType.GetType()} from {rewardMessageType.Assembly} failed during Dispose");
-                continue;
-            }
-            dummyMessage.Dispose(__instance.MessageBuffer);
+            return cards.Count > 0;
         }
     }
 
     [HarmonyPatch(nameof(RewardSynchronizer.OnCombatEnded))]
     [HarmonyPrefix]
-    public static void HandleCustomBufferedMessages(RewardSynchronizer __instance)
+    private static void HandleCustomBufferedMessages(RewardSynchronizer __instance)
     {
         foreach (BufferedCustomRewardMessage bufferedMessage in __instance.BufferedCustomRewardMessages)
         {
-            // TODO: Get reference to appropriate message handler from the message type? Call handle method?
-            // bufferedMessage.message.MessageHandler(bufferedMessage.message, bufferedMessage.senderId);
-            __instance.MessageBuffer.CallHandlersOfType(bufferedMessage.message.GetType(), bufferedMessage.message, bufferedMessage.senderId);
-            
+            __instance.MessageBuffer?.CallHandlersOfType(bufferedMessage.message.GetType(), bufferedMessage.message, bufferedMessage.senderId);
         }
         __instance.BufferedCustomRewardMessages.Clear();
     }

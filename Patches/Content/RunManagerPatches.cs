@@ -6,15 +6,13 @@ using MegaCrit.Sts2.Core.Runs;
 namespace BaseLib.Patches.Content;
 
 [HarmonyPatch(typeof(RunManager))]
-public static class RunManagerPatches
+internal static class RunManagerPatches
 {
+    private static readonly List<Type> customMessageTypes = [..ReflectionHelper.GetSubtypesInMods<CustomMessage>()];
 
-    internal static List<Type> customMessageTypes = [..ReflectionHelper.GetSubtypesInMods<CustomMessage>()];
-
-    // currently duplicates the registration for CustomRewardMessages? maybe remove that part since it happens at the same time
     [HarmonyPatch(nameof(RunManager.InitializeShared))]
     [HarmonyPostfix]
-    public static void InitializeCustomMessageHandlers(RunManager __instance)
+    private static void InitializeCustomMessageHandlers(RunManager __instance)
     {
         foreach (var messageType in customMessageTypes)
         {
@@ -29,7 +27,7 @@ public static class RunManagerPatches
 
     [HarmonyPatch(nameof(RunManager.CleanUp))]
     [HarmonyPostfix]
-    public static void DisposeCustomMessageHandlers(RunManager __instance)
+    private static void DisposeCustomMessageHandlers(RunManager __instance)
     {
         foreach (var messageType in customMessageTypes)
         {
