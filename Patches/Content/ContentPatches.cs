@@ -112,14 +112,10 @@ public static class CustomContentDictionary
         foreach (var type in ReflectionHelper.GetSubtypesInMods<CustomBadge>()
                      .Where(t => !t.IsAbstract))
         {
-            BaseLibMain.Logger.Info($"[CustomBadge] Found type: {type.FullName}");
             var added = AddBadge(type);
-            BaseLibMain.Logger.Info($"[CustomBadge] Added: {added} | Total: {CustomBadgeTypes.Count}");
         }
     }
 }
-
-
 
 
 [HarmonyPatch(typeof(ModelDb), nameof(ModelDb.AllSharedAncients), MethodType.Getter)]
