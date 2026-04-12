@@ -80,8 +80,10 @@ public static class CustomKeywords
 
 public static class CustomEnums
 {
+    private static readonly HashAlgorithm MD5 = System.Security.Cryptography.MD5.Create(); //Not for security, just for comparison.
+    private static readonly Dictionary<string, int> HashDict = [];
+    private static readonly HashSet<int> ExistingHashes = [];
     private static readonly Dictionary<Type, KeyGenerator> KeyGenerators = [];
-    private static HashAlgorithm _hash = MD5.Create(); //Not for security, just for comparison.
 
     public static object GenerateKey(FieldInfo field)
     {
@@ -97,16 +99,30 @@ public static class CustomEnums
 
     private static int ComputeBasicHash(string s)
     {
-        var data = _hash.ComputeHash(Encoding.UTF8.GetBytes(s));
-        unchecked
+        if (!HashDict.TryGetValue(s, out var hash))
         {
-            const int p = 16777619;
+            var data = MD5.ComputeHash(Encoding.UTF8.GetBytes(s));
+            unchecked
+            {
+                const int p = 16777619;
             
-            int hash = (int)2166136261;
-            for (int i = 0; i < data.Length; i++)
-                hash = (hash ^ data[i]) * p;
-            return hash;
+                hash = (int)2166136261;
+                for (int i = 0; i < data.Length; i++)
+                    hash = (hash ^ data[i]) * p;
+                HashDict[s] = hash;
+                if (ExistingHashes.Add(hash)) return hash;
+                
+                foreach (var entry in HashDict)
+                {
+                    if (entry.Value.Equals(hash))
+                    {
+                        BaseLibMain.Logger.Warn($"Duplicate mod hash for {entry.Key} and {s}: {hash}");
+                    }
+                }
+                return hash;
+            }
         }
+        return hash;
     }
     
     private class KeyGenerator
