@@ -7,7 +7,7 @@ namespace BaseLib.Abstracts;
 /// <summary>
 /// Abstract class to inherit for syncing rewards
 /// </summary>
-public abstract class CustomRewardMessage : CustomMessage, IRunLocationTargetedMessage
+public abstract class CustomRewardMessage : CustomTargetedMessage
 {
     /// <summary>
     /// Include whether the reward was skipped or not
@@ -28,5 +28,5 @@ public abstract class CustomRewardMessage : CustomMessage, IRunLocationTargetedM
     /// <summary>
     /// Set when instantiating, afaik needed for saving to the run?
     /// </summary>
-    public required RunLocation Location { get; set; }
+    public required override RunLocation Location { get; set; }
 }

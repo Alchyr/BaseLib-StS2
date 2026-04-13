@@ -88,7 +88,7 @@ public static class RewardSynchronizerExtensions
         };
         BaseLibMain.Logger.Debug($"Transforming card for local player {rewardSynchronizer.LocalPlayerRef}");
 
-        rewardSynchronizer.GameService()?.SendMessage(message);
+        rewardSynchronizer.GameService().SendMessage(message);
         return await rewardSynchronizer.DoCardTransform(rewardSynchronizer.LocalPlayerRef()!, amount, upgrade);
     }
 

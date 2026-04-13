@@ -9,7 +9,6 @@ using MegaCrit.Sts2.Core.Saves.Runs;
 
 namespace BaseLib.Common.Rewards;
 
-#pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
 public class CardTransformReward(Player player, int amount, bool upgrade = false) : CustomReward(player)
 {
     [CustomEnum]
