@@ -7,11 +7,13 @@ using MegaCrit.Sts2.Core.Nodes.Combat;
 using Godot;
 using MegaCrit.Sts2.Core.Entities.Players;
 using System.Reflection;
+using System.Reflection.Emit;
 using BaseLib.Extensions;
 using BaseLib.Patches.Content;
 using BaseLib.Utils.NodeFactories;
 using MegaCrit.Sts2.Core.Helpers;
 using MegaCrit.Sts2.Core.Nodes.RestSite;
+using MegaCrit.Sts2.Core.Nodes.Screens.CharacterSelect;
 using MegaCrit.Sts2.Core.Nodes.Screens.Shops;
 
 namespace BaseLib.Abstracts;
@@ -28,6 +30,18 @@ public abstract class CustomCharacterModel : CharacterModel, ICustomModel, ILoca
     /// You are recommended to return a CharacterLoc<seealso cref="CharacterLoc"/>.
     /// </summary>
     public virtual List<(string, string)>? Localization => null;
+    
+    /// <summary>
+    /// Override and return true if this character should be omitted from the vanilla character select screen.
+    /// The character remains registered in ModelDb for other systems and custom UIs.
+    /// </summary>
+    public virtual bool HideFromVanillaCharacterSelect => false;
+    
+    /// <summary>
+    /// Override and return true if this character should be eligible for the vanilla random character button.
+    /// Defaults to the inverse of <seealso cref="HideFromVanillaCharacterSelect"/>.
+    /// </summary>
+    public virtual bool AllowInVanillaRandomCharacterSelect => !HideFromVanillaCharacterSelect;
 
     /// <summary>
     /// Override this or place your scene at res://scenes/creature_visuals/class_name.tscn
@@ -280,6 +294,92 @@ public class ModelDbCustomCharacters
         if (!CustomContentDictionary.RegisterType(character.GetType())) return;
         
         CustomCharacters.Add(character);
+    }
+}
+
+[HarmonyPatch]
+class HideVanillaCharacterSelectCharactersPatch
+{
+    private static readonly MethodInfo AllCharactersGetter =
+        AccessTools.PropertyGetter(typeof(ModelDb), nameof(ModelDb.AllCharacters));
+    private static readonly MethodInfo VisibleCharactersMethod =
+        AccessTools.DeclaredMethod(typeof(HideVanillaCharacterSelectCharactersPatch), nameof(GetVisibleCharacters));
+
+    static MethodBase TargetMethod()
+    {
+        return AccessTools.DeclaredMethod(typeof(NCharacterSelectScreen), nameof(NCharacterSelectScreen.InitCharacterButtons));
+    }
+
+    [HarmonyTranspiler]
+    static IEnumerable<CodeInstruction> FilterVanillaCharacterList(IEnumerable<CodeInstruction> instructions)
+    {
+        foreach (var instruction in instructions)
+        {
+            if (instruction.Calls(AllCharactersGetter))
+            {
+                yield return new CodeInstruction(OpCodes.Call, VisibleCharactersMethod);
+                continue;
+            }
+
+            yield return instruction;
+        }
+    }
+
+    private static IEnumerable<CharacterModel> GetVisibleCharacters()
+    {
+        foreach (var character in ModelDb.AllCharacters)
+        {
+            if (character is CustomCharacterModel { HideFromVanillaCharacterSelect: true })
+            {
+                continue;
+            }
+
+            yield return character;
+        }
+    }
+}
+
+[HarmonyPatch]
+class VanillaRandomCharacterEligibilityPatch
+{
+    private static readonly MethodInfo AllCharactersGetter =
+        AccessTools.PropertyGetter(typeof(ModelDb), nameof(ModelDb.AllCharacters));
+    private static readonly MethodInfo RandomEligibleCharactersMethod =
+        AccessTools.DeclaredMethod(typeof(VanillaRandomCharacterEligibilityPatch), nameof(GetRandomEligibleCharacters));
+
+    static IEnumerable<MethodBase> TargetMethods()
+    {
+        yield return AccessTools.DeclaredMethod(typeof(NCharacterSelectScreen), nameof(NCharacterSelectScreen.UpdateRandomCharacterVisibility));
+        yield return AccessTools.DeclaredMethod(typeof(NCharacterSelectScreen), "RollRandomCharacter");
+        yield return AccessTools.DeclaredMethod(typeof(NCharacterSelectButton), nameof(NCharacterSelectButton.Init));
+    }
+
+    [HarmonyTranspiler]
+    static IEnumerable<CodeInstruction> FilterVanillaRandomCharacterList(IEnumerable<CodeInstruction> instructions)
+    {
+        foreach (var instruction in instructions)
+        {
+            if (instruction.Calls(AllCharactersGetter))
+            {
+                yield return new CodeInstruction(OpCodes.Call, RandomEligibleCharactersMethod);
+                continue;
+            }
+
+            yield return instruction;
+        }
+    }
+
+    private static IEnumerable<CharacterModel> GetRandomEligibleCharacters()
+    {
+        foreach (var character in ModelDb.AllCharacters)
+        {
+            if (character is CustomCharacterModel { AllowInVanillaRandomCharacterSelect: false })
+            {
+                continue;
+            }
+
+            yield return character;
+        }
     }
 }
 
