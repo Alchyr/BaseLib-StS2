@@ -27,7 +27,7 @@ public class WeightedList<T> : IList<T>
 
         WeightedItem? selected = null;
         foreach (var item in _items) {
-            if (currentWeight + item.Weight >= roll) {
+            if (currentWeight + item.Weight > roll) {
                 selected = item;
                 break;
             }
