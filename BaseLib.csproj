@@ -19,9 +19,9 @@
         <PackageId>Alchyr.Sts2.BaseLib</PackageId>
         <Title>BaseLib-StS2</Title>
         <Description>Mod for Slay the Spire 2 providing utilities and features for other mods.</Description>
-        <Version>3.0.3</Version>
+        <Version>3.0.4</Version>
         <Authors>Alchyr</Authors>
-        <PackageReleaseNotes>adjustments/additions to SimpleLoc, enum gen methods, sort common actions selection when from draw</PackageReleaseNotes>
+        <PackageReleaseNotes>Add Purge, IMaxHandSizeModifier, ## to disable simplified loc, config attributes rework, bugfixes</PackageReleaseNotes>
         <PackageTags>c#</PackageTags>
         <NoWarn>$(NoWarn);NU5128;MSB3270</NoWarn>
 
