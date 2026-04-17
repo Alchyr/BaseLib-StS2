@@ -19,7 +19,15 @@ public static class BaseLibMain
 
     public static MegaCrit.Sts2.Core.Logging.Logger Logger { get; } = new(ModId, MegaCrit.Sts2.Core.Logging.LogType.Generic);
 
-    private static Harmony? _mainHarmony = null;
+    private static Harmony? _harmony;
+    internal static Harmony MainHarmony
+    {
+        get
+        {
+            _harmony ??= new Harmony(ModId);
+            return _harmony;
+        }
+    }
 
     public static void Initialize()
     {
@@ -41,12 +49,10 @@ public static class BaseLibMain
         Godot.Bridge.ScriptManagerBridge.LookupScriptsInAssembly(assembly);
         
         ModConfigRegistry.Register(ModId, new BaseLibConfig());
-        
-        _mainHarmony ??= new(ModId);
 
-        TheBigPatchToCardPileCmdAdd.Patch(_mainHarmony);
+        TheBigPatchToCardPileCmdAdd.Patch(MainHarmony);
 
-        _mainHarmony.TryPatchAll(assembly);
+        MainHarmony.TryPatchAll(assembly);
     }
 
     //Hopefully temporary fix for linux
