@@ -124,7 +124,7 @@ public static class RewardSynchronizerExtensions
 
     [HarmonyPatch(nameof(RewardSynchronizer.OnCombatEnded))]
     [HarmonyPrefix]
-    private static void HandleCustomBufferedMessages(RewardSynchronizer __instance)
+    private static void OnCombat_HandleCustomBufferedMessages(RewardSynchronizer __instance)
     {
         foreach (BufferedCustomRewardMessage bufferedMessage in __instance.BufferedCustomRewardMessages())
         {
