@@ -50,6 +50,7 @@ public abstract class CustomCharacterModel : CharacterModel, ICustomModel, ILoca
     public virtual string? CustomVisualPath => null;
     public virtual string? CustomTrailPath => null;
     public virtual string? CustomIconTexturePath => null; //smaller icon used in popup showing saved run info
+    public virtual string? CustomIconOutlineTexturePath => null; // icon outline used on the map in multiplayer
     /// <summary>
     /// Path to a scene for top left in-run icon, stats screen, daily run icon, and run history icon.
     /// </summary>
@@ -445,6 +446,20 @@ class TrailPath
             return true;
 
         __result = customChar.CustomTrailPath;
+        return __result == null;
+    }
+}
+
+[HarmonyPatch(typeof(CharacterModel),  "IconOutlineTexturePath", MethodType.Getter)]
+class IconTexturePath
+{
+    [HarmonyPrefix]
+    static bool Custom(CharacterModel __instance, ref string? __result)
+    {
+        if (__instance is not CustomCharacterModel customChar)
+            return true;
+
+        __result = customChar.CustomIconOutlineTexturePath;
         return __result == null;
     }
 }
