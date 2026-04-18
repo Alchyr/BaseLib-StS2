@@ -81,7 +81,7 @@ public abstract class CustomCharacterModel : CharacterModel, ICustomModel, ILoca
     public virtual string? CustomArmPaperTexturePath => null;
     public virtual string? CustomArmScissorsTexturePath => null;
 //    public virtual string? CustomCookieTexturePath => null;
-    public virtual YummyCookieData? CustomYummyCookie => null;
+    public virtual RelicIconData? CustomYummyCookie => null;
 
     /// <summary>
     /// Override this or place your scene at res://scenes/screens/char_select/char_select_bg_class_name.tscn
@@ -706,7 +706,7 @@ class DeathSfx
     }
 }
 
-public record YummyCookieData(string? BigIconPath, string? PackedIconPath, string? PackedIconOutlinePath);
+public record RelicIconData(string? BigIconPath, string? PackedIconPath, string? PackedIconOutlinePath);
 
 [HarmonyPatch]
 public class CustomYummyCookiePathPatches
@@ -732,7 +732,7 @@ public class CustomYummyCookiePathPatches
         return TryGetCustomPath(__instance, y => y.BigIconPath, ref __result);
     }
 
-    static bool TryGetCustomPath(RelicModel instance, Func<YummyCookieData, string?> selector, ref string result)
+    static bool TryGetCustomPath(RelicModel instance, Func<RelicIconData, string?> selector, ref string result)
     {
         if (instance is not YummyCookie cookie || 
             cookie.IsCanonical ||
