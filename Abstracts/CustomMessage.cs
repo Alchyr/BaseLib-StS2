@@ -29,14 +29,11 @@ public abstract class CustomMessage : INetMessage, ICustomMessage
     /// How your message is "written" to be sent over the internet
     /// </summary>
     /// <param name="writer">The </param>
-    /// <example>writer.</example>
     public abstract void Serialize(PacketWriter writer);
     /// <summary>
     /// Read out your message into whatever variables it was created from
     /// </summary>
     /// <param name="reader">Parameter description.</param>
-    /// <returns>Type and description of the returned object.</returns>
-    /// <example>Write me later.</example>
     public abstract void Deserialize(PacketReader reader);
 
     /// <summary>

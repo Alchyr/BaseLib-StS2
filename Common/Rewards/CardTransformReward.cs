@@ -2,7 +2,6 @@ using BaseLib.Abstracts;
 using BaseLib.Extensions;
 using BaseLib.Patches.Content;
 using MegaCrit.Sts2.Core.Entities.Players;
-using MegaCrit.Sts2.Core.Helpers;
 using MegaCrit.Sts2.Core.Localization;
 using MegaCrit.Sts2.Core.Models.Cards;
 using MegaCrit.Sts2.Core.Rewards;
@@ -12,9 +11,12 @@ using MegaCrit.Sts2.Core.Saves.Runs;
 namespace BaseLib.Common.Rewards;
 
 /// <summary>
-/// A reward class similar to the card removal one created by <see cref="ForbiddenGrimoire"/>, only for transforming instead of removing cards
+/// A reward class similar to the card removal one created by <see cref="ForbiddenGrimoire"/>,
+/// only for transforming instead of removing cards
 /// </summary>
-/// <example> <code>
+/// <example>
+/// In a relic or power's <c>AfterCombatEnd</c> override
+/// <code>
 /// room.AddExtraReward(Owner.Player, new CardTransformReward(Owner.Player) {Amount = Amount, Upgrade = true});
 /// </code> </example>
 public sealed class CardTransformReward(Player player) : CustomReward(player)
