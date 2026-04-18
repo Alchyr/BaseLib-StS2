@@ -1,4 +1,5 @@
 using BaseLib.Abstracts;
+using BaseLib.Extensions;
 using BaseLib.Patches.Content;
 using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.Helpers;
@@ -32,8 +33,8 @@ public sealed class CardTransformReward(Player player) : CustomReward(player)
     /// </summary>
     public required bool Upgrade;
     /// <summary>
-        /// How many cards can be selected in this reward screen
-        /// </summary>
+    /// How many cards can be selected in this reward screen
+    /// </summary>
     public required int Amount;
 
     /// <summary>
@@ -44,17 +45,15 @@ public sealed class CardTransformReward(Player player) : CustomReward(player)
     {
         get
         {
-            LocString locString = Upgrade
-                ? new LocString("gameplay_ui", "COMBAT_REWARD_CARD_TRANSFORM_AND_UPGRADE")
-                : new LocString("gameplay_ui", "COMBAT_REWARD_CARD_TRANSFORM");
+            LocString locString = new LocString("gameplay_ui", "COMBAT_REWARD_CARD_TRANSFORM");
             locString.Add("cards", Amount);
+            locString.Add("Upgrade", Upgrade);
             return locString;
         }
     }
     /// <inheritdoc/>
     public override bool IsPopulated => true;
-    // TODO: make asset for this
-    public static string RewardIcon => ImageHelper.GetImagePath("ui/reward_screen/reward_icon_card_transform.png");
+    public static string RewardIcon => ImageHelperExtensions.GetModImagePath("ui/reward_screen/reward_icon_card_transform.png");
     /// <inheritdoc/>
     protected override string IconPath => RewardIcon;
 
