@@ -21,7 +21,7 @@ public abstract class CustomRewardMessage : CustomTargetedMessage
     public sealed override bool ShouldBroadcast => true;
 
     /// <summary>
-    /// Rewards should prabably be sent reliably too
+    /// Rewards should probably be sent reliably too
     /// </summary>
     public sealed override NetTransferMode Mode => NetTransferMode.Reliable;
 

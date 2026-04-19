@@ -13,9 +13,9 @@ namespace BaseLib.Common.Rewards;
 /// <summary>
 /// Message for transforming a card from a new reward type
 /// </summary>
-public sealed class CardTransformRewardMessage : CustomRewardMessage
+public sealed class ZZ_CardTransformRewardMessage : CustomRewardMessage
 {
-    internal void HandleCardTransformedMessage(CardTransformRewardMessage message, ulong senderId)
+    internal void HandleCardTransformedMessage(ZZ_CardTransformRewardMessage message, ulong senderId)
     {
         BaseLibMain.Logger.Debug($"Handling message {message}");
         var rs = RunManager.Instance.RewardSynchronizer;
@@ -38,14 +38,14 @@ public sealed class CardTransformRewardMessage : CustomRewardMessage
     public override void Dispose(RunLocationTargetedMessageBuffer messageBuffer)
     {
         BaseLibMain.Logger.Debug($"Unregistering handler for {GetType()}");
-        messageBuffer.UnregisterMessageHandler<CardTransformRewardMessage>(HandleCardTransformedMessage);
+        messageBuffer.UnregisterMessageHandler<ZZ_CardTransformRewardMessage>(HandleCardTransformedMessage);
     }
 
     /// <inheritdoc/>
     public override void Initialize(RunLocationTargetedMessageBuffer messageBuffer)
     {
         BaseLibMain.Logger.Debug($"Registering handler for {GetType()}");
-        messageBuffer.RegisterMessageHandler<CardTransformRewardMessage>(HandleCardTransformedMessage);
+        messageBuffer.RegisterMessageHandler<ZZ_CardTransformRewardMessage>(HandleCardTransformedMessage);
     }
 
     /// <summary>

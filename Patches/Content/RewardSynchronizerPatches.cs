@@ -80,7 +80,7 @@ public static class RewardSynchronizerExtensions
     /// </summary>
     public static async Task<bool> DoLocalCardTransform(this RewardSynchronizer rewardSynchronizer, int amount = 1, bool upgrade = false)
     {
-        CardTransformRewardMessage message = new CardTransformRewardMessage
+        ZZ_CardTransformRewardMessage message = new ZZ_CardTransformRewardMessage
         {
             Location = rewardSynchronizer.MessageBuffer()!.CurrentLocation,
             wasSkipped = false,

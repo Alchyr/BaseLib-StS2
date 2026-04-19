@@ -15,7 +15,7 @@ public abstract class CustomMessage : INetMessage, ICustomMessage
     /// <summary>
     /// Register your message type here.
     /// Needs to be a function that takes <c>(<see cref="ICustomMessage"/> message, <see langword="ulong"/> senderId)</c>
-    /// See <seealso cref="CardTransformRewardMessage.HandleCardTransformedMessage"/> for an example.
+    /// See <seealso cref="ZZ_CardTransformRewardMessage.HandleCardTransformedMessage"/> for an example.
     /// You probably want to use an <see href="https://learn.microsoft.com/en-us/dotnet/csharp/programming-guide/classes-and-structs/extension-methods">Extension Method</see>
     /// </summary>
     public abstract void Initialize(INetGameService netService);
@@ -28,12 +28,12 @@ public abstract class CustomMessage : INetMessage, ICustomMessage
     /// <summary>
     /// How your message is "written" to be sent over the internet
     /// </summary>
-    /// <param name="writer">The </param>
+    /// <param name="writer">The packet to write your data to</param>
     public abstract void Serialize(PacketWriter writer);
     /// <summary>
-    /// Read out your message into whatever variables it was created from
+    /// Read out your message into whatever variables it was created from, in the same order as written
     /// </summary>
-    /// <param name="reader">Parameter description.</param>
+    /// <param name="reader">The data sent from the other client</param>
     public abstract void Deserialize(PacketReader reader);
 
     /// <summary>
