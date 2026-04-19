@@ -6,17 +6,15 @@ using MegaCrit.Sts2.Core.Entities.Creatures;
 using MegaCrit.Sts2.Core.Localization;
 using MegaCrit.Sts2.Core.Models;
 
-namespace BaseLib.Patches.Content;
+namespace BaseLib.Patches.Localization;
 
 /// <summary>
 /// Contains patches allowing mods to customize card descriptions globally.
 /// These are intended for mods that add new keyword-like effects that don't necessarily work as actual keywords.
-/// <para/>
-/// Note that just declaring the patches requires Publicize, which doesn't make sense for most mods to require.
-/// Without it, Harmony cannot differentiate between the overloads of <c>GetDescriptionForPile</c>.
 /// </summary>
-[HarmonyPatch]
-public static class DescriptionOverridePatches
+[HarmonyPatch(typeof(CardModel), nameof(CardModel.GetDescriptionForPile),
+    typeof(PileType), typeof(CardModel.DescriptionPreviewType), typeof(Creature))]
+public static class DescriptionOverrides
 {
     public delegate void CustomizeDescriptionHandler(CardModel card, Creature? target, ref string description);
     
@@ -31,37 +29,36 @@ public static class DescriptionOverridePatches
     public static event CustomizeDescriptionHandler? CustomizeDescriptionPost;
     
     [HarmonyTranspiler]
-    [HarmonyPatch(typeof(CardModel), nameof(CardModel.GetDescriptionForPile),
-        typeof(PileType), typeof(CardModel.DescriptionPreviewType), typeof(Creature))]
     static List<CodeInstruction> TranspileGetDescriptionForPile(IEnumerable<CodeInstruction> instructionsIn)
     {
         return new InstructionPatcher(instructionsIn)
             .Match(new InstructionMatcher()
-                .ldloc_0()
-                .callvirt(typeof(LocString), nameof(LocString.GetFormattedText))
-                .opcode(OpCodes.Stind_Ref)
+                    .ldloc_0()
+                    .callvirt(typeof(LocString), nameof(LocString.GetFormattedText))
+                    .opcode(OpCodes.Stind_Ref)
+                    .stloc_s() //Store list with description in index 0
             )
-            .Step(-2)
+            .Step(-1)
             .Insert([
                 CodeInstruction.LoadArgument(0),
                 CodeInstruction.LoadArgument(3),
-            ])
-            // The replace seems necessary, and no, I'm not sure why.
-            .Replace(CodeInstruction.Call(typeof(DescriptionOverridePatches), nameof(InvokeCustomize)));
-    }
-
-    internal static string InvokeCustomize(LocString locString, CardModel card, Creature? target)
-    {
-        var s = locString.GetFormattedText();
-        CustomizeDescription?.Invoke(card, target, ref s);
-        return s;
+                CodeInstruction.Call(typeof(DescriptionOverrides), nameof(InvokeCustomize))
+            ]);
     }
     
     [HarmonyPostfix]
-    [HarmonyPatch(typeof(CardModel), nameof(CardModel.GetDescriptionForPile),
-        typeof(PileType), typeof(CardModel.DescriptionPreviewType), typeof(Creature))]
     internal static void InvokeCustomizePost(CardModel __instance, Creature? target, ref string __result)
     {
         CustomizeDescriptionPost?.Invoke(__instance, target, ref __result);
+    }
+
+    internal static List<string> InvokeCustomize(List<string> descriptionList, CardModel card, Creature? target)
+    {
+        if (descriptionList.Count == 0) return descriptionList;
+
+        var s = descriptionList[0];
+        CustomizeDescription?.Invoke(card, target, ref s);
+        descriptionList[0] = s;
+        return descriptionList;
     }
 }
