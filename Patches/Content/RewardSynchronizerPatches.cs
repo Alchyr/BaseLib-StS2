@@ -10,6 +10,7 @@ using MegaCrit.Sts2.Core.Factories;
 using MegaCrit.Sts2.Core.Localization;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Multiplayer.Game;
+using MegaCrit.Sts2.Core.Nodes.CommonUi;
 using MegaCrit.Sts2.Core.Runs;
 
 namespace BaseLib.Patches.Content;
@@ -124,7 +125,7 @@ public static class RewardSynchronizerExtensions
                 CardCmd.Upgrade(newCard);
             }
 
-            await CardCmd.Transform(card, newCard);
+            await CardCmd.Transform(card, newCard, CardPreviewStyle.GridLayout);
             BaseLibMain.Logger.Debug($"Player {player.NetId} transformed {card.Id} in their deck into {newCard.Id}" + (upgrade ? " and upgraded it." : "."));
         }
 
