@@ -16,7 +16,7 @@ class AfterCardPlayedPatch
         PlayerChoiceContext choiceContext,
         CardPlay cardPlay, ref Task __result)
     {
-        var followTask = __result;
+        var originalTask = __result;
         __result = Task.Run(async () =>
         {
             var refundAmount = cardPlay.Card.DynamicVars.TryGetValue(RefundVar.Key, out var val) ? val.IntValue : 0;
@@ -33,6 +33,8 @@ class AfterCardPlayedPatch
                     await CardPileCmd.RemoveFromDeck(deckCard, false);
                 }
             }
-        }).ContinueWith(_ => followTask);
+            
+            await originalTask;
+        });
     }
 }
