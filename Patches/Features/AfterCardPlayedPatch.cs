@@ -1,4 +1,4 @@
-﻿using BaseLib.Cards.Variables;
+using BaseLib.Cards.Variables;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Commands;
@@ -16,25 +16,25 @@ class AfterCardPlayedPatch
         PlayerChoiceContext choiceContext,
         CardPlay cardPlay, ref Task __result)
     {
-        var originalTask = __result;
-        __result = Task.Run(async () =>
-        {
-            var refundAmount = cardPlay.Card.DynamicVars.TryGetValue(RefundVar.Key, out var val) ? val.IntValue : 0;
-            if (refundAmount > 0 && cardPlay.Resources.EnergySpent > 0)
-            {
-                await PlayerCmd.GainEnergy(Math.Min(refundAmount, cardPlay.Resources.EnergySpent), cardPlay.Card.Owner);
-            }
+        __result = ExecuteAfterPlay(cardPlay, __result);
+    }
 
-            if (PurgePatch.ShouldPurge(cardPlay.Card))
+    private static async Task ExecuteAfterPlay(CardPlay cardPlay, Task followTask)
+    {
+        var refundAmount = cardPlay.Card.DynamicVars.TryGetValue(RefundVar.Key, out var val) ? val.IntValue : 0;
+        if (refundAmount > 0 && cardPlay.Resources.EnergySpent > 0)
+        {
+            await PlayerCmd.GainEnergy(Math.Min(refundAmount, cardPlay.Resources.EnergySpent), cardPlay.Card.Owner);
+        }
+
+        if (PurgePatch.ShouldPurge(cardPlay.Card))
+        {
+            var deckCard = cardPlay.Card.DeckVersion;
+            if (deckCard != null)
             {
-                var deckCard = cardPlay.Card.DeckVersion;
-                if (deckCard != null)
-                {
-                    await CardPileCmd.RemoveFromDeck(deckCard, false);
-                }
+                await CardPileCmd.RemoveFromDeck(deckCard, false);
             }
-            
-            await originalTask;
-        });
+        }
+        await followTask;
     }
 }
