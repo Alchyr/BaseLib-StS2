@@ -38,16 +38,8 @@ public abstract class ConstructedCardModel(
 
     protected sealed override IEnumerable<DynamicVar> CanonicalVars => _constructedDynamicVars;
     public sealed override IEnumerable<CardKeyword> CanonicalKeywords => _cardKeywords;
-    protected sealed override IEnumerable<IHoverTip> ExtraHoverTips
-    {
-        get
-        {
-            foreach (var tip in _hoverTips.Select(tip => tip.Tip(this)))
-                yield return tip;
-            foreach (var tip in _multiHoverTips.SelectMany(multiTip => multiTip.Invoke(this)))
-                yield return tip;
-        }
-    }
+    protected sealed override IEnumerable<IHoverTip> ExtraHoverTips => _hoverTips.Select(t => t.Tip(this))
+        .Concat(_multiHoverTips.SelectMany(mt => mt.Invoke(this)));
     
     protected sealed override HashSet<CardTag> CanonicalTags => _constructedTags;
 
