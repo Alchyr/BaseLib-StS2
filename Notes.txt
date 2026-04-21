@@ -26,6 +26,37 @@ NMouseCardPlay handles dragging before card is actually played
 
 Notes
 
+Async State Machine generation/await calls
+
+State Machine -
+integer "state", starting from -1
+field for each method parameter
+field for result of each await (if stored in a local var in method)
+
+each awaited call is another state
+one TaskAwaiter<T> field for each await
+
+StateMachine MoveNext method - contains basically all of actual method
+Starts by checking state and jumping based on it (simpler state machine may simply use an if statement)
+
+
+
+await call - 
+The "await" specifically just *waits*. The actual async startup is performed by the method call.
+The same task awaited multiple times will only execute once.
+Async method call -
+new instance of state machine class (store in local)
+AsyncTaskMethodBuilder.Create for builder instance, store in state machine class field
+store method call parameters in state machine class fields
+set state machine "state" int to -1
+start state machine by getting builder from state machine local instance and calling AsyncMethodTaskBuilder.Start
+get builder from state machine and return builder.Task (property)
+
+
+
+
+
+
 notable classes - CombatManager, RunManager
 CombatState IterateHookListeners
 for visuals - NThing for visual version

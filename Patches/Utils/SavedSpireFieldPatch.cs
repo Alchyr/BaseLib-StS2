@@ -45,14 +45,13 @@ static class SavedSpireFieldPatch
     
     internal static void AddFieldsSorted()
     {
+        BaseLibMain.Logger.Info($"Found {RegisteredFields.Count} SavedSpireFields.");
         RegisteredFields.Sort((a, b) => string.Compare(a.Name, b.Name, StringComparison.Ordinal));
 
         foreach (var field in RegisteredFields)
         {
             InjectNameIntoBaseGameCache(field.Name);
         }
-        
-        BaseLibMain.Logger.Info($"Registered {RegisteredFields.Count} SavedSpireFields.");
     }
     
     private static void InjectNameIntoBaseGameCache(string name)
