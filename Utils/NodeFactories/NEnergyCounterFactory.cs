@@ -21,11 +21,11 @@ internal class NEnergyCounterFactory : NodeFactory<NEnergyCounter>
     private static readonly StringName ShadowOutlineSize = "shadow_outline_size";
     
     public NEnergyCounterFactory() : base([
-        new NodeInfo<MegaLabel>("Label"),
+        new NodeInfo<NParticlesContainer>("%EnergyVfxBack"),
         new NodeInfo<Control>("%Layers"),
         new NodeInfo<Control>("%RotationLayers"),
-        new NodeInfo<NParticlesContainer>("%EnergyVfxBack"),
         new NodeInfo<NParticlesContainer>("%EnergyVfxFront"),
+        new NodeInfo<MegaLabel>("Label"),
         new NodeInfo<NParticlesContainer>("%StarAnchor") //Custom
     ])
     { }
@@ -289,7 +289,7 @@ internal class NEnergyCounterFactory : NodeFactory<NEnergyCounter>
                 label.MaxFontSize = Math.Max(36, sourceLabel.GetThemeFontSize(BetaMainCompatibility.Renamed.FontSize, "Label"));
             }
             
-            source?.Free();
+            source.Free();
             return label;
         }
 
@@ -330,20 +330,21 @@ internal class NEnergyCounterFactory : NodeFactory<NEnergyCounter>
 
     private static void EnsureLabelFont(MegaLabel target, Label? source)
     {
-        Font? font = source?.GetThemeFont(BetaMainCompatibility.Renamed.Font, "Label");
-        font ??= PreloadManager.Cache.GetAsset<Font>(DefaultLabelFontPath);
+        Font? font = source?.GetThemeFont(BetaMainCompatibility.Renamed.Font);
+        if (font == source?.GetThemeDefaultFont())
+            font = PreloadManager.Cache.GetAsset<Font>(DefaultLabelFontPath);
         target.AddThemeFontOverride(BetaMainCompatibility.Renamed.Font, font);
     }
 
     private static void CopyLabelThemeOverrides(MegaLabel target, Label source)
     {
-        target.AddThemeColorOverride(BetaMainCompatibility.Renamed.FontColor, source.GetThemeColor(BetaMainCompatibility.Renamed.FontColor, "Label"));
-        target.AddThemeColorOverride(BetaMainCompatibility.Renamed.FontShadowColor, source.GetThemeColor(BetaMainCompatibility.Renamed.FontShadowColor, "Label"));
-        target.AddThemeColorOverride(BetaMainCompatibility.Renamed.FontOutlineColor, source.GetThemeColor(BetaMainCompatibility.Renamed.FontOutlineColor, "Label"));
-        target.AddThemeConstantOverride(ShadowOffsetX, source.GetThemeConstant(ShadowOffsetX, "Label"));
-        target.AddThemeConstantOverride(ShadowOffsetY, source.GetThemeConstant(ShadowOffsetY, "Label"));
-        target.AddThemeConstantOverride(BetaMainCompatibility.Renamed.OutlineSize, source.GetThemeConstant(BetaMainCompatibility.Renamed.OutlineSize, "Label"));
-        target.AddThemeConstantOverride(ShadowOutlineSize, source.GetThemeConstant(ShadowOutlineSize, "Label"));
-        target.AddThemeFontSizeOverride(BetaMainCompatibility.Renamed.FontSize, source.GetThemeFontSize(BetaMainCompatibility.Renamed.FontSize, "Label"));
+        target.AddThemeColorOverride(BetaMainCompatibility.Renamed.FontColor, source.GetThemeColor(BetaMainCompatibility.Renamed.FontColor));
+        target.AddThemeColorOverride(BetaMainCompatibility.Renamed.FontShadowColor, source.GetThemeColor(BetaMainCompatibility.Renamed.FontShadowColor));
+        target.AddThemeColorOverride(BetaMainCompatibility.Renamed.FontOutlineColor, source.GetThemeColor(BetaMainCompatibility.Renamed.FontOutlineColor));
+        target.AddThemeConstantOverride(ShadowOffsetX, source.GetThemeConstant(ShadowOffsetX));
+        target.AddThemeConstantOverride(ShadowOffsetY, source.GetThemeConstant(ShadowOffsetY));
+        target.AddThemeConstantOverride(BetaMainCompatibility.Renamed.OutlineSize, source.GetThemeConstant(BetaMainCompatibility.Renamed.OutlineSize));
+        target.AddThemeConstantOverride(ShadowOutlineSize, source.GetThemeConstant(ShadowOutlineSize));
+        target.AddThemeFontSizeOverride(BetaMainCompatibility.Renamed.FontSize, source.GetThemeFontSize(BetaMainCompatibility.Renamed.FontSize));
     }
 }

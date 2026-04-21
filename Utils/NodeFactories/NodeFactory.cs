@@ -166,14 +166,19 @@ public abstract class NodeFactory<T> : NodeFactory where T : Node, new()
                 }
             }
         }
-        placeholder.QueueFree();
 
         //Check all children for possible valid unique names
+        Dictionary<INodeInfo, Node> backupUniqueNodes = []; //Nodes with matching name but incorrect type.
         foreach (var child in target.GetChildrenRecursive<Node>())
         {
             for (var index = 0; index < uniqueNames.Count; index++)
             {
                 var unique = uniqueNames[index];
+
+                if (unique.IsValidName(child))
+                {
+                    backupUniqueNodes[unique] = child;
+                }
                 if (!unique.IsValidUnique(child)) continue;
                 
                 child.UniqueNameInOwner = true;
@@ -185,8 +190,26 @@ public abstract class NodeFactory<T> : NodeFactory where T : Node, new()
 
         foreach (var missing in uniqueNames)
         {
-            GenerateNode(target, missing);
+            //Attempt conversion if no node with correct name and type was found, but matching name was found.
+            if (backupUniqueNodes.TryGetValue(missing, out var node))
+            {
+                if (!missing.IsValidType(node))
+                {
+                    node.ReplaceBy(placeholder);
+                    node = ConvertNodeType(node, missing.NodeType());
+                    placeholder.ReplaceBy(node);
+                }
+
+                node.UniqueNameInOwner = true;
+                node.Owner = target;
+            }
+            else
+            {
+                GenerateNode(target, missing);
+            }
         }
+        
+        placeholder.QueueFree();
     }
 
     /// <summary>
@@ -362,6 +385,12 @@ public abstract class NodeFactory
         /// </summary>
         bool MakeNameUnique { get; }
         /// <summary>
+        /// Returns true if the given node has the expected name.
+        /// </summary>
+        /// <param name="n"></param>
+        /// <returns></returns>
+        bool IsValidName(Node n);
+        /// <summary>
         /// Returns true if the node is a valid type to be used as this element of the scene.
         /// </summary>
         /// <param name="node"></param>
@@ -388,6 +417,11 @@ public abstract class NodeFactory
         public bool IsValidType(Node node)
         {
             return node is T;
+        }
+
+        public bool IsValidName(Node n)
+        {
+            return n.Name.Equals(StringName);
         }
 
         public bool IsValidUnique(Node n)

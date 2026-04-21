@@ -3,7 +3,7 @@
   "name": "BaseLib",
   "author": "Alchyr",
   "description": "Modding utility for Slay the Spire 2",
-  "version": "v3.0.7",
+  "version": "v3.0.8",
   "has_pck": true,
   "has_dll": true,
   "dependencies": [],

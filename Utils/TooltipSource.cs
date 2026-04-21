@@ -35,6 +35,6 @@ public class TooltipSource
         }
         throw new Exception($"Unable to generate hovertip from type {t}");
     }
-    public static implicit operator TooltipSource(CardKeyword keyword) => new((card)=>HoverTipFactory.FromKeyword(keyword));
+    public static implicit operator TooltipSource(CardKeyword keyword) => new(card => HoverTipFactory.FromKeyword(keyword));
     public static implicit operator TooltipSource(StaticHoverTip staticTip) => new(card => HoverTipFactory.Static(staticTip));
 }

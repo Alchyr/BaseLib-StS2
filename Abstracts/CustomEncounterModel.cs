@@ -86,7 +86,7 @@ public abstract class CustomEncounterModel : EncounterModel, ICustomModel
     /// Override this method if you want to provide a custom encounter background for your scene using custom paths.
     /// To do so, return a new CustomBackgroundAssets object.
     /// Alternatively you can place your assets at res://scenes/backgrounds/modname-encounter_name/layers and
-    /// res://scenes/backgrounds/modname-encounter_name/modname-encounter_name_background.tscn, then override 
+    /// res://scenes/backgrounds/modname-encounter_name/modname-encounter_name_background.tscn, then override HasCustomBackground.
     /// </summary>
     public virtual BackgroundAssets? CustomEncounterBackground(ActModel parentAct, Rng rng)
     {
@@ -95,6 +95,7 @@ public abstract class CustomEncounterModel : EncounterModel, ICustomModel
     
     /// <summary>
     /// See RoomIconPathPatch<seealso cref="RoomIconPathPatch"/>
+    /// These are used as boss icons.
     /// </summary>
     public virtual string? CustomRunHistoryIconPath => null;
     public virtual string? CustomRunHistoryIconOutlinePath => null;

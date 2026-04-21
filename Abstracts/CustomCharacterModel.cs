@@ -82,7 +82,6 @@ public abstract class CustomCharacterModel : CharacterModel, ICustomModel, ILoca
     public virtual string? CustomArmRockTexturePath => null;
     public virtual string? CustomArmPaperTexturePath => null;
     public virtual string? CustomArmScissorsTexturePath => null;
-//    public virtual string? CustomCookieTexturePath => null;
     public virtual RelicIconData? CustomYummyCookie => null;
 
     /// <summary>

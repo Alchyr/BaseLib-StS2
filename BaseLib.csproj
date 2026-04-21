@@ -8,6 +8,7 @@
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <AppOutputBase>$(MSBuildProjectDirectory)\</AppOutputBase>
         <PathMap>$(AppOutputBase)=.\</PathMap>
+        <GodotDisabledSourceGenerators>GodotPluginsInitializer</GodotDisabledSourceGenerators>
     </PropertyGroup>
 
     <!-- NuGet Package Configuration -->
@@ -19,9 +20,9 @@
         <PackageId>Alchyr.Sts2.BaseLib</PackageId>
         <Title>BaseLib-StS2</Title>
         <Description>Mod for Slay the Spire 2 providing utilities and features for other mods.</Description>
-        <Version>3.0.7</Version>
+        <Version>3.0.8</Version>
         <Authors>Alchyr</Authors>
-        <PackageReleaseNotes>AddedNode, relic image overrides (+yummy cookie), remove baselib singleton, add modeldb hash display, global card description modifiers, DisplayVar</PackageReleaseNotes>
+        <PackageReleaseNotes>Fix desync caused by after card play postfix, small fix to scene constructor of AddedNode, allow nullable cardplay in CommonActions.CardBlock, fixes to NodeFactory unique node generation and NEnergyCounterFactory</PackageReleaseNotes>
         <PackageTags>c#</PackageTags>
         <NoWarn>$(NoWarn);NU5128;MSB3270</NoWarn>
 

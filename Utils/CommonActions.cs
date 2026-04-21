@@ -137,7 +137,7 @@ public static class CommonActions
     /// Gains Block based on the card's BlockVar<seealso cref="BlockVar"/>.
     /// </summary>
     /// <returns></returns>
-    public static async Task<decimal> CardBlock(CardModel card, CardPlay play)
+    public static async Task<decimal> CardBlock(CardModel card, CardPlay? play)
     {
         return await CardBlock(card, card.DynamicVars.Block, play);
     }
@@ -146,7 +146,7 @@ public static class CommonActions
     /// Gains Block based on the given BlockVar<seealso cref="BlockVar"/>.
     /// </summary>
     /// <returns></returns>
-    public static async Task<decimal> CardBlock(CardModel card, BlockVar blockVar, CardPlay play)
+    public static async Task<decimal> CardBlock(CardModel card, BlockVar blockVar, CardPlay? play)
     {
         return await CreatureCmd.GainBlock(card.Owner.Creature, blockVar, play);
     }
@@ -159,7 +159,7 @@ public static class CommonActions
     /// <param name="play"></param>
     /// <param name="fast"></param>
     /// <returns></returns>
-    public static async Task<decimal> CardBlock(CardModel card, DynamicVar var, CardPlay play, bool fast = false)
+    public static async Task<decimal> CardBlock(CardModel card, DynamicVar var, CardPlay? play, bool fast = false)
     {
         if (var is CalculatedBlockVar calculated)
         {

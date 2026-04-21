@@ -5,7 +5,7 @@ using MegaCrit.Sts2.Core.Nodes.Debug;
 namespace BaseLib.Patches.UI;
 
 [HarmonyPatch(typeof(NDebugInfoLabelManager), nameof(NDebugInfoLabelManager.UpdateText))]
-class ShowModelDb
+class ShowModelIdCacheHash
 {
     [HarmonyPostfix]
     static void AdjustModdedLabel(NDebugInfoLabelManager __instance)
