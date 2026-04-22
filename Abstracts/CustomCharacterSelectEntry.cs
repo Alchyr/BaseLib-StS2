@@ -56,9 +56,24 @@ public abstract class CustomCharacterSelectEntry : ICustomModel
     public virtual CharacterModel? InitialCharacter => null;
 
     /// <summary>
+    /// Controls whether the vanilla info panel should be shown while this entry is active and no concrete character is resolved.
+    /// </summary>
+    public virtual bool ShowVanillaInfoPanelWhenUnresolved => true;
+
+    /// <summary>
+    /// Controls whether the vanilla info panel should be shown after this entry resolves to a concrete character.
+    /// </summary>
+    public virtual bool ShowVanillaInfoPanelWhenResolved => true;
+
+    /// <summary>
     /// Override this or <seealso cref="CreateCharacterSelectScene"/> to provide a scene shown in the background container.
     /// </summary>
     public virtual string? CharacterSelectScenePath => null;
+
+    /// <summary>
+    /// Override this or <seealso cref="CreateCharacterSelectForegroundScene"/> to provide a scene shown above the vanilla character select UI.
+    /// </summary>
+    public virtual string? CharacterSelectForegroundScenePath => null;
 
     /// <summary>
     /// Create the scene that will be added to the character select background container.
@@ -79,10 +94,35 @@ public abstract class CustomCharacterSelectEntry : ICustomModel
     }
 
     /// <summary>
+    /// Create the optional scene that will be added above the vanilla character select UI.
+    /// Override if you want to instantiate or build the node manually.
+    /// Return <see langword="null"/> to omit the foreground layer.
+    /// </summary>
+    public virtual Control? CreateCharacterSelectForegroundScene()
+    {
+        if (CharacterSelectForegroundScenePath == null)
+        {
+            return null;
+        }
+
+        return ResourceLoader.Load<PackedScene>(CharacterSelectForegroundScenePath)
+                   ?.Instantiate<Control>(PackedScene.GenEditState.Disabled)
+               ?? throw new InvalidOperationException(
+                   $"Failed to load character select foreground scene at path '{CharacterSelectForegroundScenePath}' for {GetType().FullName}.");
+    }
+
+    /// <summary>
     /// Called after the entry scene has been instantiated and added to the background container.
     /// Use the provided context to wire any scene nodes to character selection logic.
     /// </summary>
     public virtual void RegisterScene(Control root, CustomCharacterSelectContext context)
+    {
+    }
+
+    /// <summary>
+    /// Called after the optional foreground scene has been instantiated and added above the vanilla character select UI.
+    /// </summary>
+    public virtual void RegisterForegroundScene(Control root, CustomCharacterSelectContext context)
     {
     }
 }
@@ -99,11 +139,13 @@ public sealed class CustomCharacterSelectContext
         CustomCharacterSelectEntry entry,
         NCharacterSelectScreen screen,
         Control sceneRoot,
+        Control? foregroundSceneRoot,
         Action<CharacterModel?> setCharacter)
     {
         Entry = entry;
         Screen = screen;
         SceneRoot = sceneRoot;
+        ForegroundSceneRoot = foregroundSceneRoot;
         _setCharacter = setCharacter;
     }
 
@@ -128,9 +170,19 @@ public sealed class CustomCharacterSelectContext
     public Control SceneRoot { get; }
 
     /// <summary>
+    /// Root node of the instantiated foreground scene, if this entry created one.
+    /// </summary>
+    public Control? ForegroundSceneRoot { get; }
+
+    /// <summary>
     /// The character currently resolved by this custom entry, if any.
     /// </summary>
     public CharacterModel? SelectedCharacter { get; private set; }
+
+    /// <summary>
+    /// Current visibility of the vanilla character info panel.
+    /// </summary>
+    public bool VanillaInfoPanelVisible => Screen._infoPanel.Visible;
 
     /// <summary>
     /// Resolves the current selection to the given playable character.
@@ -148,6 +200,14 @@ public sealed class CustomCharacterSelectContext
     public void ClearCharacter()
     {
         SetCharacter(null);
+    }
+
+    /// <summary>
+    /// Shows or hides the vanilla character info panel.
+    /// </summary>
+    public void SetVanillaInfoPanelVisible(bool visible)
+    {
+        Screen._infoPanel.Visible = visible;
     }
 }
 

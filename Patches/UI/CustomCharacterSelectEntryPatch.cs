@@ -42,10 +42,8 @@ internal static class CustomCharacterSelectEntryPatch
         {
             if (!entry.VisibleInCharacterSelect) continue;
 
-            var button = new NCustomCharacterSelectEntryButton();
-            button.Name = $"{entry.EntryId}_entry_button";
-            button.Initialize(entry, selected => SelectCustomEntry(__instance, selected));
-            __instance._charButtonContainer.AddChildSafely(button);
+            var button = new NCustomCharacterSelectEntryButton(entry, __instance, selected => SelectCustomEntry(__instance, selected));
+            __instance._charButtonContainer.AddChildSafely(button.Button);
             state.Buttons.Add(button);
         }
 
@@ -54,6 +52,7 @@ internal static class CustomCharacterSelectEntryPatch
             __instance._charButtonContainer.AddChildSafely(randomButton);
         }
 
+        EnsureForegroundContainer(__instance, state);
         RebuildFocusNeighbors(__instance);
     }
 
@@ -71,6 +70,7 @@ internal static class CustomCharacterSelectEntryPatch
         }
 
         ClearActiveEntry(__instance, clearScene: true);
+        __instance._infoPanel.Visible = true;
         RebuildFocusNeighbors(__instance);
     }
 
@@ -86,6 +86,7 @@ internal static class CustomCharacterSelectEntryPatch
     private static void SelectCharacterPostfix(NCharacterSelectScreen __instance)
     {
         ClearActiveEntry(__instance, clearScene: false);
+        __instance._infoPanel.Visible = true;
     }
 
     [HarmonyPatch(typeof(NCharacterSelectScreen), "OnEmbarkPressed")]
@@ -131,8 +132,6 @@ internal static class CustomCharacterSelectEntryPatch
 
     private static void SelectCustomEntry(NCharacterSelectScreen screen, NCustomCharacterSelectEntryButton button)
     {
-        if (button.Entry == null) return;
-
         Control entryScene;
         try
         {
@@ -145,11 +144,25 @@ internal static class CustomCharacterSelectEntryPatch
             return;
         }
 
+        Control? foregroundScene = null;
+        try
+        {
+            foregroundScene = button.Entry.CreateCharacterSelectForegroundScene();
+        }
+        catch (Exception e)
+        {
+            BaseLibMain.Logger.Error($"Failed to create custom character select foreground scene for {button.Entry.EntryId}: {e}");
+        }
+
         var state = ScreenStates.Get(screen)!;
+        var customButtons = state.Buttons.Select(static customButton => customButton.Button).ToHashSet();
 
         foreach (var vanillaButton in screen._charButtonContainer.GetChildren().OfType<NCharacterSelectButton>())
         {
-            vanillaButton.Deselect();
+            if (!customButtons.Contains(vanillaButton))
+            {
+                vanillaButton.Deselect();
+            }
         }
 
         foreach (var customButton in state.Buttons)
@@ -166,15 +179,23 @@ internal static class CustomCharacterSelectEntryPatch
         entryScene.Name = $"{button.Entry.EntryId}_entry_bg";
         screen._bgContainer.AddChildSafely(entryScene);
 
+        if (foregroundScene != null)
+        {
+            foregroundScene.Name = $"{button.Entry.EntryId}_entry_fg";
+            EnsureForegroundContainer(screen, state).AddChildSafely(foregroundScene);
+        }
+
         CustomCharacterSelectContext? context = null;
         context = new CustomCharacterSelectContext(
             button.Entry,
             screen,
             entryScene,
+            foregroundScene,
             character => OnResolvedCharacterChanged(screen, context!, character));
 
         state.ActiveButton = button;
         state.ActiveScene = entryScene;
+        state.ActiveForegroundScene = foregroundScene;
         state.Context = context;
 
         ApplyEntryPanel(screen, button.Entry);
@@ -186,6 +207,18 @@ internal static class CustomCharacterSelectEntryPatch
         catch (Exception e)
         {
             BaseLibMain.Logger.Error($"Failed to register custom character select scene for {button.Entry.EntryId}: {e}");
+        }
+
+        if (foregroundScene != null)
+        {
+            try
+            {
+                button.Entry.RegisterForegroundScene(foregroundScene, context);
+            }
+            catch (Exception e)
+            {
+                BaseLibMain.Logger.Error($"Failed to register custom character select foreground scene for {button.Entry.EntryId}: {e}");
+            }
         }
 
         if (context.SelectedCharacter == null && button.Entry.InitialCharacter is { } initialCharacter)
@@ -213,7 +246,7 @@ internal static class CustomCharacterSelectEntryPatch
             return;
         }
 
-        ApplyCharacterPanel(screen, character);
+        ApplyCharacterPanel(screen, character, context.Entry);
     }
 
     private static void RefreshEmbarkAvailability(NCharacterSelectScreen screen)
@@ -252,8 +285,19 @@ internal static class CustomCharacterSelectEntryPatch
             state.ActiveScene.QueueFreeSafely();
         }
 
+        if (clearScene && state.ActiveForegroundScene != null && GodotObject.IsInstanceValid(state.ActiveForegroundScene))
+        {
+            if (state.ActiveForegroundScene.GetParent() != null)
+            {
+                state.ActiveForegroundScene.GetParent().RemoveChildSafely(state.ActiveForegroundScene);
+            }
+
+            state.ActiveForegroundScene.QueueFreeSafely();
+        }
+
         state.ActiveButton = null;
         state.ActiveScene = null;
+        state.ActiveForegroundScene = null;
         state.Context = null;
     }
 
@@ -264,6 +308,29 @@ internal static class CustomCharacterSelectEntryPatch
             screen._bgContainer.RemoveChildSafely(child);
             child.QueueFreeSafely();
         }
+    }
+
+    private static Control EnsureForegroundContainer(
+        NCharacterSelectScreen screen,
+        CustomCharacterSelectScreenState state)
+    {
+        if (state.ForegroundContainer != null && GodotObject.IsInstanceValid(state.ForegroundContainer))
+        {
+            screen.MoveChild(state.ForegroundContainer, screen.GetChildCount() - 1);
+            return state.ForegroundContainer;
+        }
+
+        var container = new Control
+        {
+            Name = "BaseLibCharacterSelectForeground",
+            LayoutMode = 1,
+            MouseFilter = Control.MouseFilterEnum.Ignore
+        };
+        container.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+        screen.AddChildSafely(container);
+        screen.MoveChild(container, screen.GetChildCount() - 1);
+        state.ForegroundContainer = container;
+        return container;
     }
 
     private static void RebuildFocusNeighbors(NCharacterSelectScreen screen)
@@ -303,7 +370,6 @@ internal static class CustomCharacterSelectEntryPatch
 
     private static void ApplyEntryPanel(NCharacterSelectScreen screen, CustomCharacterSelectEntry entry)
     {
-        AnimateInfoPanel(screen);
         screen._selectedButton = null;
         screen._embarkButton.Disable();
         screen._name.SetTextAutoSize(entry.EntryTitle);
@@ -315,16 +381,19 @@ internal static class CustomCharacterSelectEntryPatch
         screen._relicTitle.Text = string.Empty;
         screen._relicDescription.Text = string.Empty;
         screen._ascensionPanel.Visible = false;
+        ApplyInfoPanelVisibility(screen, entry.ShowVanillaInfoPanelWhenUnresolved);
     }
 
-    private static void ApplyCharacterPanel(NCharacterSelectScreen screen, CharacterModel character)
+    private static void ApplyCharacterPanel(
+        NCharacterSelectScreen screen,
+        CharacterModel character,
+        CustomCharacterSelectEntry entry)
     {
-        AnimateInfoPanel(screen);
         screen._selectedButton = null;
 
         if (IsCharacterLocked(character))
         {
-            ApplyLockedCharacterPanel(screen, character);
+            ApplyLockedCharacterPanel(screen, character, entry.ShowVanillaInfoPanelWhenResolved);
             return;
         }
 
@@ -360,9 +429,14 @@ internal static class CustomCharacterSelectEntryPatch
         {
             screen._ascensionPanel.AnimIn();
         }
+
+        ApplyInfoPanelVisibility(screen, entry.ShowVanillaInfoPanelWhenResolved);
     }
 
-    private static void ApplyLockedCharacterPanel(NCharacterSelectScreen screen, CharacterModel character)
+    private static void ApplyLockedCharacterPanel(
+        NCharacterSelectScreen screen,
+        CharacterModel character,
+        bool showInfoPanel)
     {
         screen._embarkButton.Disable();
         screen._name.SetTextAutoSize(new LocString("main_menu_ui", "CHARACTER_SELECT.locked.title").GetFormattedText());
@@ -390,17 +464,29 @@ internal static class CustomCharacterSelectEntryPatch
         }
 
         screen._ascensionPanel.Visible = false;
+        ApplyInfoPanelVisibility(screen, showInfoPanel);
+    }
+
+    private static void ApplyInfoPanelVisibility(NCharacterSelectScreen screen, bool visible)
+    {
+        screen._infoPanel.Visible = visible;
+        if (visible)
+        {
+            AnimateInfoPanel(screen);
+        }
     }
 
     private static bool IsCharacterLocked(CharacterModel character)
     {
+        var unlockState = SaveManager.Instance.GenerateUnlockStateFromProgress();
         if (character is RandomCharacter)
         {
-            var unlockState = SaveManager.Instance.GenerateUnlockStateFromProgress();
-            return ModelDb.AllCharacters.Any(c => !unlockState.Characters.Contains(c));
+            return ModelDb.AllCharacters
+                .Where(static c => c is not CustomCharacterModel { AllowInVanillaRandomCharacterSelect: false })
+                .Any(c => !unlockState.Characters.Contains(c));
         }
 
-        return !SaveManager.Instance.GenerateUnlockStateFromProgress().Characters.Contains(character);
+        return !unlockState.Characters.Contains(character);
     }
 
     private sealed class CustomCharacterSelectScreenState
@@ -409,6 +495,8 @@ internal static class CustomCharacterSelectEntryPatch
         public List<NCustomCharacterSelectEntryButton> Buttons { get; } = [];
         public NCustomCharacterSelectEntryButton? ActiveButton { get; set; }
         public Control? ActiveScene { get; set; }
+        public Control? ActiveForegroundScene { get; set; }
+        public Control? ForegroundContainer { get; set; }
         public CustomCharacterSelectContext? Context { get; set; }
     }
 }
