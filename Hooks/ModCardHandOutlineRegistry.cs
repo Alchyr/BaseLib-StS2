@@ -103,6 +103,22 @@ public static class ModCardHandOutlineRegistry
         return true;
     }
 
+    /// <summary>
+    ///     Applies outline only when the winning rule uses <see cref="ModCardHandOutlineRule.DynamicColor" />.
+    /// </summary>
+    public static bool TryRefreshDynamicOutlineForHolder(NHandCardHolder? holder)
+    {
+        if (holder == null || !holder.IsNodeReady() || holder.CardNode?.Model is not { } model)
+            return false;
+
+        var rule = EvaluateBest(model);
+        if (!rule.HasValue || rule.Value.DynamicColor == null)
+            return false;
+
+        ModCardHandOutlinePatchHelper.ApplyHighlight(holder, model, rule.Value);
+        return true;
+    }
+
     internal static ModCardHandOutlineRule? EvaluateBest(CardModel model)
     {
         var local = EvaluateLocalBest(model);
