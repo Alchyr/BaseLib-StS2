@@ -41,6 +41,9 @@ internal static class NHandCardHolderDynamicOutlineReadyPatch
     [HarmonyPostfix]
     public static void Postfix(NHandCardHolder __instance)
     {
+        if (!GodotObject.IsInstanceValid(__instance) || !__instance.IsInsideTree() || __instance.GetTree() == null)
+            return;
+
         var id = __instance.GetInstanceId();
         if (!TokensByHolderId.TryAdd(id, new CancellationTokenSource()))
             return;
@@ -55,8 +58,15 @@ internal static class NHandCardHolderDynamicOutlineReadyPatch
         {
             while (!token.IsCancellationRequested && GodotObject.IsInstanceValid(holder))
             {
+                if (!holder.IsInsideTree())
+                    break;
+
                 ModCardHandOutlineRegistry.TryRefreshDynamicOutlineForHolder(holder);
-                await holder.ToSignal(holder.GetTree(), SceneTree.SignalName.ProcessFrame);
+                var tree = holder.GetTree();
+                if (tree == null || !GodotObject.IsInstanceValid(tree))
+                    break;
+
+                await tree.ToSignal(tree, SceneTree.SignalName.ProcessFrame);
             }
         }
         finally
