@@ -51,7 +51,7 @@ public static class AsyncMethodCall
     {
         var stringKey = keyObj + name;
         var result = GetAsyncFields[stringKey];
-        BaseLibMain.Logger.Info($"Load awaiter val {name}: {result}");
+        //BaseLibMain.Logger.Info($"Load awaiter val {name}: {result}");
         //TODO - clean out named fields at some point? Add removal to end of state machine
         return result;
     }
@@ -59,7 +59,7 @@ public static class AsyncMethodCall
     {
         var stringKey = keyObj + name;
         GetAsyncFields[stringKey] = val;
-        BaseLibMain.Logger.Info($"Store awaiter val {name}: {val}");
+        //BaseLibMain.Logger.Info($"Store awaiter val {name}: {val}");
     }
     
     
