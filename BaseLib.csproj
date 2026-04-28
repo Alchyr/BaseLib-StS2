@@ -20,9 +20,9 @@
         <PackageId>Alchyr.Sts2.BaseLib</PackageId>
         <Title>BaseLib-StS2</Title>
         <Description>Mod for Slay the Spire 2 providing utilities and features for other mods.</Description>
-        <Version>3.0.9</Version>
+        <Version>3.1.0</Version>
         <Authors>Alchyr</Authors>
-        <PackageReleaseNotes>Beta compatibility update, console modded content autocomplete adjustment</PackageReleaseNotes>
+        <PackageReleaseNotes>CustomActModel, AsyncMethodCall + AfterCardPlayedPatch rework, inverted temp powers, [ConfigIgnoreRestoreDefaults]</PackageReleaseNotes>
         <PackageTags>c#</PackageTags>
         <NoWarn>$(NoWarn);NU5128;MSB3270</NoWarn>
 
