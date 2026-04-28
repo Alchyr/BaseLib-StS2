@@ -155,10 +155,17 @@ public abstract partial class ModConfig
         return default;
     }
 
+    /// <summary>
+    /// Restores the default value for all relevant config properties: all except those marked with
+    /// [<see cref="ConfigIgnoreAttribute">ConfigIgnore</see>] or
+    /// [<see cref="ConfigIgnoreRestoreDefaultsAttribute">ConfigIgnoreRestoreDefaults</see>].
+    /// </summary>
     protected void RestoreDefaultsNoConfirm()
     {
         foreach (var property in ConfigProperties)
         {
+            if (property.GetCustomAttribute<ConfigIgnoreRestoreDefaultsAttribute>() != null) continue;
+
             var defaultValue = GetDefaultValue<object?>(property.Name);
             property.SetValue(null, defaultValue);
         }

@@ -78,6 +78,7 @@ class NMainMenuReadyOpenLogWindowPatch
         if (_hasOpenedOnStartup || !BaseLibConfig.OpenLogWindowOnStartup) return;
 
         _hasOpenedOnStartup = true;
-        OpenLogWindow.OpenWindow(stealFocus: false);
+        if (!NLogWindow.IsOpen)
+            OpenLogWindow.OpenWindow(stealFocus: false);
     }
 }

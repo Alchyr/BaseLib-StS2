@@ -8,7 +8,8 @@ namespace BaseLib.Patches.Features;
 [HarmonyPatch(typeof(CardModel), "GetResultPileType")]
 public static class ExhaustivePatch
 {
-    static void Postfix(CardModel __instance, ref PileType __result)
+    [HarmonyPostfix]
+    static void ExhaustForExhaustive(CardModel __instance, ref PileType __result)
     {
         if (ExhaustForExhaustive(__instance))
         {
@@ -18,12 +19,7 @@ public static class ExhaustivePatch
 
     static bool ExhaustForExhaustive(CardModel card)
     {
-        if (card.DynamicVars.TryGetValue(ExhaustiveVar.Key, out var val))
-        {
-            return val.IntValue <= 1;
-        }
-
-        return false;
+        return GetExhaustive(card) == 1;
     }
     
 

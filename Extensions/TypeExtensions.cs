@@ -1,7 +1,6 @@
 using HarmonyLib;
-using System;
-using System.Collections.Generic;
 using System.Reflection;
+using System.Reflection.Emit;
 
 namespace BaseLib.Extensions;
 
@@ -186,4 +185,9 @@ public static class TypeExtensions
         return false;
     }
 
+    internal static IEnumerable<CodeInstruction> BoxArg0(this Type t) {
+        yield return CodeInstruction.LoadArgument(0);
+        if (!t.IsValueType) yield break;
+        yield return new CodeInstruction(OpCodes.Box, t);
+    }
 }

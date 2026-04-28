@@ -16,6 +16,8 @@ public partial class NLogWindow : Window
     private static ImmutableList<NLogWindow> _listeners = ImmutableList<NLogWindow>.Empty;
     private static bool _openedOnErr = false;
 
+    public static bool IsOpen => _listeners.Count > 0;
+
     public static void AddLog(string msg)
     {
         lock (_logLock)
@@ -32,7 +34,7 @@ public partial class NLogWindow : Window
 
     public static void OpenOnErr()
     {
-        if (!BaseLibConfig.OpenLogWindowOnError || _listeners.Count > 0 || _openedOnErr) return;
+        if (!BaseLibConfig.OpenLogWindowOnError || IsOpen || _openedOnErr) return;
         _openedOnErr = true;
         Callable.From(() => OpenLogWindow.OpenWindow(true)).CallDeferred();
     }

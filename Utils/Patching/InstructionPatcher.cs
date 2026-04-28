@@ -177,7 +177,14 @@ public class InstructionPatcher(IEnumerable<CodeInstruction> instructions)
             case (int)OpCodeValues.Ldarg:
             case (int)OpCodeValues.Ldloc:
             case (int)OpCodeValues.Stloc:
-                operand = ((LocalBuilder)instruction.operand).LocalIndex;
+                if (instruction.operand is LocalBuilder localBuilder)
+                {
+                    operand = localBuilder.LocalIndex;
+                }
+                else
+                {
+                    operand = Convert.ToInt32(instruction.operand);
+                }
                 break;
             default:
                 throw new Exception($"Unsupported opcode for GetIndexOperand: {instruction.opcode}");
@@ -351,6 +358,28 @@ public class InstructionPatcher(IEnumerable<CodeInstruction> instructions)
     public InstructionPatcher Insert(IEnumerable<CodeInstruction> insert)
     {
         if (_index < 0) throw new Exception("Attempted to Insert without any match found");
+
+        var codeInstructions = insert as CodeInstruction[] ?? insert.ToArray();
+        _code.InsertRange(_index, codeInstructions);
+        _index += codeInstructions.Length;
+        
+        Log.Add($"Inserted {codeInstructions.Length} instructions, new index {_index}");
+
+        return this;
+    }
+
+    /// <summary>
+    /// Inserts a sequence of CodeInstructions before the current match.
+    /// </summary>
+    /// <param name="insert"></param>
+    /// <returns></returns>
+    /// <exception cref="Exception"></exception>
+    public InstructionPatcher InsertBeforeMatch(IEnumerable<CodeInstruction> insert)
+    {
+        if (_index < 0 || _lastMatchStart < 0) throw new Exception("Attempted to Insert without any match found");
+
+        _index = _lastMatchStart;
+        _lastMatchStart = -1;
 
         var codeInstructions = insert as CodeInstruction[] ?? insert.ToArray();
         _code.InsertRange(_index, codeInstructions);

@@ -1,0 +1,16 @@
+[gd_scene load_steps=2 format=3 uid="uid://b8n43gmdnft8t"]
+
+[ext_resource type="Script" path="res://BaseLibScenes/Acts/NDynamicCombatBackground.cs" id="1_7tjxx"]
+
+[node name="DynamicBackground" type="Control"]
+layout_mode = 3
+anchors_preset = 0
+script = ExtResource("1_7tjxx")
+
+[node name="Layer_00" type="Control" parent="."]
+unique_name_in_owner = true
+anchors_preset = 0
+
+[node name="Foreground" type="Control" parent="."]
+unique_name_in_owner = true
+anchors_preset = 0

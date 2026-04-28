@@ -62,6 +62,8 @@ public class CustomPoolFilters
         FieldInfo lastHovered = AccessTools.DeclaredField(typeof(NCardLibrary), "_lastHoveredControl");
         foreach (CustomCharacterModel model in ModelDbCustomCharacters.CustomCharacters)
         {
+            if (model.HideInCompendium) continue;
+            
             NCardPoolFilter filter = GenerateFilter(model);
 
             //Add Filter to UI

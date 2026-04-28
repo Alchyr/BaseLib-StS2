@@ -39,6 +39,22 @@ one TaskAwaiter<T> field for each await
 StateMachine MoveNext method - contains basically all of actual method
 Starts by checking state and jumping based on it (simpler state machine may simply use an if statement)
 
+Each state is a branch with 3.5 sections.
+ 1 When state is initially reached (comes from ending of previous state)
+    - Get awaiter of async call
+    - If awaiter is done, skip to section 4. Otherwise, continue to section 2
+ 2 Set up AsyncTaskMethodBuilder.AwaitUnsafeOnCompleted
+ 3 Branch destination when MoveNext is called again after done awaiting.
+    - Sets up so that section 4 will work appropriately same as coming from section 1
+ 4 Finishing section of state AND starting section of next state.
+    - Calls TaskAwaiter.GetResult
+    - Intermediate non-awaited code will also occur here.
+    - (section 1 of next state)
+
+State is only set if it needs to wait, in which case the method returns and waits for next execution (when current awaiter ends)
+
+
+
 
 
 await call - 

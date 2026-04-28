@@ -12,8 +12,7 @@ using MegaCrit.Sts2.Core.Runs;
 namespace BaseLib.Patches.Hooks;
 
 /// <summary>
-/// IHealAmountModifier.ModifyHealAdditive() -> AbstractModel.ModifyHealAmount() -> IHealAmountModifier.ModifyHealMultiplicative()
-/// reserve AbstractModel.ModifyHealAmount() in the process for compatibility
+/// IHealAmountModifier.ModifyHealAdditive() -> IHealAmountModifier.ModifyHealMultiplicative()
 /// </summary>
 [HarmonyPatch(typeof(CreatureCmd), nameof(CreatureCmd.Heal), MethodType.Async)]
 public static class ModifyHealAmountPatches

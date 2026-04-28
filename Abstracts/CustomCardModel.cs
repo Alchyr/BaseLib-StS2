@@ -30,6 +30,9 @@ public abstract class CustomCardModel : CardModel, ICustomModel, ILocalizationPr
 
     private bool _initializedFrameMaterial = false;
     private Material? _frameMaterial = null;
+    
+    private bool _initializedBannerMaterial = false;
+    private Material? _bannerMaterial = null;
 
     /// <summary>
     /// Returns a custom ShaderMaterial defined by CreateCustomFrameMaterial.
@@ -46,11 +49,36 @@ public abstract class CustomCardModel : CardModel, ICustomModel, ILocalizationPr
             return _frameMaterial;
         }
     }
+    /// <summary>
+    /// Returns a custom ShaderMaterial defined by CreateCustomBannerMaterial.
+    /// </summary>
+    public Material? CustomBannerMaterial
+    {
+        get
+        {
+            if (!_initializedBannerMaterial)
+            {
+                _bannerMaterial = CreateCustomBannerMaterial;
+                _initializedBannerMaterial = true;
+            }
+            return _bannerMaterial;
+        }
+    }
     
     /// <summary>
     /// Override this to use a custom ShaderMaterial only for this card.<seealso cref="BaseLib.Utils.ShaderUtils.GenerateHsv" />
     /// </summary>
     public virtual Material? CreateCustomFrameMaterial => null;
+    
+    /// <summary>
+    /// Override this to use a custom ShaderMaterial for this card's banner.<seealso cref="BaseLib.Utils.ShaderUtils.GenerateHsv" />
+    /// If using a basegame banner material override the path method instead.
+    /// </summary>
+    public virtual Material? CreateCustomBannerMaterial => null;
+    /// <summary>
+    /// See CardModel.BannerMaterialPath for basegame material paths
+    /// </summary>
+    public virtual string? CustomBannerMaterialPath => null;
     
     public virtual string? CustomPortraitPath => null;
     public virtual Texture2D? CustomPortrait => null;
@@ -84,6 +112,31 @@ class CustomCardFrameMaterial
         if (__instance is not CustomCardModel customCard) return true;
         
         __result = customCard.CustomFrameMaterial;
+        return __result == null;
+    }
+}
+
+[HarmonyPatch(typeof(CardModel), nameof(CardModel.BannerMaterial), MethodType.Getter)]
+class CustomCardBannerMaterial
+{
+    [HarmonyPrefix]
+    static bool UseAltMaterial(CardModel __instance, ref Material? __result)
+    {
+        if (__instance is not CustomCardModel customCard) return true;
+        
+        __result = customCard.CustomFrameMaterial;
+        return __result == null;
+    }
+}
+[HarmonyPatch(typeof(CardModel), nameof(CardModel.BannerMaterialPath), MethodType.Getter)]
+class CustomCardBannerMaterialPath
+{
+    [HarmonyPrefix]
+    static bool UseAltMaterial(CardModel __instance, ref string? __result)
+    {
+        if (__instance is not CustomCardModel customCard) return true;
+        
+        __result = customCard.CustomBannerMaterialPath;
         return __result == null;
     }
 }

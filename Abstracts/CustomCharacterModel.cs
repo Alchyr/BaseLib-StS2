@@ -47,6 +47,11 @@ public abstract class CustomCharacterModel : CharacterModel, ICustomModel, ILoca
     public virtual bool AllowInVanillaRandomCharacterSelect => !HideFromVanillaCharacterSelect;
 
     /// <summary>
+    /// If true, filter option will not be added to compendium.
+    /// </summary>
+    public virtual bool HideInCompendium => false;
+
+    /// <summary>
     /// Override this or place your scene at res://scenes/creature_visuals/class_name.tscn
     /// </summary>
     public virtual string? CustomVisualPath => null;

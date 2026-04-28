@@ -7,8 +7,13 @@ using HarmonyLib;
 using MegaCrit.Sts2.Core.Helpers;
 using MegaCrit.Sts2.Core.Modding;
 using MegaCrit.Sts2.Core.Models;
+using MegaCrit.Sts2.Core.Models.Acts;
+using MegaCrit.Sts2.Core.Random;
 using MegaCrit.Sts2.Core.Rooms;
 using MegaCrit.Sts2.Core.Runs;
+using MegaCrit.Sts2.Core.Saves;
+using MegaCrit.Sts2.Core.Timeline.Epochs;
+using MegaCrit.Sts2.Core.Unlocks;
 
 namespace BaseLib.Patches.Content;
 
@@ -27,6 +32,7 @@ public static class CustomContentDictionary
     /// Custom events not tied to a specific act.
     /// </summary>
     public static readonly List<CustomEventModel> SharedCustomEvents = [];
+    public static readonly List<CustomActModel> CustomActs = [];
     
     static CustomContentDictionary()
     {
@@ -82,7 +88,13 @@ public static class CustomContentDictionary
             ActCustomEvents.Add(eventModel);
         }
     }
-    
+
+    public static void AddAct(CustomActModel actModel)
+    {
+        if (!RegisterType(actModel.GetType())) return;
+        
+        CustomActs.Add(actModel);
+    }
     
     private static bool IsValidPool(Type modelType, Type poolType)
     {
@@ -250,6 +262,59 @@ class CustomSharedEvents
         var result = new List<EventModel>(events);
         result.AddRange(CustomContentDictionary.SharedCustomEvents);
         return result;
+    }
+}
+
+[HarmonyPatch(typeof(ModelDb), nameof(ModelDb.Acts), MethodType.Getter)]
+class ModelDbCustomActsPatch
+{
+    [HarmonyPostfix]
+    static IEnumerable<ActModel> AddCustomAncientForCompendium(IEnumerable<ActModel> __result)
+    {
+        return [.. __result, .. CustomContentDictionary.CustomActs];
+    }
+}
+
+// Generate the Act List including Custom Acts
+// This will have to be changed when they add more Acts to the base game
+[HarmonyPatch(typeof(ActModel), nameof(ActModel.GetRandomList))]
+public class ActModelGetRandomListPatch
+{
+    [HarmonyPostfix]
+    public static IEnumerable<ActModel> AdjustResult(IEnumerable<ActModel> __result, Rng rng, UnlockState unlockState, bool isMultiplayer)
+    {
+        bool unlockedDocks = unlockState.IsEpochRevealed<UnderdocksEpoch>();
+        bool forceDocks = !isMultiplayer && !SaveManager.Instance.Progress.DiscoveredActs.Contains(ModelDb.Act<Underdocks>().Id);
+        
+        if (CustomContentDictionary.CustomActs.Count == 0 || (unlockedDocks && forceDocks)) return __result;
+        
+        BaseLibMain.Logger.Info("Rolling with custom acts:");
+
+        List<ActModel> newResult = new List<ActModel>(__result);
+        
+        int[] baseActCounts = [2, 1, 1];
+        for (int i = 0; i < newResult.Count; ++i)
+        {
+            List<ActModel?> possible = [];
+            if (i < baseActCounts.Length)
+            {
+                possible.AddRange(new ActModel?[baseActCounts[i]]);
+            }
+            possible.AddRange(CustomContentDictionary.CustomActs.Where(act => act.ActNumber == (i + 1)));
+
+            var replace = rng.NextItem(possible);
+            if (replace != null)
+            {
+                newResult[i] = replace;
+            }
+        }
+        
+        foreach (var actModel in newResult)
+        {
+            BaseLibMain.Logger.Info(actModel.Id.Entry);
+        }
+
+        return newResult;
     }
 }
 
