@@ -93,6 +93,15 @@ public class ConfigIgnoreAttribute : Attribute;
 public class ConfigHideInUI : Attribute;
 
 /// <summary>
+/// Makes this property ignore Restore Defaults (whether via the button or via
+/// <see cref="ModConfig.RestoreDefaultsNoConfirm"/>).<br/>
+/// Useful if you're storing some kind of persistent state, rather than a user configurable value.<br/>
+/// Works with and without [<see cref="ConfigHideInUI"/>].
+/// </summary>
+[AttributeUsage(AttributeTargets.Property)]
+public class ConfigIgnoreRestoreDefaultsAttribute : Attribute;
+
+/// <summary>
 /// Defines a set of allowed characters for a LineEdit.
 /// </summary>
 public enum TextInputPreset
