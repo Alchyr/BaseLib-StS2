@@ -50,7 +50,7 @@ public static partial class SimpleLoc
         }
     }
 
-    [GeneratedRegex(@"\*(.+?)(?:\*|(\s|\b))")] private static partial Regex HighlightRegex { get; }
+    [GeneratedRegex(@"\*(.+?)(?:\*|$|([\s\.|}]))")] private static partial Regex HighlightRegex { get; }
 
     [GeneratedRegex(@"({)([^:}.]+)([:}])")] private static partial Regex NormalVariableRegex { get; }
     [GeneratedRegex(@"!(.*?)!")] private static partial Regex DiffVariableRegex { get; }
