@@ -7,22 +7,6 @@ namespace BaseLib.BaseLibScenes;
 
 public partial class NHorizontalScrollContainer : Control
 {
-    private static readonly Gradient MaskGradient = new()
-    { 
-        Colors = [
-            new Color(1f, 1f, 1f, 0f),
-            new Color(1f, 1f, 1f, 1f),
-            new Color(1f, 1f, 1f, 1f),
-            new Color(1f, 1f, 1f, 0f)
-        ], 
-        Offsets = [
-            0f,
-            0.06f,
-            0.94f,
-            1f
-        ]
-    };
-    
     /// <summary>
     /// 
     /// </summary>
