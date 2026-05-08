@@ -80,6 +80,20 @@ public class BetaMainCompatibility
             return new CombatStateWrapper(state);
         }
 
+        private static MethodInfo? OldInfiniteHp = typeof(Creature).PropertyGetter("ShowsInfiniteHp");
+        private static MethodInfo? NewInfiniteHp = typeof(Creature).PropertyGetter(nameof(Creature.HpDisplay));
+        public static bool ShowsInfiniteHp(Creature creature)
+        {
+            if (OldInfiniteHp != null) return (bool) (OldInfiniteHp.Invoke(creature, []) ?? throw new InvalidOperationException());
+            if (NewInfiniteHp != null)
+            {
+                int hpDisplayEnumVal = (int?) NewInfiniteHp.Invoke(creature, []) ?? 0;
+                return hpDisplayEnumVal is 1 or 2;
+            }
+
+            throw new InvalidOperationException("Could not find property for infinite hp check");
+        }
+
         public static VariableReference<object?> CombatState = new(typeof(Creature), "CombatState");
     }
 
