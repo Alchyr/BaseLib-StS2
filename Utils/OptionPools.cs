@@ -1,5 +1,6 @@
-﻿using MegaCrit.Sts2.Core.Random;
-using MegaCrit.Sts2.Core.Runs;
+﻿using BaseLib.Extensions;
+using MegaCrit.Sts2.Core.Models;
+using MegaCrit.Sts2.Core.Random;
 
 namespace BaseLib.Utils;
 
@@ -33,26 +34,26 @@ public class OptionPools
     
     public IEnumerable<AncientOption> AllOptions => _pools.SelectMany(pool => pool);
     
-    public List<AncientOption> Roll(Rng rng, IRunState runState)
+    public List<AncientOption> Roll(Rng rng, AncientEventModel ancient)
     {
         List<AncientOption> result = [];
         
         var pool = _pools[0];
-        WeightedList<AncientOption> rollPool = [..pool.Where(option => option.ModelForOption.IsAllowed(runState))];
+        WeightedList<AncientOption> rollPool = [..pool.Where(option => option.ModelForOption.RelicCanSpawnAtCustomAncient(ancient))];
         
         result.Add(rollPool.GetRandom(rng, true));
 
         if (pool != _pools[1])
         {
             pool = _pools[1];
-            rollPool = [..pool.Where(option => option.ModelForOption.IsAllowed(runState))];
+            rollPool = [..pool.Where(option => option.ModelForOption.RelicCanSpawnAtCustomAncient(ancient))];
         }
         result.Add(rollPool.GetRandom(rng, true));
 
         if (pool != _pools[2])
         {
             pool = _pools[2];
-            rollPool = [..pool.Where(option => option.ModelForOption.IsAllowed(runState))];
+            rollPool = [..pool.Where(option => option.ModelForOption.RelicCanSpawnAtCustomAncient(ancient))];
         }
         result.Add(rollPool.GetRandom(rng, true));
 

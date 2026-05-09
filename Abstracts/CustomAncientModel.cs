@@ -45,6 +45,7 @@ public abstract class CustomAncientModel : AncientEventModel, ICustomModel, ILoc
     /// If there is 1 pool, all ancient options will be chosen randomly from this pool.
     /// With 2 pools, the first two options will use the first pool and the last option will use the second pool.
     /// With 3 pools, each option will use its own pool.
+    /// You can give relics spawn conditions by calling AddCustomAncientSpawnCondition in your relic's constructor.
     /// </summary>
     protected abstract OptionPools MakeOptionPools { get; }
 
@@ -63,7 +64,7 @@ public abstract class CustomAncientModel : AncientEventModel, ICustomModel, ILoc
     
     protected override IReadOnlyList<EventOption> GenerateInitialOptions()
     {
-        var options = OptionPools.Roll(Rng, Owner!.RunState);
+        var options = OptionPools.Roll(Rng, this);
         return options.Select(option => RelicOption(option.ModelForOption)).ToList();
     }
     
