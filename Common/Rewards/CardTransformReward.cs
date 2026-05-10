@@ -89,13 +89,13 @@ public sealed class CardTransformReward(Player player) : CustomReward(player)
     }
 
     /// <inheritdoc/>
-    public override SerializableCustomReward<CustomReward> SerializeMethod => CreateFromSerializable;
+    public override CreateRewardFromSave<CustomReward> DeserializeMethod => CreateFromSerializable;
 
     /// <inheritdoc/>
     public override void MarkContentAsSeen() { }
 
     /// <inheritdoc />
-    public override Task Populate() { return Task.CompletedTask; }
+    public override void Populate() {}
 
     /// <inheritdoc/>
     protected override async Task<bool> OnSelect()

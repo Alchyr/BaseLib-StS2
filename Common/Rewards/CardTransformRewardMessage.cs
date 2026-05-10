@@ -1,10 +1,8 @@
 using BaseLib.Abstracts;
 using BaseLib.Patches.Content;
-using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.Helpers;
 using MegaCrit.Sts2.Core.Logging;
-using MegaCrit.Sts2.Core.Multiplayer.Game;
 using MegaCrit.Sts2.Core.Multiplayer.Serialization;
 using MegaCrit.Sts2.Core.Runs;
 
@@ -13,39 +11,19 @@ namespace BaseLib.Common.Rewards;
 /// <summary>
 /// Message for transforming a card from a new reward type
 /// </summary>
-public sealed class ZZ_CardTransformRewardMessage : CustomRewardMessage
+public sealed class CardTransformRewardMessage : ICustomTargetedMessage
 {
-    internal void HandleCardTransformedMessage(ZZ_CardTransformRewardMessage message, ulong senderId)
+    /// <inheritdoc/>
+    public void HandleMessage(ulong senderId)
     {
-        BaseLibMain.Logger.Debug($"Handling message {message}");
         var rs = RunManager.Instance.RewardSynchronizer;
-        if (CombatManager.Instance.IsInProgress)
-        {
-            rs.BufferCustomRewardMessage(message, senderId);
-            BaseLibMain.Logger.Debug($"Buffered card transform message for {rs.PlayerCollection()?.GetPlayer(senderId)}");
-            return;
-        }
 
-        Player? player = rs.PlayerCollection()?.GetPlayer(senderId);
-        if (player == rs.LocalPlayerRef())
+        Player? player = rs._playerCollection.GetPlayer(senderId);
+        if (player == rs.LocalPlayer)
         {
             throw new InvalidOperationException("CardTransformRewardMessage should not be sent to the player transforming the card");
         }
-        TaskHelper.RunSafely(rs.DoCardTransform(player, message.Amount, message.Upgrade));
-    }
-
-    /// <inheritdoc/>
-    public override void Dispose(RunLocationTargetedMessageBuffer messageBuffer)
-    {
-        BaseLibMain.Logger.Debug($"Unregistering handler for {GetType()}");
-        messageBuffer.UnregisterMessageHandler<ZZ_CardTransformRewardMessage>(HandleCardTransformedMessage);
-    }
-
-    /// <inheritdoc/>
-    public override void Initialize(RunLocationTargetedMessageBuffer messageBuffer)
-    {
-        BaseLibMain.Logger.Debug($"Registering handler for {GetType()}");
-        messageBuffer.RegisterMessageHandler<ZZ_CardTransformRewardMessage>(HandleCardTransformedMessage);
+        TaskHelper.RunSafely(rs.DoCardTransform(player, Amount, Upgrade));
     }
 
     /// <summary>
@@ -57,11 +35,20 @@ public sealed class ZZ_CardTransformRewardMessage : CustomRewardMessage
     /// </summary>
     public required int Amount;
 
-    /// <inheritdoc/>
-    public override LogLevel LogLevel => LogLevel.Debug;
+    public bool wasSkipped { get; set; }
 
     /// <inheritdoc/>
-    public override void Deserialize(PacketReader reader)
+    public LogLevel LogLevel => LogLevel.Debug;
+
+    /// <inheritdoc/>
+    public RunLocation Location { get; set; }
+    /// <inheritdoc/>
+    public bool IsRewardMessage => true;
+    /// <inheritdoc/>
+    public bool ShouldBroadcast => true;
+
+    /// <inheritdoc/>
+    public void Deserialize(PacketReader reader)
     {
         Location = reader.Read<RunLocation>();
         Amount = reader.ReadInt();
@@ -69,7 +56,7 @@ public sealed class ZZ_CardTransformRewardMessage : CustomRewardMessage
     }
 
     /// <inheritdoc/>
-    public override void Serialize(PacketWriter writer)
+    public void Serialize(PacketWriter writer)
     {
         writer.Write(Location);
         writer.WriteInt(Amount);
