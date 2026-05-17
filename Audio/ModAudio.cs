@@ -59,8 +59,8 @@ public static class ModAudio
     private static float MasterVol => SaveManager.Instance.SettingsSave.VolumeMaster;
     private static float VolumeForSound(SoundType soundType) => soundType switch
     {
-        SoundType.Music => Mathf.LinearToDb(SaveManager.Instance.SettingsSave.VolumeBgm),
-        SoundType.Ambience => Mathf.LinearToDb(SaveManager.Instance.SettingsSave.VolumeAmbience),
+        SoundType.Music => SaveManager.Instance.SettingsSave.VolumeBgm,
+        SoundType.Ambience => SaveManager.Instance.SettingsSave.VolumeAmbience,
         _ => 0//Mathf.LinearToDb(SaveManager.Instance.SettingsSave.VolumeSfx)
     };
 
@@ -227,8 +227,8 @@ public static class ModAudio
 
         player.Name = sound.File;
         player.Stream = stream;
-        player.VolumeDb = (VolumeForSound(sound.SoundType) + volumeAdd) * volumeMult;
-        VolumeModDb[player] = val => (val + volumeAdd) * volumeMult;
+        player.VolumeDb = Mathf.LinearToDb(VolumeForSound(sound.SoundType) * volumeMult) + volumeAdd * volumeMult;
+        VolumeModDb[player] = val => Mathf.LinearToDb(val * volumeMult) + volumeAdd * volumeMult;
         player.PitchScale = pitchVariation > 0f
             ? basePitch + (float)Rng.Chaotic.NextDouble() * 2f * pitchVariation - pitchVariation
             : basePitch;
