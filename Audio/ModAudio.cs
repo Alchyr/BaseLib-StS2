@@ -59,9 +59,10 @@ public static class ModAudio
     private static float MasterVol => SaveManager.Instance.SettingsSave.VolumeMaster;
     private static float VolumeForSound(SoundType soundType) => soundType switch
     {
+        //Music/ambience are played through Main bus which only applies master volume
         SoundType.Music => SaveManager.Instance.SettingsSave.VolumeBgm,
         SoundType.Ambience => SaveManager.Instance.SettingsSave.VolumeAmbience,
-        _ => 1
+        _ => 1 //Doesn't use sfx volume as sfx bus already applies sfx volume
     };
 
     private static StringName BusForSound(SoundType soundType) => soundType switch
