@@ -5,7 +5,7 @@ using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Commands.Builders;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Creatures;
-using MegaCrit.Sts2.Core.Extensions;
+using MegaCrit.Sts2.Core.Factories;
 using MegaCrit.Sts2.Core.GameActions.Multiplayer;
 using MegaCrit.Sts2.Core.Localization;
 using MegaCrit.Sts2.Core.Localization.DynamicVars;
@@ -48,14 +48,16 @@ public static class CommonActions
     {
         if (card.DynamicVars.ContainsKey(CalculatedDamageVar.defaultName))
         {
-            return CardAttack(card, target, card.DynamicVars.CalculatedDamage, hitCount, vfx, sfx, tmpSfx);
+            return CardAttack(card, target, card.DynamicVars.CalculatedDamage, card.DynamicVars.CalculatedDamage.Props, hitCount, vfx, sfx, tmpSfx);
         }
-        else if (card.DynamicVars.ContainsKey(DamageVar.defaultName))
+
+        if (card.DynamicVars.ContainsKey(DamageVar.defaultName))
         {
-            return CardAttack(card, target, card.DynamicVars.Damage.BaseValue, hitCount, vfx, sfx, tmpSfx);
+            return CardAttack(card, target, card.DynamicVars.Damage.BaseValue, card.DynamicVars.Damage.Props, hitCount, vfx, sfx, tmpSfx);
         }
         throw new Exception($"Card {card.Title} does not have a damage variable supported by CommonActions.CardAttack");
     }
+
     /// <summary>
     /// Performs an attacking using a specified amount of damage on a target.
     /// </summary>
@@ -70,7 +72,25 @@ public static class CommonActions
     /// <exception cref="Exception"></exception>
     public static AttackCommand CardAttack(CardModel card, Creature? target, decimal damage, int hitCount = 1, string? vfx = null, string? sfx = null, string? tmpSfx = null)
     {
-        AttackCommand cmd = DamageCmd.Attack(damage).WithHitCount(hitCount).FromCard(card);
+        return CardAttack(card, target, damage, ValueProp.Move, hitCount, vfx, sfx, tmpSfx);
+    }
+
+    /// <summary>
+    /// Performs an attacking using a specified amount of damage on a target.
+    /// </summary>
+    /// <param name="card"></param>
+    /// <param name="target"></param>
+    /// <param name="damage"></param>
+    /// <param name="hitCount"></param>
+    /// <param name="vfx"></param>
+    /// <param name="sfx"></param>
+    /// <param name="tmpSfx"></param>
+    /// <param name="valueProp"></param>
+    /// <returns></returns>
+    /// <exception cref="Exception"></exception>
+    public static AttackCommand CardAttack(CardModel card, Creature? target, decimal damage, ValueProp valueProp, int hitCount = 1, string? vfx = null, string? sfx = null, string? tmpSfx = null)
+    {
+        AttackCommand cmd = DamageCmd.Attack(damage).WithHitCount(hitCount).FromCard(card).WithValueProp(valueProp);
 
 
         if (CustomTargetType.IsCustomSingleTargetType(card.TargetType))
@@ -115,6 +135,12 @@ public static class CommonActions
 
         return cmd;
     }
+
+    public static AttackCommand CardAttack(CardModel card, Creature? target, CalculatedDamageVar calculatedDamage, int hitCount = 1, string? vfx = null, string? sfx = null, string? tmpSfx = null)
+    {
+        return CardAttack(card, target, calculatedDamage, ValueProp.Move, hitCount, vfx, sfx, tmpSfx);
+    }
+
     /// <summary>
     /// Performs an attacking using aCalculatedDamageVar on a target.
     /// </summary>
@@ -125,11 +151,12 @@ public static class CommonActions
     /// <param name="vfx"></param>
     /// <param name="sfx"></param>
     /// <param name="tmpSfx"></param>
+    /// <param name="valueProp"></param>
     /// <returns></returns>
     /// <exception cref="Exception"></exception>
-    public static AttackCommand CardAttack(CardModel card, Creature? target, CalculatedDamageVar calculatedDamage, int hitCount = 1, string? vfx = null, string? sfx = null, string? tmpSfx = null)
+    public static AttackCommand CardAttack(CardModel card, Creature? target, CalculatedDamageVar calculatedDamage, ValueProp valueProp, int hitCount = 1, string? vfx = null, string? sfx = null, string? tmpSfx = null)
     {
-        AttackCommand cmd = DamageCmd.Attack(calculatedDamage).WithHitCount(hitCount).FromCard(card);
+        AttackCommand cmd = DamageCmd.Attack(calculatedDamage).WithHitCount(hitCount).FromCard(card).WithValueProp(valueProp);
         
         if (CustomTargetType.IsCustomSingleTargetType(card.TargetType))
         {
@@ -346,14 +373,22 @@ public static class CommonActions
         return await BetaMainCompatibility.PowerCmd_.Apply.InvokeGeneric<Task<T?>, T>
             (null, context, card.Owner.Creature, amount, card.Owner.Creature, card, silent)!;
     }
-
+    
     /// <summary>
-    /// Opens a card selection screen where a specific number of cards must be selected and returns the selection result.
+    /// Opens a card selection screen with specific CardSelectorPrefs and returns the selection result.
     /// </summary>
     /// <returns></returns>
-    public static async Task<IEnumerable<CardModel>> SelectCards(CardModel card, LocString selectionPrompt, PlayerChoiceContext context, PileType pileType, int count = 1)
+    public static async Task<IEnumerable<CardModel>> SelectCards(CardModel card, CardSelectorPrefs prefs, PlayerChoiceContext context, PileType pileType)
     {
-        CardSelectorPrefs prefs = new(selectionPrompt, count);
+        return await SelectCards(card, prefs, context, pileType, null);
+    }
+    
+    /// <summary>
+    /// Opens a card selection screen with specific CardSelectorPrefs and a filter, returns the selection result.
+    /// </summary>
+    /// <returns></returns>
+    public static async Task<IEnumerable<CardModel>> SelectCards(CardModel card, CardSelectorPrefs prefs, PlayerChoiceContext context, PileType pileType, Func<CardModel, bool>? filter)
+    {
         var pile = pileType.GetPile(card.Owner);
         var cards = pile.Cards;
         if (pile.Type == PileType.Draw)
@@ -363,7 +398,37 @@ public static class CommonActions
                 .ThenBy(c => c.Id)
                 .ToList();
         }
+        
+        if (pile.Type == PileType.Hand)
+        {
+            return await CardSelectCmd.FromHand(context, card.Owner, prefs, filter, card);
+        }
+
+        if (filter != null)
+        {
+            cards = cards.Where(filter).ToList();
+        }
+        
         return await CardSelectCmd.FromSimpleGrid(context, cards, card.Owner, prefs);
+    }
+    
+    /// <summary>
+    /// Opens a card selection screen where a specific number of cards must be selected and returns the selection result.
+    /// </summary>
+    /// <returns></returns>
+    public static async Task<IEnumerable<CardModel>> SelectCards(CardModel card, LocString selectionPrompt, PlayerChoiceContext context, PileType pileType, int count = 1)
+    {
+        return await SelectCards(card, selectionPrompt, context, pileType, null, count);
+    }
+    
+    /// <summary>
+    /// Opens a card selection screen with a filter where a specific number of cards must be selected and returns the selection result.
+    /// </summary>
+    /// <returns></returns>
+    public static async Task<IEnumerable<CardModel>> SelectCards(CardModel card, LocString selectionPrompt, PlayerChoiceContext context, PileType pileType, Func<CardModel, bool>? filter, int count = 1)
+    {
+        CardSelectorPrefs prefs = new(selectionPrompt, count);
+        return await SelectCards(card, prefs, context, pileType, filter);
     }
     
     /// <summary>
@@ -372,36 +437,36 @@ public static class CommonActions
     /// <returns></returns>
     public static async Task<IEnumerable<CardModel>> SelectCards(CardModel card, LocString selectionPrompt, PlayerChoiceContext context, PileType pileType, int minCount, int maxCount)
     {
-        CardSelectorPrefs prefs = new(selectionPrompt, minCount, maxCount);
-        var pile = pileType.GetPile(card.Owner);
-        var cards = pile.Cards;
-        if (pile.Type == PileType.Draw)
-        {
-            cards = cards
-                .OrderBy(c => c.Rarity)
-                .ThenBy(c => c.Id)
-                .ToList();
-        }
-        return await CardSelectCmd.FromSimpleGrid(context, cards, card.Owner, prefs);
+        return await SelectCards(card, selectionPrompt, context, pileType, null, minCount, maxCount);
     }
-
+    
+    /// <summary>
+    /// Opens a card selection screen with a filter where a range of cards must be selected and returns the selection result.
+    /// </summary>
+    /// <returns></returns>
+    public static async Task<IEnumerable<CardModel>> SelectCards(CardModel card, LocString selectionPrompt, PlayerChoiceContext context, PileType pileType, Func<CardModel, bool>? filter, int minCount, int maxCount)
+    {
+        CardSelectorPrefs prefs = new(selectionPrompt, minCount, maxCount);
+        return await SelectCards(card, prefs, context, pileType, filter);
+    }
+    
     /// <summary>
     /// Opens a card selection screen selecting a single card and returns that single card (or null if no card could be selected).
     /// </summary>
     /// <returns></returns>
     public static async Task<CardModel?> SelectSingleCard(CardModel card, LocString selectionPrompt, PlayerChoiceContext context, PileType pileType)
     {
+        return await SelectSingleCard(card, selectionPrompt, context, pileType, null);
+    }
+
+    /// <summary>
+    /// Opens a card selection screen with a filter selecting a single card and returns that single card (or null if no card could be selected).
+    /// </summary>
+    /// <returns></returns>
+    public static async Task<CardModel?> SelectSingleCard(CardModel card, LocString selectionPrompt, PlayerChoiceContext context, PileType pileType, Func<CardModel, bool>? filter)
+    {
         CardSelectorPrefs prefs = new(selectionPrompt, 1);
-        var pile = pileType.GetPile(card.Owner);
-        var cards = pile.Cards;
-        if (pile.Type == PileType.Draw)
-        {
-            cards = cards
-                .OrderBy(c => c.Rarity)
-                .ThenBy(c => c.Id)
-                .ToList();
-        }
-        return (await CardSelectCmd.FromSimpleGrid(context, cards, card.Owner, prefs)).FirstOrDefault();
+        return (await SelectCards(card, prefs, context, pileType, filter)).FirstOrDefault();
     }
     
     
@@ -436,5 +501,27 @@ public static class CommonActions
     private static async Task<IReadOnlyList<T>> ApplyToCreatures<T>(CardModel card, PlayerChoiceContext ctx, IEnumerable<Creature> targets) where T : PowerModel
     {
         return await Apply<T>(ctx, targets, card);
+    }
+
+    /// <summary>
+    /// Generate cards based on the character and unlock status.
+    /// </summary>
+    public static IEnumerable<CardModel> GenerateCards(CardModel card, int count, Func<CardModel, bool>? filter = null)
+    {
+        var owner = card.Owner;
+        var cards = owner.Character.CardPool.GetUnlockedCards(owner.UnlockState, owner.RunState.CardMultiplayerConstraint);
+        if (filter != null)
+        {
+            cards = cards.Where(filter).ToList();
+        }
+        return CardFactory.GetDistinctForCombat(owner, cards, count, owner.RunState.Rng.CombatCardGeneration);
+    }
+
+    /// <summary>
+    /// Generate a card based on the character and unlock status.
+    /// </summary>
+    public static CardModel? GenerateSingleCard(CardModel card, Func<CardModel, bool>? filter = null)
+    {
+        return GenerateCards(card, 1, filter).FirstOrDefault();
     }
 }
