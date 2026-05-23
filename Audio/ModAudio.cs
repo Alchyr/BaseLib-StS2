@@ -61,7 +61,7 @@ public static class ModAudio
     {
         SoundType.Music => SaveManager.Instance.SettingsSave.VolumeBgm,
         SoundType.Ambience => SaveManager.Instance.SettingsSave.VolumeAmbience,
-        _ => 0//Mathf.LinearToDb(SaveManager.Instance.SettingsSave.VolumeSfx)
+        _ => 1
     };
 
     private static StringName BusForSound(SoundType soundType) => soundType switch
