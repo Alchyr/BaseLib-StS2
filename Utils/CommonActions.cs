@@ -481,26 +481,29 @@ public static class CommonActions
     /// The card play instance carrying the selected target for single-target cards.
     /// May be <see langword="null"/> for untargeted cards.
     /// </param>
+    /// <param name="silent">
+    /// If <see langword="true"/>, suppresses visual effects when the power is applied.
+    /// </param>
     /// <returns>
     /// A list of all applied power instances, or an empty list if no valid targets were found.
     /// </returns>
-    public static async Task<IReadOnlyList<T>> Apply<T>(PlayerChoiceContext ctx, CardModel card, CardPlay? cardPlay) where T : PowerModel
+    public static async Task<IReadOnlyList<T>> Apply<T>(PlayerChoiceContext ctx, CardModel card, CardPlay? cardPlay, bool silent = false) where T : PowerModel
     {
         if (cardPlay?.Target != null)
         {
-            return await Apply<T>(ctx, cardPlay.Target, card) is { } result ? [result] : [];
+            return await Apply<T>(ctx, cardPlay.Target, card, silent) is { } result ? [result] : [];
         }
 
-        return await ApplyToCreatures<T>(card, ctx, card.GetTargets());
+        return await ApplyToCreatures<T>(card, ctx, card.GetTargets(), silent);
     }
     
     private static async Task<IReadOnlyList<T>> ApplyToCreatures<T>(CardModel card, PlayerChoiceContext ctx, params Creature[] targets) where T : PowerModel
     {
         return await Apply<T>(ctx, targets, card);
     }
-    private static async Task<IReadOnlyList<T>> ApplyToCreatures<T>(CardModel card, PlayerChoiceContext ctx, IEnumerable<Creature> targets) where T : PowerModel
+    private static async Task<IReadOnlyList<T>> ApplyToCreatures<T>(CardModel card, PlayerChoiceContext ctx, IEnumerable<Creature> targets, bool silent = false) where T : PowerModel
     {
-        return await Apply<T>(ctx, targets, card);
+        return await Apply<T>(ctx, targets, card, silent);
     }
 
     /// <summary>
