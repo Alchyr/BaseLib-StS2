@@ -126,7 +126,7 @@ public static class AsyncMethodCall
         
         BaseLibMain.Logger.Info($"Patching StateMachineType: {stateMachineType.FullName}");
 
-        var stateField = stateMachineType.FindStateMachineField("state");
+        var stateField = stateMachineType.FindStateMachineField("__state");
         var builderField = stateMachineType.FindStateMachineField("t__builder");
 
         var codeList = code.ToList();
