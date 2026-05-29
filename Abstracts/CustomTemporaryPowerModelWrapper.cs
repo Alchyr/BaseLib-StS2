@@ -57,6 +57,18 @@ public abstract class CustomTemporaryPowerModelWrapper<TModel, TPower> : CustomT
                     return monsterModel.Title;
                 case ActModel actModel:
                     return actModel.Title;
+                case EnchantmentModel enchantmentModel:
+                    return enchantmentModel.Title;
+                case AfflictionModel afflictionModel:
+                    return afflictionModel.Title;
+                case EncounterModel encounterModel:
+                    return encounterModel.Title;
+                case EventModel eventModel:
+                    return eventModel.Title;
+                case ModifierModel modifierModel:
+                    return modifierModel.Title;
+                case CardModifier cardModifier:
+                    return cardModifier.Owner?.TitleLocString ?? new LocString("powers",  "BASELIB-CUSTOM_TEMPORARY_POWER_MODEL.title");
                 default:
                     BaseLibMain.Logger.Warn($"Getting the 'Title' for the base model type of '{OriginModel.GetType().Name}' has not been implemented yet. Using default title.");
                     return new LocString("powers",  "BASELIB-CUSTOM_TEMPORARY_POWER_MODEL.title");
@@ -84,7 +96,26 @@ public abstract class CustomTemporaryPowerModelWrapper<TModel, TPower> : CustomT
                     items = [HoverTipFactory.FromPower(power)];
                     break;
                 case ActModel:
+                case EncounterModel:
+                case EventModel:
                     items = [];
+                    break;
+                case EnchantmentModel enchantmentModel:
+                    var enchantmentModelClone = (EnchantmentModel)enchantmentModel.MutableClone();
+                    enchantmentModelClone.Amount = Amount;
+                    enchantmentModelClone.RecalculateValues();
+                    items = enchantmentModelClone.HoverTips.ToList();
+                    break;
+                case AfflictionModel afflictionModel:
+                    var afflictionModelClone = (AfflictionModel)afflictionModel.MutableClone();
+                    afflictionModelClone.Amount = Amount;
+                    items = afflictionModelClone.HoverTips.ToList();
+                    break;
+                case ModifierModel modifierModel:
+                    items = modifierModel.HoverTips.ToList();
+                    break;
+                case CardModifier cardModifier:
+                    items = cardModifier.Owner != null ? [HoverTipFactory.FromCard(cardModifier.Owner)] : [];
                     break;
                 default:
                     BaseLibMain.Logger.Warn($"Getting the Hover Tips for the base model type of '{OriginModel.GetType().Name}' has not been implemented yet.");
