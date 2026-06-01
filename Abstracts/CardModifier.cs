@@ -158,10 +158,26 @@ public abstract class CardModifier : AbstractModel
 
     /// <summary>
     /// Adds a card modifier to a card.
+    /// Utilizes the card modifier's Priority to determine where to insert the card modifier in the list of modifiers.
     /// </summary>
     public static void AddModifier(CardModel card, CardModifier modifier)
     {
-        DirectModifiers(card).Add(modifier);
+        var directModifiers = DirectModifiers(card);
+        var insertedMod = false;
+        for (int i = 0; i < directModifiers.Count; i++)
+        {
+            if (modifier.Priority < directModifiers[i].Priority)
+            {
+                directModifiers.Insert(i, modifier);
+                insertedMod = true;
+                break;
+            }
+        }
+
+        if (!insertedMod)
+        {
+            directModifiers.Add(modifier);
+        }
         modifier.Owner = card;
     }
 
@@ -218,6 +234,16 @@ public abstract class CardModifier : AbstractModel
     {
         get; 
         private set;
+    }
+
+    /// <summary>
+    /// Affects the ordering of card modifiers when they are added to a card.
+    /// Lower priority means the card modifier will be inserted before card modifiers of higher priority.
+    /// </summary>
+    public int Priority
+    {
+        get;
+        set;
     }
 
     /// <summary>
