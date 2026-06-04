@@ -1,4 +1,6 @@
 ﻿using BaseLib.Extensions;
+using BaseLib.Utils;
+using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Entities.Creatures;
 using MegaCrit.Sts2.Core.Localization.DynamicVars;
 using MegaCrit.Sts2.Core.Models;
@@ -29,13 +31,16 @@ public class CustomCalculatedVar : CalculatedVar
             case CardModel:
                 return Calculate(target);
             case PowerModel power:
-                return _powerCalc?.Invoke(power, target) ??
-                       throw new InvalidOperationException(
-                           $"CustomCalculatedVar {Name} does not have multiplier calc defined for powers in {_owner.Id}");
+                var mult = _powerCalc?.Invoke(power, target) ??
+                                 throw new InvalidOperationException(
+                                     $"CustomCalculatedVar {Name} does not have multiplier calc defined for powers in {_owner.Id}");
+                return GetBaseVar().BaseValue + GetExtraVar().BaseValue * mult;
             case RelicModel relic:
-                return _relicCalc?.Invoke(relic, target) ??
-                       throw new InvalidOperationException(
-                           $"CustomCalculatedVar {Name} does not have multiplier calc defined for relics in {_owner.Id}");
+                mult = (!CombatManager.Instance.IsInProgress || 
+                       BetaMainCompatibility.Creature_.WrappedCombatState(relic.Owner.Creature) == null) ? 0 : 
+                    _relicCalc?.Invoke(relic, target) ?? throw new InvalidOperationException(
+                         $"CustomCalculatedVar {Name} does not have multiplier calc defined for relics in {_owner.Id}");
+                return GetBaseVar().BaseValue + GetExtraVar().BaseValue * mult;
             default:
                 return BaseValue;
         }
