@@ -18,7 +18,7 @@ public class CustomBackgroundAssets : BackgroundAssets
     public CustomBackgroundAssets() : base(FakeKey, Rng.Chaotic) {
         BgLayers.Clear();
     }
-    
+
     /// <summary>
     /// Loads a set of assets from a provided directory for layers and path to a background scene.
     /// </summary>
@@ -34,9 +34,13 @@ public class CustomBackgroundAssets : BackgroundAssets
     /// Size is not "fixed". Can be wider.
     /// Actual texture of texturerect is usually 2048x960.
     /// </param>
-    /// <param name="bgScenePath">.tscn file that will be a constant background.</param>
     /// <param name="rng">The rng passed to a method where this is called. In ActModel, GenerateBackgroundAssets.</param>
     /// <exception cref="InvalidOperationException"></exception>
+    public CustomBackgroundAssets(string layersPath, Rng rng) : this(layersPath, "res://BaseLib/scenes/dynamic_background.tscn", rng)
+    {
+        
+    }
+
     public CustomBackgroundAssets(string layersPath, string bgScenePath, Rng rng) : this()
     {
         var bgLayers = new Dictionary<string, List<string>>();
