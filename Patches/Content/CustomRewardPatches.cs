@@ -1,3 +1,4 @@
+using System.Reflection;
 using BaseLib;
 using BaseLib.Abstracts;
 using BaseLib.Patches.Content;
@@ -11,9 +12,9 @@ namespace Baselib.Patches.Content;
 [HarmonyPatch(typeof(Reward))]
 internal static class CustomRewardPatches
 {
-    internal static readonly Dictionary<RewardType, CreateRewardFromSave<CustomReward>> _RewardTypeDeserializers = [];
+    internal static readonly Dictionary<RewardType, (Type, CreateRewardFromSave<CustomReward>)> _RewardTypeDeserializers = [];
 
-    public static void RegisterCustomReward(RewardType type, CreateRewardFromSave<CustomReward> deserializer)
+    public static void RegisterCustomReward(RewardType type, CustomReward rewardClass, CreateRewardFromSave<CustomReward> deserializer)
     {
         if (_RewardTypeDeserializers.ContainsKey(type))
         {
@@ -21,7 +22,7 @@ internal static class CustomRewardPatches
         }
 
         BaseLibMain.Logger.Info($"Registering RewardType {CustomEnums.EnumName<RewardType>((int)type)}");
-        _RewardTypeDeserializers.Add(type, deserializer);
+        _RewardTypeDeserializers.Add(type, (rewardClass.GetType(), deserializer));
     }
 
     [HarmonyPatch(nameof(Reward.FromSerializable))]
@@ -33,11 +34,11 @@ internal static class CustomRewardPatches
             BaseLibMain.Logger.Info($"Found RewardType {CustomEnums.EnumName<RewardType>((int)save.RewardType)} in registry from mod {_RewardTypeDeserializers[save.RewardType].GetType().Assembly}");
 
             var method = _RewardTypeDeserializers[save.RewardType];
-            __result = method.Invoke(save, player);
+            __result = method.Item2.GetMethodInfo().Invoke(method.Item1.CreateInstance(), [save, player]) as Reward;
             return false;
         }
 
-        BaseLibMain.Logger.Warn($"No CustomReward found for RewardType {save.RewardType}, proceeding to basegame method");
+        BaseLibMain.Logger.Info($"No CustomReward found for RewardType {save.RewardType}, proceeding to basegame method");
         return true;
     }
 }

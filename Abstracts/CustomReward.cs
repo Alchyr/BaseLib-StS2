@@ -49,12 +49,11 @@ public abstract class CustomReward(Player player) : Reward(player)
 
     /// <summary>
     /// Delegate to create your reward type from the saved data.
-    /// The method reference must be of a <see langword="static"/> method
     /// </summary>
     /// <example>
     /// <code>
     /// // in MyCustomReward.cs
-    /// public static MyCustomReward CreateFromSerializable(SerializableReward save, Player player)
+    /// public MyCustomReward CreateFromSerializable(SerializableReward save, Player player)
     /// {
     ///     return new MyCustomReward(player) {
     ///         MyCustomNumber = save.GoldAmount
@@ -71,12 +70,8 @@ public abstract class CustomReward(Player player) : Reward(player)
     /// </summary>
     public virtual void Initialize()
     {
-        if (DeserializeMethod.Target != null)
-        {
-            throw new ArgumentException($"DeserializeMethod of {GetType()} is not static");
-        }
         BaseLibMain.Logger.Info($"Registering CustomReward deserializer for {GetType()}");
-        CustomRewardPatches.RegisterCustomReward(RewardType, DeserializeMethod);
+        CustomRewardPatches.RegisterCustomReward(RewardType, this, DeserializeMethod);
     }
 }
 
