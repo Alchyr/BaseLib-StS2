@@ -52,6 +52,12 @@ public abstract class CustomCharacterModel : CharacterModel, ICustomModel, ILoca
     public virtual bool HideInCompendium => false;
 
     /// <summary>
+    /// Controls sort order of this character's filter within its mod group in the compendium.
+    /// Lower values appear first. Defaults to 0.
+    /// </summary>
+    public virtual int CompendiumOrder => 0;
+
+    /// <summary>
     /// Override this or place your scene at res://scenes/creature_visuals/class_name.tscn
     /// </summary>
     public virtual string? CustomVisualPath => null;

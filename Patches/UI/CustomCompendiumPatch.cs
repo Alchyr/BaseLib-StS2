@@ -12,6 +12,7 @@ using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
 using BaseLib.Abstracts;
+using BaseLib.Extensions;
 using BaseLib.Utils;
 using BaseLib.Utils.Patching;
 
@@ -60,7 +61,11 @@ public class CustomPoolFilters
         Node lastfilter = characterFilters[ModelDb.Character<Defect>()];
 
         FieldInfo lastHovered = AccessTools.DeclaredField(typeof(NCardLibrary), "_lastHoveredControl");
-        foreach (CustomCharacterModel model in ModelDbCustomCharacters.CustomCharacters)
+        foreach (CustomCharacterModel model in ModelDbCustomCharacters.CustomCharacters
+                     .OrderBy(c => c.GetType().GetRootNamespace())
+                     .ThenBy(c => c.CompendiumOrder)
+                     .ThenBy(c => c.Id)
+                 )
         {
             if (model.HideInCompendium) continue;
             
