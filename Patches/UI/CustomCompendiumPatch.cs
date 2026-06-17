@@ -6,12 +6,10 @@ using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Models.Characters;
 using MegaCrit.Sts2.Core.Nodes.Combat;
 using MegaCrit.Sts2.Core.Nodes.Screens.CardLibrary;
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
 using BaseLib.Abstracts;
+using BaseLib.Patches.Content;
 using BaseLib.Utils;
 using BaseLib.Utils.Patching;
 
@@ -42,9 +40,7 @@ public class CustomPoolFilters
     public static void GenerateCustomFilters(NCardLibrary library, Dictionary<NCardPoolFilter, Func<CardModel, bool>> filtering, Dictionary<CharacterModel, NCardPoolFilter> characterFilters, Callable updateFilter)
     {
         if (characterFilters.Count == 0) throw new Exception("Attempted to generate custom filters at wrong time");
-
-
-
+        
         //change misc filter
         NCardPoolFilter? miscFilter = AccessTools.DeclaredField(typeof(NCardLibrary), "_miscPoolFilter").GetValue(library) as NCardPoolFilter;
         if (miscFilter == null) throw new Exception("Failed to get _miscPoolFilter");
@@ -56,11 +52,11 @@ public class CustomPoolFilters
             bool newCondition = false;
             return newCondition || oldFilter(c);
         };
-
+        
         Node lastfilter = characterFilters[ModelDb.Character<Defect>()];
 
         FieldInfo lastHovered = AccessTools.DeclaredField(typeof(NCardLibrary), "_lastHoveredControl");
-        foreach (CustomCharacterModel model in ModelDbCustomCharacters.CustomCharacters)
+        foreach (var model in CustomContentDictionary.CustomCharacters)
         {
             if (model.HideInCompendium) continue;
             
