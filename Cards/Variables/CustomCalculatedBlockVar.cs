@@ -1,6 +1,6 @@
-﻿using BaseLib.Extensions;
+﻿using System.Globalization;
+using BaseLib.Extensions;
 using BaseLib.Utils;
-using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Entities.Creatures;
 using MegaCrit.Sts2.Core.Localization.DynamicVars;
 using MegaCrit.Sts2.Core.Models;
@@ -22,61 +22,77 @@ public class CustomCalculatedBlockVar : CalculatedBlockVar
     
     private Func<RelicModel, Creature?, decimal>? _relicCalc = null;
     private Func<PowerModel, Creature?, decimal>? _powerCalc = null;
+    private Func<DynamicVarSource, Creature?, decimal>? _generalCalc = null;
     
     public CustomCalculatedBlockVar(string name, ValueProp props) : base(props)
     {
         _nameSetter?.Invoke(this, name);
     }
 
+    /// <summary>
+    /// Calculates the final value of this variable.
+    /// </summary>
     public virtual decimal CalculateCustom(Creature? target)
     {
-        switch (_owner)
-        {
-            case CardModel:
-                return Calculate(target);
-            case PowerModel power:
-                var mult = _powerCalc?.Invoke(power, target) ??
-                           throw new InvalidOperationException(
-                               $"CustomCalculatedDamageVar {Name} does not have multiplier calc defined for powers in {_owner.Id}");
-                return GetBaseVar().BaseValue + GetExtraVar().BaseValue * mult;
-            case RelicModel relic:
-                mult = (!CombatManager.Instance.IsInProgress || 
-                        BetaMainCompatibility.Creature_.WrappedCombatState(relic.Owner.Creature) == null) ? 0 : 
-                    _relicCalc?.Invoke(relic, target) ?? throw new InvalidOperationException(
-                        $"CustomCalculatedBlockVar {Name} does not have multiplier calc defined for relics in {_owner.Id}");
-                return GetBaseVar().BaseValue + GetExtraVar().BaseValue * mult;
-            default:
-                return BaseValue;
-        }
+        return CustomCalculatedVar.CalculateCustomVar(this, GetBaseVar(), GetExtraVar(), target,
+            Calculate, _relicCalc, _powerCalc, _generalCalc);
     }
     
+    /// <summary>
+    /// Sets a multiplier calculation for a relic. Note that calculation for relics is allowed to occur out of combat,
+    /// so combat state may be null.
+    /// </summary>
     public CalculatedVar WithMultiplier(Func<RelicModel, Creature?, decimal> multiplierCalc)
     {
         if (_relicCalc != null)
-            throw new InvalidOperationException($"Tried to set multiplier calc for relic on CustomCalculatedVar {Name} twice!");
+            throw new InvalidOperationException($"Tried to set multiplier calc for relic on CustomCalculatedBlockVar {Name} twice!");
         _relicCalc = multiplierCalc.Target is not AbstractModel ? multiplierCalc : throw new InvalidOperationException("Multiplier calc must be static!");
         return this;
     }
+    
+    /// <summary>
+    /// Sets a multiplier calculation for a power.
+    /// </summary>
     public CalculatedVar WithMultiplier(Func<PowerModel, Creature?, decimal> multiplierCalc)
     {
         if (_powerCalc != null)
-            throw new InvalidOperationException($"Tried to set multiplier calc for power on CustomCalculatedVar {Name} twice!");
+            throw new InvalidOperationException($"Tried to set multiplier calc for power on CustomCalculatedBlockVar {Name} twice!");
         _powerCalc = multiplierCalc.Target is not AbstractModel ? multiplierCalc : throw new InvalidOperationException("Multiplier calc must be static!");
         return this;
     }
+    
+    /// <summary>
+    /// Sets a calculation that supports any type that can be cast to <see cref="DynamicVarSource"/>.
+    /// Note that calculation for relics and potions is allowed to occur out of combat, so combat state may be null.
+    /// </summary>
+    public CalculatedVar GeneralMultiplier(Func<DynamicVarSource, Creature?, decimal> multiplierCalc)
+    {
+        if (_generalCalc != null)
+            throw new InvalidOperationException($"Tried to set multiplier calc for CustomCalculatedBlockVar {Name} twice!");
+        if (multiplierCalc.Target is AbstractModel) throw new InvalidOperationException("Multiplier calc must be static!");
 
+        WithMultiplier((CardModel card, Creature? c) => multiplierCalc(card, c));
+        _powerCalc = (pow, target) => multiplierCalc(pow, target);
+        _relicCalc = (pow, target) => multiplierCalc(pow, target);
+        _generalCalc = multiplierCalc;
+        return this;
+    }
+    
+    /// <inheritdoc />
     protected override DynamicVar GetBaseVar()
     {
         return _owner!.GetDynamicVar($"{Name}Base");
     }
 
+    /// <inheritdoc />
     protected override DynamicVar GetExtraVar()
     {
         return _owner!.GetDynamicVar($"{Name}Extra");
     }
 
+    /// <inheritdoc />
     protected override decimal GetBaseValueForIConvertible() => CalculateCustom(null);
 
     /// <inheritdoc />
-    public override string ToString() => CalculateCustom(null).ToString();
+    public override string ToString() => CalculateCustom(null).ToString(CultureInfo.InvariantCulture);
 }

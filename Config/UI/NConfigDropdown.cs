@@ -46,7 +46,7 @@ public partial class NConfigDropdown : NSettingsDropdown
         var type = property.PropertyType;
         if (!type.IsEnum) throw new NotSupportedException("Dropdown only supports enum types currently");
 
-        var locOverrideAttr = property.GetCustomAttribute<ConfigOverrideLocalizationAttribute>();
+        var locOverrideAttr = property.GetCustomAttribute<ConfigDropdownOverrideLocalizationAttribute>();
         var propertyName = locOverrideAttr?.OverridePropertyName ?? StringHelper.Slugify(property.Name);
         
         foreach (var value in type.GetEnumValues())

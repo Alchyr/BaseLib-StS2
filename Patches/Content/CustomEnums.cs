@@ -3,6 +3,7 @@ using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using BaseLib.Abstracts;
+using BaseLib.Commands;
 using BaseLib.Extensions;
 using BaseLib.Patches.Localization;
 using HarmonyLib;
@@ -330,6 +331,11 @@ class GenEnumValues
                 if (pileType == null) throw new Exception($"Failed to be set up custom PileType in {t.FullName}");
 
                 CustomPiles.RegisterCustomPile((PileType) pileType, () => (CustomPile) constructor.Invoke(null));
+                var dummyPile = (CustomPile)constructor.Invoke(null);
+                if (dummyPile is { IconPath: { } iconPath, Name: { } locName })
+                {
+                    MultiPileCardSelect.RegisterPileIndicator((PileType)pileType, iconPath, locName);
+                }
             }
 
             // CustomReward Registration

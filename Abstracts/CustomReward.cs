@@ -1,5 +1,6 @@
 using BaseLib.Extensions;
 using Baselib.Patches.Content;
+using BaseLib.Common.Rewards;
 using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.Helpers;
 using MegaCrit.Sts2.Core.Localization;
@@ -20,6 +21,7 @@ public delegate T CreateRewardFromSave<out T>(SerializableReward save, Player pl
 /// Class to inherit for creation a new type of reward.
 /// "New type" does not mean this should be used for card pool rewards, or single card rewards. For those
 /// use <see cref="CardReward"/> or <see cref="SpecialCardReward"/> respectively.
+/// <seealso cref="CardTransformReward"/>
 /// </summary>
 public abstract class CustomReward(Player player) : Reward(player)
 {
@@ -32,7 +34,7 @@ public abstract class CustomReward(Player player) : Reward(player)
     {
         return new LocString("gameplay_ui", GetType().GetPrefix() + StringHelper.Slugify(GetType().Name));
     }
-    
+
     /** Other Overrides
      * Populate - Prepares actual contents of rewards. Called if IsPopulated is false.
      * IsPopulated - Return true if reward is ready. Should be true after Populate is successfully called, or by default
@@ -41,7 +43,7 @@ public abstract class CustomReward(Player player) : Reward(player)
      * Description
      * IconPath
      */
-    
+
     /// <summary>
     /// Set the reward index after vanilla rewards by default
     /// </summary>
@@ -64,6 +66,7 @@ public abstract class CustomReward(Player player) : Reward(player)
     /// </code>
     /// </example>
     public abstract CreateRewardFromSave<CustomReward> DeserializeMethod { get; }
+
 
     /// <summary>
     /// Base method to handle registering your reward for serializing and deserializing in <see cref="RewardSynchronizer"/>

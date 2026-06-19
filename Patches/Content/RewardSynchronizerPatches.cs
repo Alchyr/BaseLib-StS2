@@ -9,7 +9,7 @@ namespace BaseLib.Patches.Content;
 /// Extensions to <see cref="RewardSynchronizer"/> to provide public getters to internal properties and common reward functions
 /// </summary>
 [HarmonyPatch(typeof(RewardSynchronizer))]
-public static class RewardSynchronizerExtensions
+public static class RewardSynchronizerPatches
 {
     /// <summary>
     /// Struct to save a custom reward message until combat ends
@@ -27,30 +27,33 @@ public static class RewardSynchronizerExtensions
         public CustomTargetedMessageWrapper Message;
     }
 
-    // Not used in BaseLib as publicizer is enabled, but useful for mods without.
-    /// <summary>
-    /// Exposes the private INetGameService property.
-    /// </summary>
-    public static INetGameService? GameService(this RewardSynchronizer rewardSynchronizer) => rewardSynchronizer._gameService;
-    
+    extension(RewardSynchronizer rewardSynchronizer)
+    {
+        // Not used in BaseLib as publicizer is enabled, but useful for mods without.
+        /// <summary>
+        /// Exposes the private INetGameService property.
+        /// </summary>
+        public INetGameService GameService() => rewardSynchronizer._gameService;
+
+        /// <summary>
+        /// Add a <see cref="CustomTargetedMessageWrapper"/> to the combat buffer
+        /// </summary>
+        public void BufferCustomRewardMessage(CustomTargetedMessageWrapper message, ulong senderId)
+        {
+            var bufferedMessage = new BufferedCustomRewardMessage
+            {
+                SenderId = senderId,
+                Message = message
+            };
+            BufferedCustomRewardMessages[rewardSynchronizer]?.Add(bufferedMessage);
+        }
+    }
+
     /// <summary>
     /// Reference list of buffered messages<br/>
     /// </summary>
     internal static readonly SpireField<RewardSynchronizer, List<BufferedCustomRewardMessage>>
         BufferedCustomRewardMessages = new(() => []);
-
-    /// <summary>
-    /// Add a <see cref="CustomRewardMessage"/> to the combat buffer
-    /// </summary>
-    public static void BufferCustomRewardMessage(this RewardSynchronizer rewardSynchronizer, CustomTargetedMessageWrapper message, ulong senderId)
-    {
-        var bufferedMessage = new BufferedCustomRewardMessage
-        {
-            SenderId = senderId,
-            Message = message
-        };
-        BufferedCustomRewardMessages[rewardSynchronizer]!.Add(bufferedMessage);
-    }
 
     [HarmonyPatch(nameof(RewardSynchronizer.OnCombatEnded))]
     [HarmonyPrefix]
@@ -58,8 +61,8 @@ public static class RewardSynchronizerExtensions
     {
         foreach (var bufferedMessage in BufferedCustomRewardMessages[__instance]!)
         {
-            __instance._messageBuffer?.CallHandlersOfType(bufferedMessage.Message.GetType(), bufferedMessage.Message, bufferedMessage.SenderId);
+            __instance._messageBuffer.CallHandlersOfType(bufferedMessage.Message.GetType(), bufferedMessage.Message, bufferedMessage.SenderId);
         }
-        BufferedCustomRewardMessages[__instance]!.Clear();
+        BufferedCustomRewardMessages[__instance]?.Clear();
     }
 }

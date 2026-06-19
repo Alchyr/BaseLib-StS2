@@ -40,6 +40,27 @@ public static class MultiPileCardSelect
     private static readonly SpireField<NGridCardHolder, MegaLabel> PileNameLabel = new(static _ => null);
 
     /// <summary>
+    /// Pile indicator infos (tooltip title + icon) keyed by pile type. Pre-populated with the vanilla piles;
+    /// custom piles can be added via <see cref="RegisterPileIndicator(PileType, string, LocString)"/>.
+    /// </summary>
+    private static readonly Dictionary<PileType, (LocString Title, string TexturePath)> RegisteredPileIndicators = new() {
+        [PileType.Draw] = (new LocString("card_selection", "BASELIB-DRAW_PILE"), "res://images/packed/combat_ui/draw_pile.png"),
+        [PileType.Discard] = (new LocString("card_selection", "BASELIB-DISCARD_PILE"), "res://images/packed/combat_ui/discard_pile.png"),
+        [PileType.Exhaust] = (new LocString("card_selection", "BASELIB-EXHAUST_PILE"), "res://images/packed/combat_ui/exhaust_pile.png"),
+        [PileType.Hand] = (new LocString("card_selection", "BASELIB-HAND"), "res://images/powers/hello_world_power.png"),
+        [PileType.Deck] = (new LocString("card_selection", "BASELIB-DECK"), "res://images/atlases/ui_atlas.sprites/top_bar/top_bar_deck.tres"),
+    };
+
+    /// <summary>
+    /// Registers (or overrides) the indicator shown on cards belonging to the given pile type in multi-pile selection screens.
+    /// </summary>
+    /// <param name="pileType">The pile type to register an indicator for</param>
+    /// <param name="texturePath">Resource path of the icon texture</param>
+    /// <param name="name">Localized pile name, shown as a tooltip when the card is focused</param>
+    internal static void RegisterPileIndicator(PileType pileType, string texturePath, LocString name) =>
+        RegisteredPileIndicators[pileType] = (name, texturePath);
+    
+    /// <summary>
     /// Opens a card selection screen where a specific number of cards must be selected from specified card piles and returns the selection result.
     /// </summary>
     /// <param name="filter">A predicate that takes a card and returns true</param>
@@ -110,51 +131,42 @@ public static class MultiPileCardSelect
     {
         ClearHolderIndicatorNodes(holder);
         if (!IsGridMultiPile.Get(grid)) return;
-        (LocString? title, Texture2D texture)? pile = holder.CardNode?.Model?.Pile?.Type switch {
-            PileType.Draw => (new LocString("card_selection", "BASELIB-DRAW_PILE"), ResourceLoader.Load<Texture2D>("res://images/packed/combat_ui/draw_pile.png")),
-            PileType.Discard => (new LocString("card_selection", "BASELIB-DISCARD_PILE"), ResourceLoader.Load<Texture2D>("res://images/packed/combat_ui/discard_pile.png")),
-            PileType.Exhaust => (new LocString("card_selection", "BASELIB-EXHAUST_PILE"), ResourceLoader.Load<Texture2D>("res://images/packed/combat_ui/exhaust_pile.png")),
-            PileType.Hand => (new LocString("card_selection", "BASELIB-HAND"), ResourceLoader.Load<Texture2D>("res://images/powers/hello_world_power.png")),
-            PileType.Deck => (new LocString("card_selection", "BASELIB-DECK"), ResourceLoader.Load<Texture2D>("res://images/atlases/ui_atlas.sprites/top_bar/top_bar_deck.tres")),
-            _ => null
-        };
-        if (pile == null) return;
+        if (holder.CardNode?.Model?.Pile?.Type is not { } pileType) return;
+        if (!RegisteredPileIndicators.TryGetValue(pileType, out var pile)) return;
         TextureRect icon = new() {
             Position = new(110, -230),
             Size = Vector2.One * IconSize,
             MouseFilter = Control.MouseFilterEnum.Pass,
             ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
             StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
-            Texture = pile.Value.texture,
+            Texture = ResourceLoader.Load<Texture2D>(pile.TexturePath),
         };
         PileIndicator.Set(holder, icon);
         holder.AddChild(icon);
-        if (pile.Value.title is LocString title) {
-            MegaLabel label = new() {
-                Modulate = Colors.White with { A = 0f },
-                Size = new(LabelSize, IconSize),
-                Position = new(-LabelSize + IconSize, 0),
-                VerticalAlignment = VerticalAlignment.Top,
-                HorizontalAlignment = HorizontalAlignment.Right,
-                MinFontSize = 16,
-                MaxFontSize = 24,
-                MouseFilter = Control.MouseFilterEnum.Ignore,
-                ShowBehindParent = true,
-            };
-            label.AddThemeFontOverride(ThemeConstants.Label.Font, ResourceLoader.Load<FontVariation>("res://themes/kreon_regular_shared.tres"));
-            label.AddThemeColorOverride(ThemeConstants.Label.FontColor, Colors.White with { A = 0.75f });
-            label.AddThemeColorOverride(ThemeConstants.Label.FontOutlineColor, Colors.Black with { A = 0.75f });
-            label.AddThemeColorOverride(ThemeConstants.Label.FontShadowColor, Colors.Black with { A = 0.2f });
-            label.AddThemeConstantOverride(ThemeConstants.Label.OutlineSize, 10);
-            label.AddThemeConstantOverride("shadow_offset_x", 3);
-            label.AddThemeConstantOverride("shadow_offset_y", 3);
-            label.SetTextAutoSize(title.GetFormattedText());
-            icon.AddChild(label);
-            PileNameLabel.Set(holder, label);
-        } else
+        MegaLabel label = new()
         {
-            PileNameLabel.Set(holder, null);
-        }
+            Modulate = Colors.White with { A = 0f },
+            Size = new(LabelSize, IconSize),
+            Position = new(-LabelSize + IconSize, 0),
+            VerticalAlignment = VerticalAlignment.Top,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            MinFontSize = 16,
+            MaxFontSize = 24,
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+            ShowBehindParent = true,
+        };
+        label.AddThemeFontOverride(ThemeConstants.Label.Font,
+            ResourceLoader.Load<FontVariation>("res://themes/kreon_regular_shared.tres"));
+        label.AddThemeColorOverride(ThemeConstants.Label.FontColor, Colors.White with { A = 0.75f });
+        label.AddThemeColorOverride(ThemeConstants.Label.FontOutlineColor, Colors.Black with { A = 0.75f });
+        label.AddThemeColorOverride(ThemeConstants.Label.FontShadowColor, Colors.Black with { A = 0.2f });
+        label.AddThemeConstantOverride(ThemeConstants.Label.OutlineSize, 10);
+        label.AddThemeConstantOverride("shadow_offset_x", 3);
+        label.AddThemeConstantOverride("shadow_offset_y", 3);
+        label.SetTextAutoSize(pile.Title.GetFormattedText());
+        icon.AddChild(label);
+        PileNameLabel.Set(holder, label);
+      
     }
 
     [HarmonyPatch(typeof(NCardGrid), nameof(NCardGrid.SetCards))]

@@ -1,0 +1,8 @@
+{
+  "BASELIB-PERSIST.title": "Beständig",
+  "BASELIB-PERSIST.description": "Diese Karte kehrt {Persist:cond:>1?[blue]{Persist}[/blue]-mal|einmal} pro Zug nach dem Ausspielen auf deine Hand zurück.",
+  "BASELIB-EXHAUSTIVE.title": "Erschöpfend",
+  "BASELIB-EXHAUSTIVE.description": "Diese Karte wird nach {Exhaustive:cond:>1?[blue]{Exhaustive}[/blue] |einer }{Exhaustive:plural:Verwendung|Verwendungen} [gold]Erschöpft[/gold].",
+  "BASELIB-REFUND.title": "Erstattung",
+  "BASELIB-REFUND.description": "Wird Energie für diese Karte ausgegeben, werden bis zu [blue]{Refund}[/blue] dieser Energie zurückerstattet."
+}

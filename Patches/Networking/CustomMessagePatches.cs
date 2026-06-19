@@ -25,7 +25,7 @@ internal static class RunManagerPatches
     }
 }
 
-[HarmonyPatch(typeof(MessageTypes), MethodType.StaticConstructor)]
+[HarmonyPatch(typeof(MessageTypes), nameof(MessageTypes.Initialize))]
 static class AdjustCustomMessageKeys
 {
     [HarmonyPostfix]
@@ -34,7 +34,7 @@ static class AdjustCustomMessageKeys
         BaseLibMain.Logger.Info("Adjusting keys of custom message wrappers.");
         var cache = MessageTypes._cache;
 
-        cache._idToType.Remove(typeof(CustomMessageWrapper));
+        cache!._idToType.Remove(typeof(CustomMessageWrapper));
         cache._idToType.Remove(typeof(CustomTargetedMessageWrapper));
         
         for (int index = 0; index < cache._idToType.Count; ++index)

@@ -1,6 +1,6 @@
 ﻿using BaseLib.Abstracts;
+using BaseLib.Patches.Content;
 using HarmonyLib;
-using MegaCrit.Sts2.Core.Helpers;
 using MegaCrit.Sts2.Core.Models;
 
 namespace BaseLib.Utils;
@@ -13,7 +13,8 @@ public static class CustomCharacterUtils
     internal static List<List<Type>>? TypesToSort { get; set; } = [];
 
     /// <summary>
-    /// Tries to order the custom characters on the character select screen. Call this in your mod's intialize method. Returns false if called too late or if any type passed is not a CustomCharacterModel.
+    /// Tries to order the custom characters on the character select screen and in compendium.
+    /// Call this in your mod's intialize method. Returns false if called too late or if any type passed is not a CustomCharacterModel.
     /// </summary>
     /// <param name="characters">The types of your CustomCharacters</param>
     /// <returns>True if sorting was successful. False if sorting failed for some reason.</returns>
@@ -218,20 +219,24 @@ public static class CustomCharacterUtils
     }
 }
 
-[HarmonyPatch(typeof(OneTimeInitialization), "ExecuteEssential")]
+[HarmonyPatch(typeof(ModelDb), nameof(ModelDb.Init))]
 internal static class CustomCharacterSortPatch
 {
-    public static void Postfix()
+    [HarmonyPostfix]
+    public static void ApplySorting()
     {
         if (CustomCharacterUtils.TypesToSort is null)
         {
+            BaseLibMain.Logger.Debug("Sorting was already performed.");
             return;
         }
 
+        BaseLibMain.Logger.Debug($"Sorting {CustomContentDictionary.CustomCharacters.Count} custom characters with " +
+                                 $"{CustomCharacterUtils.TypesToSort.Count} declared sort orders.");
         foreach (List<CustomCharacterModel> characters in CustomCharacterUtils.TypesToSort.Select(list =>
                      list.Select(ModelDb.Get).OfType<CustomCharacterModel>().ToList()))
         {
-            ModelDbCustomCharacters.CustomCharacters.Sort(Comparison);
+            CustomContentDictionary.CustomCharacters.Sort(Comparison);
             continue;
 
             int Comparison(CustomCharacterModel y, CustomCharacterModel x)

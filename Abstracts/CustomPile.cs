@@ -1,5 +1,6 @@
 using Godot;
 using MegaCrit.Sts2.Core.Entities.Cards;
+using MegaCrit.Sts2.Core.Localization;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Nodes.Cards;
 
@@ -17,7 +18,12 @@ public abstract class CustomPile : CardPile
     public CustomPile(PileType pileType) : base(pileType)
     {
     }
-
+    
+    /// <summary>Resource path of the icon shown on this pile's cards in multi-pile card selection, or null for no indicator.</summary>
+    public virtual string? IconPath => null;
+    /// <summary>Localized pile name shown as tooltip on the indicator, or null for no indicator.</summary>
+    public virtual LocString? Name => null;
+    
     /// <summary>
     /// For a CardPile like the hand, where cards are directly shown.
     /// This does not handle keeping the NCards visible; it just says that they should be.

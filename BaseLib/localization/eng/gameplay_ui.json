@@ -1,0 +1,7 @@
+{
+  "BASELIB-COMBAT_REWARD_CARD_UPGRADE": "Upgrade {cards:plural:a card|{} cards}.",
+  "BASELIB-COMBAT_REWARD_CARD_UPGRADE.selectionScreenPrompt": "Choose a card to upgrade.",
+  "BASELIB-COMBAT_REWARD_RANDOM_CARD_UPGRADE": "Upgrade a random card.",
+  "BASELIB-COMBAT_REWARD_CARD_TRANSFORM": "Transform {Upgrade:and Upgrade |}{cards:plural:a card|{} cards}",
+  "BASELIB-COMBAT_REWARD_CARD_TRANSFORM.selectionScreenPrompt": "Choose {Amount:plural:a card:[blue]{}[/blue] cards} to [gold]Transform[/gold]{Upgrade: and [gold]Upgrade[/gold]|}"
+}

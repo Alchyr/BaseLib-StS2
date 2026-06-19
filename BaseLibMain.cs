@@ -6,6 +6,7 @@ using BaseLib.Extensions;
 using BaseLib.Patches.Content;
 using BaseLib.Patches.Saves;
 using BaseLib.Patches.Utils;
+using BaseLib.Utils;
 using BaseLib.Utils.NodeFactories;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Modding;
@@ -21,13 +22,12 @@ public static class BaseLibMain
 
     public static MegaCrit.Sts2.Core.Logging.Logger Logger { get; } = new(ModId, MegaCrit.Sts2.Core.Logging.LogType.Generic);
 
-    private static Harmony? _harmony;
     internal static Harmony MainHarmony
     {
         get
         {
-            _harmony ??= new Harmony(ModId);
-            return _harmony;
+            field ??= new Harmony(ModId);
+            return field;
         }
     }
 
@@ -57,6 +57,8 @@ public static class BaseLibMain
         ExtendedSavePatches.Patch(MainHarmony);
 
         MainHarmony.TryPatchAll(assembly);
+        
+        CustomLocTableManager.Register("card_modifiers");
     }
 
     //Hopefully temporary fix for linux

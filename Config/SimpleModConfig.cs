@@ -190,12 +190,7 @@ public class SimpleModConfig : ModConfig
     {
         var control = controlCreator.Invoke(property);
         
-        var locOverrideAttr = property.GetCustomAttribute<ConfigOverrideLocalizationAttribute>();
-
-        var text = locOverrideAttr != null ? 
-            GetLabelText(locOverrideAttr.OverridePropertyName, false) : 
-            GetLabelText(property.Name);
-        
+        var text = GetLabelText(property.Name);
         var label = CreateRawLabelControl(text, 28);
         var option = new NConfigOptionRow(ModPrefix, property.Name, label, control);
         control.ClearFocusNeighbors();

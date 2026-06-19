@@ -1,0 +1,8 @@
+{
+  "BASELIB-CHOOSE_GENERIC": "Wähle {Amount:plural:eine Karte|[blue]{}[/blue] Karten}.",
+  "BASELIB-DRAW_PILE": "Nachziehstapel",
+  "BASELIB-DISCARD_PILE": "Abwurfstapel",
+  "BASELIB-EXHAUST_PILE": "Erschöpfungsstapel",
+  "BASELIB-HAND": "Hand",
+  "BASELIB-DECK": "Deck"
+}

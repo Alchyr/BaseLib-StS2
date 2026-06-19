@@ -27,10 +27,12 @@
 
   "BASELIB-LIMITED_LOG_SIZE.title": "Log history size",
   "BASELIB-LIMITED_LOG_SIZE.hover.desc": "Maximum number of lines retained in the in-game log window.",
-
+  "BASELIB-LIMITED_LOG_SIZE.sliderFormat": "{0:0} lines",
+  
   "BASELIB-LOG_FONT_SIZE.title": "Log font size",
   "BASELIB-LOG_FONT_SIZE.hover.desc": "Can also be set with Ctrl+scroll in the log window.",
-
+  "BASELIB-LOG_FONT_SIZE.sliderFormat": "{0:0} px",
+  
   "BASELIB-HARMONY_DUMP_SECTION.title": "Harmony patch dump",
 
   "BASELIB-HARMONY_PATCH_DUMP_OUTPUT_PATH.title": "Output file path",

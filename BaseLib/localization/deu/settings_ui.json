@@ -1,0 +1,54 @@
+{
+  "BASELIB.mod_title": "BaseLib",
+  "BASELIB.MOD_CONFIG_SETTINGS_ROW.title": "Mod-Konfiguration (BaseLib)",
+  "BASELIB.MOD_CONFIG_SETTINGS_ROW.button": "Einstellungen öffnen",
+
+  "BASELIB-UNKNOWN_MOD_NAME": "Unbekannter Mod-Name",
+  "BASELIB-RESTORE_DEFAULTS_BUTTON.title": "Standardwerte wiederherstellen",
+  "BASELIB-RESTORE_MODCONFIG_CONFIRMATION.header": "Wiederherstellen bestätigen",
+  "BASELIB-RESTORE_MODCONFIG_CONFIRMATION.body": "Standardeinstellungen für diesen Mod wiederherstellen?",
+
+  "BASELIB-SHOW_MOD_CONFIG_IN_MAIN_MENU.title": "Mod-Konfiguration im Hauptmenü anzeigen (Neustart erforderlich)",
+  "BASELIB-SHOW_MOD_CONFIG_IN_MAIN_MENU.hover.title": "Mod-Konfiguration im Hauptmenü anzeigen",
+  "BASELIB-SHOW_MOD_CONFIG_IN_MAIN_MENU.hover.desc": "In den Einstellungen des Spiels gibt es immer einen Eintrag.",
+
+  "BASELIB-GENERAL_SETTINGS.title": "Allgemeine Einstellungen",
+
+  "BASELIB-SFX_PLAYER_LIMIT.title": "Soundeffekt-Obergrenze",
+  "BASELIB-SFX_PLAYER_LIMIT.hover.desc": "Maximale Anzahl an Soundeffekten, die gleichzeitig über BaseLib abgespielt werden können.",
+
+  "BASELIB-LOG_SECTION.title": "Protokollfenster/Konsole",
+
+  "BASELIB-OPEN_LOG_WINDOW_ON_STARTUP.title": "Protokollfenster beim Start öffnen",
+  "BASELIB-OPEN_LOG_WINDOW_ON_STARTUP.hover.desc": "Öffnet das BaseLib-Protokollfenster automatisch, sobald das Hauptmenü geladen ist.",
+
+  "BASELIB-OPEN_LOG_WINDOW_ON_ERROR.title": "Protokollfenster bei Fehlern öffnen",
+  "BASELIB-OPEN_LOG_WINDOW_ON_ERROR.hover.desc": "Öffnet das BaseLib-Protokollfenster automatisch, wenn ein Fehler auftritt.",
+
+  "BASELIB-LIMITED_LOG_SIZE.title": "Größe des Protokollverlaufs",
+  "BASELIB-LIMITED_LOG_SIZE.hover.desc": "Maximale Anzahl an Zeilen, die im Protokollfenster im Spiel behalten werden.",
+  "BASELIB-LIMITED_LOG_SIZE.sliderFormat": "{0:0} Zeilen",
+
+  "BASELIB-LOG_FONT_SIZE.title": "Schriftgröße im Protokoll",
+  "BASELIB-LOG_FONT_SIZE.hover.desc": "Kann auch per Strg+Scrollen im Protokollfenster geändert werden.",
+  "BASELIB-LOG_FONT_SIZE.sliderFormat": "{0:0} px",
+
+  "BASELIB-HARMONY_DUMP_SECTION.title": "Harmony-Patch-Bericht",
+
+  "BASELIB-HARMONY_PATCH_DUMP_OUTPUT_PATH.title": "Ausgabepfad",
+  "BASELIB-HARMONY_PATCH_DUMP_OUTPUT_PATH.placeholder": "Absoluter Pfad oder user://… (z. B. user://baselib_harmony_patch_dump.log)",
+  "BASELIB-HARMONY_PATCH_DUMP_OUTPUT_PATH.hover.desc": "Wohin der Patch-Bericht geschrieben wird. Nutze „Durchsuchen“, um eine Datei auszuwählen, oder gib einen vollständigen Pfad bzw. Godot user:// Pfad ein.",
+
+  "BASELIB-HARMONY_PATCH_DUMP_ON_FIRST_MAIN_MENU.title": "Bericht beim ersten Laden des Hauptmenüs erstellen",
+  "BASELIB-HARMONY_PATCH_DUMP_ON_FIRST_MAIN_MENU.hover.desc": "Schreibt den Bericht einmal pro Spielsitzung, nachdem das Hauptmenü fertig geladen ist, sofern der Ausgabepfad gesetzt ist.",
+
+  "BASELIB-HARMONY_DUMP_BROWSE_FOR_OUTPUT.title": "Ausgabedatei wählen",
+  "BASELIB-HARMONY_DUMP_BROWSE.title": "Durchsuchen…",
+  "BASELIB-HARMONY_DUMP_BROWSE_FOR_OUTPUT.hover.desc": "Öffnet einen Dialog zum Speichern und füllt den Ausgabepfad oben aus.",
+
+  "BASELIB-HARMONY_DUMP_WRITE_NOW.title": "Bericht jetzt schreiben",
+  "BASELIB-HARMONY_DUMP_NOW.title": "Jetzt schreiben",
+  "BASELIB-HARMONY_DUMP_WRITE_NOW.hover.desc": "Erzeugt den Bericht sofort mit dem angegebenen Ausgabepfad. Erfolg oder Fehler werden im Protokoll angezeigt.",
+
+  "BASELIB-HARMONY_DUMP_BROWSE_TITLE.title": "Harmony-Patch-Bericht speichern"
+}

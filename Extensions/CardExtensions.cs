@@ -1,4 +1,6 @@
-﻿using BaseLib.Abstracts;
+﻿using System.Collections.ObjectModel;
+using System.Diagnostics.CodeAnalysis;
+using BaseLib.Abstracts;
 using BaseLib.Patches.Content;
 using BaseLib.Patches.Features;
 using BaseLib.Utils;
@@ -39,7 +41,7 @@ public static class CardExtensions
                 if (CustomTargetType.IsCustomMultiTargetType(card.TargetType))
                 {
                     state = BetaMainCompatibility.CardModel_.WrappedCombatState(card);
-                    return state?.Creatures.Where(c => CustomTargetType.CanMultiTarget(card.TargetType, c)).ToList() ?? [];
+                    return state?.Creatures.Where(c => CustomTargetType.CanMultiTarget(card.TargetType, c, card.Owner)).ToList() ?? [];
                 }
                 
                 var targetTypeName = CustomEnums.EnumName<TargetType>((int) card.TargetType) ?? 
@@ -57,5 +59,43 @@ public static class CardExtensions
     public static void AddModifier(this CardModel card, CardModifier modifier)
     {
         CardModifier.AddModifier(card, modifier);
+    }
+
+    /// <summary>
+    /// Get all <see cref="CardModifier"/>s currently attached to a card.
+    /// </summary>
+    public static ReadOnlyCollection<CardModifier> GetModifiers(this CardModel card)
+    {
+        return CardModifier.Modifiers(card);
+    }
+    /// <summary>
+    /// Get a specific type of <see cref="CardModifier"/> attached to a card, if it exists.
+    /// </summary>
+    public static T? GetModifier<T>(this CardModel card) where T : CardModifier
+    {
+        return card.GetModifiers().OfType<T>().FirstOrDefault();
+    }
+    /// <summary>
+    /// Get a specific type of <see cref="CardModifier"/> attached to a card, if it exists.
+    /// </summary>
+    public static bool TryGetModifier<T>(this CardModel card, [NotNullWhen(true)] out T? modifier) where T : CardModifier
+    {
+        modifier = card.GetModifier<T>();
+        return modifier != null;
+    }
+    /// <summary>
+    /// Get a specific <see cref="CardModifier"/> attached to a card by ID, if it exists.
+    /// </summary>
+    public static CardModifier? GetModifier(this CardModel card, ModelId modifierId)
+    {
+        return card.GetModifiers().FirstOrDefault(modifier => modifier.Id.Equals(modifierId));
+    }
+    /// <summary>
+    /// Get a specific <see cref="CardModifier"/> attached to a card by ID, if it exists.
+    /// </summary>
+    public static bool TryGetModifier(this CardModel card, ModelId modifierId, [NotNullWhen(true)] out CardModifier? modifier)
+    {
+        modifier = card.GetModifier(modifierId);
+        return modifier != null;
     }
 }

@@ -85,6 +85,9 @@ public class InstructionPatcher(IEnumerable<CodeInstruction> instructions)
         return this;
     }
 
+    /// <summary>
+    /// Matches the last instruction of the method, with the start of the match being the first instruction of the method.
+    /// </summary>
     public InstructionPatcher MatchEnd()
     {
         _index = _code.Count;

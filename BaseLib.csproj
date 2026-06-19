@@ -21,9 +21,9 @@
         <PackageId>Alchyr.Sts2.BaseLib</PackageId>
         <Title>BaseLib-StS2</Title>
         <Description>Mod for Slay the Spire 2 providing utilities and features for other mods.</Description>
-        <Version>3.2.1</Version>
+        <Version>3.3.0</Version>
         <Authors>Alchyr</Authors>
-        <PackageReleaseNotes>Trash heap interface, MultiPileCardSelect, downgrade hook, bugfixes, config attribute to change property loc key</PackageReleaseNotes>
+        <PackageReleaseNotes>New update compatibility, additional common rewards types, CustomCalculatedVars work on additional types, additions to CardModifier, improve log window performance, bugfixes</PackageReleaseNotes>
         <PackageTags>c#</PackageTags>
         <NoWarn>$(NoWarn);NU5128;MSB3270</NoWarn>
 

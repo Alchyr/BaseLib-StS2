@@ -3,10 +3,13 @@ using BaseLib.Extensions;
 using BaseLib.Patches.Localization;
 using BaseLib.Patches.Saves;
 using BaseLib.Utils;
+using BaseLib.Utils.Patching;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Creatures;
 using MegaCrit.Sts2.Core.GameActions.Multiplayer;
+using MegaCrit.Sts2.Core.Localization;
+using MegaCrit.Sts2.Core.Localization.DynamicVars;
 using MegaCrit.Sts2.Core.Modding;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Multiplayer.Serialization;
@@ -18,6 +21,7 @@ namespace BaseLib.Abstracts;
 /// A model that is attached to a card to modify its behavior.
 /// Receives all combat hooks, and is capable of modifying the card's description.
 /// More features to be added in the future.
+/// TODO - base value modification like enchants/afflictions
 /// </summary>
 public abstract class CardModifier : AbstractModel, IComparable<CardModifier>
 {
@@ -155,7 +159,7 @@ public abstract class CardModifier : AbstractModel, IComparable<CardModifier>
     
     
     private static readonly SpireField<CardModel, List<CardModifier>> _modifiers = new(() => []);
-    
+
     /// <summary>
     /// Gets the list of modifiers on a card.
     /// This list is read-only and cannot be modified.
@@ -221,7 +225,8 @@ public abstract class CardModifier : AbstractModel, IComparable<CardModifier>
     /// <summary>
     /// Mostly unused; overridden just in case.
     /// </summary>
-    public override bool ShouldReceiveCombatHooks => true;
+    public override bool ShouldReceiveCombatHooks => Owner?.ShouldReceiveCombatHooks ?? false;
+    private DynamicVarSet? _dynamicVars;
     
     public CardModel? Owner
     {
@@ -231,6 +236,14 @@ public abstract class CardModifier : AbstractModel, IComparable<CardModifier>
     
     private void ApplyInternal(CardModel card)
     {
+        if (card.TryGetModifier(Id, out var modifier))
+        {
+            if (modifier.ApplyStacked(this))
+            {
+                return;
+            }
+        }
+        
         DirectModifiers(card).InsertSorted(this);
         Owner = card;
         OnInitialApplication();
@@ -244,10 +257,53 @@ public abstract class CardModifier : AbstractModel, IComparable<CardModifier>
     }
 
     /// <summary>
+    /// This method is called when a modifier is applied to a card that already has the same modifier.
+    /// Return true to cancel the original application.
+    /// </summary>
+    /// <param name="newApplied">The modifier being applied.</param>
+    public virtual bool ApplyStacked(CardModifier newApplied)
+    {
+        return false;
+    }
+
+    /// <summary>
     /// Affects the ordering of card modifiers when they are added to a card.
     /// Lower priority means the card modifier will be inserted before card modifiers of higher priority.
     /// </summary>
     public int Priority { get; set; } = 0;
+
+    public DynamicVarSet DynamicVars
+    {
+        get
+        {
+            if (_dynamicVars != null)
+                return _dynamicVars;
+            
+            if (Owner == null)
+                throw new InvalidOperationException("Attempted to access a card modifier's dynamic vars before it has an owner");
+            
+            _dynamicVars = new DynamicVarSet(CanonicalVars);
+            _dynamicVars.InitializeWithOwner(Owner);
+            return _dynamicVars;
+        }
+    }
+
+    /// <summary>
+    /// Dynamic variables attached to each instance of the card modifier.
+    /// Will automatically be attached to LocStrings retrieved using the <see cref="GetLoc"/> method.
+    /// </summary>
+    protected virtual IEnumerable<DynamicVar> CanonicalVars => [];
+
+    /// <summary>
+    /// Retrieves a <see cref="LocString"/> from a card_modifiers.json table using this modifier's ID
+    /// and adds this modifier's dynamic variables to it.
+    /// </summary>
+    public virtual LocString GetLoc(string subKey = "description")
+    {
+        var loc = new LocString("card_modifiers", $"{Id.Entry}.{subKey}");
+        DynamicVars.AddTo(loc);
+        return loc;
+    }
 
     /// <summary>
     /// Modifies a card's description before the game processes it.
@@ -274,6 +330,31 @@ public abstract class CardModifier : AbstractModel, IComparable<CardModifier>
     public virtual void OnInitialApplication()
     {
         
+    }
+
+    /// <summary>
+    /// Called after the card's OnUpgrade method is called.
+    /// </summary>
+    public virtual void OnUpgrade()
+    {
+        
+    }
+    
+    /// <summary>
+    /// Called after the card's OnDowngrade method is called.
+    /// </summary>
+    public virtual void OnDowngrade()
+    {
+        _dynamicVars = new DynamicVarSet(CanonicalVars);
+        _dynamicVars.InitializeWithOwner(Owner!);
+    }
+    
+    public virtual void UpdateDynamicVarPreview(CardPreviewMode previewMode, Creature? target, bool runGlobalHooks)
+    {
+        foreach (var dynVar in DynamicVars.Values)
+        {
+            dynVar.UpdateCardPreview(Owner!, previewMode, target, runGlobalHooks);
+        }
     }
 
     /// <summary>
@@ -312,6 +393,91 @@ static class CloneModifiers {
                 resultCard.AddModifier(cloneModifier);
                 cloneModifier.AfterClonedOnCard(resultCard);
             }
+        }
+    }
+}
+
+[HarmonyPatch(typeof(CardModel), nameof(CardModel.UpgradeInternal))]
+static class UpgradeModifiers
+{
+    [HarmonyPostfix]
+    static void UpgradeModifiersOnCard(CardModel __instance)
+    {
+        foreach (var modifier in CardModifier.Modifiers(__instance))
+        {
+            modifier.OnUpgrade();
+            modifier.DynamicVars.RecalculateForUpgradeOrEnchant();
+        }
+    }
+}
+
+[HarmonyPatch(typeof(CardModel), nameof(CardModel.DowngradeInternal))]
+static class DowngradeModifiers
+{
+    [HarmonyTranspiler]
+    static List<CodeInstruction> DowngradeModifiersOnCard(IEnumerable<CodeInstruction> code)
+    {
+        return new InstructionPatcher(code)
+            .Match(new CallMatcher(typeof(CardModel).DeclaredMethod("AfterDowngraded")))
+            .InsertBeforeMatch([
+                CodeInstruction.Call(typeof(DowngradeModifiers), nameof(DowngradeModifiers.OnDowngrade))
+            ]);
+    }
+
+    static CardModel OnDowngrade(CardModel card)
+    {
+        foreach (var modifier in CardModifier.Modifiers(card))
+        {
+            modifier.OnDowngrade();
+            modifier.DynamicVars.RecalculateForUpgradeOrEnchant();
+        }
+
+        return card;
+    }
+}
+
+[HarmonyPatch(typeof(CardModel), nameof(CardModel.FinalizeUpgradeInternal))]
+static class FinalizeModifierUpgrade
+{
+    [HarmonyPostfix]
+    static void FinalizeModifiersOnCard(CardModel __instance)
+    {
+        foreach (var modifier in CardModifier.Modifiers(__instance))
+        {
+            modifier.DynamicVars.FinalizeUpgrade();
+        }
+    }
+}
+
+[HarmonyPatch(typeof(CardModel), nameof(CardModel.UpdateDynamicVarPreview))]
+static class UpdateModifierPreview
+{
+    [HarmonyTranspiler]
+    static List<CodeInstruction> UpdateModifierVars(IEnumerable<CodeInstruction> code)
+    {
+        return new InstructionPatcher(code)
+            .Match(new InstructionMatcher()
+                .ldarg_0()
+                .ldarg_1()
+                .ldarg_2()
+                .ldloc_any()
+                .callvirt(typeof(DynamicVar), nameof(DynamicVar.UpdateCardPreview))
+            )
+            .CopyMatch(out var match)
+            .MatchEnd()
+            .Step(-1)
+            .Insert([
+                ..match.SkipLast(1),
+                CodeInstruction.Call(typeof(UpdateModifierPreview),
+                    nameof(UpdateModifierPreview.UpdateModifierVarPreview))
+            ]);
+    }
+
+    static void UpdateModifierVarPreview(CardModel card, CardPreviewMode previewMode, Creature? target, bool runGlobalHooks)
+    {
+        foreach (var modifier in CardModifier.Modifiers(card))
+        {
+            modifier.UpdateDynamicVarPreview(previewMode, target, runGlobalHooks);
         }
     }
 }

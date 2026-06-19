@@ -6,16 +6,20 @@ using Godot;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Audio.Debug;
 using MegaCrit.Sts2.Core.Commands.Builders;
+using MegaCrit.Sts2.Core.Context;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Creatures;
+using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.Helpers;
 using MegaCrit.Sts2.Core.Models;
+using MegaCrit.Sts2.Core.Nodes;
 using MegaCrit.Sts2.Core.Nodes.Combat;
 using MegaCrit.Sts2.Core.Nodes.CommonUi;
 using MegaCrit.Sts2.Core.Nodes.GodotExtensions;
 using MegaCrit.Sts2.Core.Nodes.HoverTips;
 using MegaCrit.Sts2.Core.Nodes.Rooms;
 using MegaCrit.Sts2.Core.Nodes.Vfx;
+using MegaCrit.Sts2.Core.Runs;
 
 namespace BaseLib.Patches.Features;
 
@@ -63,8 +67,14 @@ public static class CustomTargetType
     /// <summary>Targets all enemies at full HP.</summary>
     [CustomEnum] public static TargetType AllFullLifeEnemies;
     
-    internal static readonly Dictionary<TargetType, Func<Creature, bool>> SingleTargeting = new();
-    internal static readonly Dictionary<TargetType, Func<Creature, bool>> MultiTargeting = new();
+    /// <summary>Targets any of YOUR pets or yourself.</summary>
+    [CustomEnum] public static TargetType PetOrSelf;
+    
+    /// <summary>Targets any of YOUR pets.</summary>
+    [CustomEnum] public static TargetType Pet;
+    
+    internal static readonly Dictionary<TargetType, Func<Creature, Player, bool>> SingleTargeting = new();
+    internal static readonly Dictionary<TargetType, Func<Creature, Player, bool>> MultiTargeting = new();
 
 
 
@@ -75,10 +85,11 @@ public static class CustomTargetType
     /// </summary>
     /// <param name="targetType">A <see cref="TargetType"/> registered via <see cref="RegisterMultiTargetType"/>.</param>
     /// <param name="creature">The <see cref="Creature"/> to evaluate.</param>
-    public static bool CanMultiTarget(TargetType targetType, Creature creature)
+    /// <param name="player">The <see cref="Player"/> doing the targeting.</param>
+    public static bool CanMultiTarget(TargetType targetType, Creature creature, Player player)
     {
         MultiTargeting.TryGetValue(targetType, out var canTarget);
-        return canTarget != null && canTarget(creature);
+        return canTarget != null && canTarget(creature, player);
     }
     
     
@@ -96,7 +107,7 @@ public static class CustomTargetType
     /// </summary>
     public static bool IsCustomMultiTargetType(TargetType targetType)
         => MultiTargeting.ContainsKey(targetType);
-    
+
     /// <summary>
     /// Registers <paramref name="customType"/> as a custom single-target type whose valid
     /// targets are defined by <paramref name="canTarget"/>.
@@ -107,6 +118,20 @@ public static class CustomTargetType
     /// whether it may be targeted.
     /// </param>
     public static void RegisterSingleTargetType(TargetType customType, Func<Creature, bool> canTarget)
+    {
+        RegisterSingleTargetType(customType, (creature, _) => canTarget(creature));
+    }
+    
+    /// <summary>
+    /// Registers <paramref name="customType"/> as a custom single-target type whose valid
+    /// targets are defined by <paramref name="canTarget"/>.
+    /// </summary>
+    /// <param name="customType">The custom <see cref="TargetType"/> to register.</param>
+    /// <param name="canTarget">
+    /// A predicate evaluated against each candidate <see cref="Creature"/> to determine
+    /// whether it may be targeted.
+    /// </param>
+    public static void RegisterSingleTargetType(TargetType customType, Func<Creature, Player, bool> canTarget)
     {
         BaseLibMain.Logger.VeryDebug($"Registered single target type {customType}");
         SingleTargeting.Add(customType, canTarget);
@@ -125,8 +150,24 @@ public static class CustomTargetType
     /// </param>
     public static void RegisterMultiTargetType(TargetType customType, Func<Creature, bool>? showReticleFor = null)
     {
+        RegisterMultiTargetType(customType, showReticleFor != null ? (creature, _) => showReticleFor(creature) : null);
+    }
+    
+    /// <summary>
+    /// Registers <paramref name="customType"/> as a custom multi-target type. The card is
+    /// played with a <see langword="null"/> target; <paramref name="showReticleFor"/>
+    /// controls which creatures receive a targeting reticle during the preview.
+    /// </summary>
+    /// <param name="customType">The custom <see cref="TargetType"/> to register.</param>
+    /// <param name="showReticleFor">
+    /// A predicate evaluated against each <see cref="Creature"/> in the room to determine
+    /// whether it should receive a targeting reticle. Pass <see langword="null"/> to show
+    /// reticles on all living creatures.
+    /// </param>
+    public static void RegisterMultiTargetType(TargetType customType, Func<Creature, Player, bool>? showReticleFor = null)
+    {
         BaseLibMain.Logger.VeryDebug($"Registered multi target type {customType}");
-        MultiTargeting.Add(customType, showReticleFor ?? (_ => true));
+        MultiTargeting.Add(customType, showReticleFor ?? ((_, _) => true));
     }
 }
 
@@ -142,40 +183,45 @@ internal static class ModelDbTargetTypeInitPatch
     private static void RegisterTargetTypes()
     {
         CustomTargetType.RegisterSingleTargetType(CustomTargetType.Anyone,
-            target => target is { IsAlive: true, IsPet: false });
+            (target) => target is { IsAlive: true, IsPet: false });
         CustomTargetType.RegisterMultiTargetType(CustomTargetType.Everyone,  
-            target => target is { IsAlive: true, IsPet: false }); 
+            (target) => target is { IsAlive: true, IsPet: false }); 
         
         CustomTargetType.RegisterSingleTargetType(CustomTargetType.AnyAttackingEnemy,
-            target => target is { IsAlive: true, IsEnemy: true, Monster.IntendsToAttack: true });
+            (target) => target is { IsAlive: true, IsEnemy: true, Monster.IntendsToAttack: true });
         CustomTargetType.RegisterMultiTargetType(CustomTargetType.AllAttackingEnemies,
-            target => target is { IsAlive: true, IsEnemy: true, Monster.IntendsToAttack: true }); 
+            (target) => target is { IsAlive: true, IsEnemy: true, Monster.IntendsToAttack: true }); 
         
         CustomTargetType.RegisterSingleTargetType(CustomTargetType.AnyBlockingEnemy,
-            target => target is { IsAlive: true, IsEnemy: true, Block: > 0 });
+            (target) => target is { IsAlive: true, IsEnemy: true, Block: > 0 });
         CustomTargetType.RegisterMultiTargetType(CustomTargetType.AllBlockingEnemies,
-            target => target is { IsAlive: true, IsEnemy: true, Block: > 0}); 
+            (target) => target is { IsAlive: true, IsEnemy: true, Block: > 0}); 
         
         CustomTargetType.RegisterSingleTargetType(CustomTargetType.AnyNonBlockingEnemy,
-            target => target is { IsAlive: true, IsEnemy: true,   Block: 0 });
+            (target) => target is { IsAlive: true, IsEnemy: true,   Block: 0 });
         CustomTargetType.RegisterMultiTargetType(CustomTargetType.AllNonBlockingEnemies,
-            target => target is { IsAlive: true, IsEnemy: true, Block: 0}); 
+            (target) => target is { IsAlive: true, IsEnemy: true, Block: 0}); 
         
         CustomTargetType.RegisterMultiTargetType(CustomTargetType.AllLowestHpEnemies,
-            target => target is { IsAlive: true,  IsEnemy: true } 
-                      && target.CurrentHp == BetaMainCompatibility.Creature_.WrappedCombatState(target)!.Enemies
-                .Where(e => e.IsAlive)
-                .Min(e => e.CurrentHp));
+            (target) => target is { IsAlive: true,  IsEnemy: true } 
+                           && target.CurrentHp == BetaMainCompatibility.Creature_.WrappedCombatState(target)!.Enemies
+                               .Where(e => e.IsAlive)
+                               .Min(e => e.CurrentHp));
         CustomTargetType.RegisterMultiTargetType(CustomTargetType.AllHighestHpEnemies,
-            target => target is { IsAlive: true, IsEnemy: true} &&
-                      target.CurrentHp == BetaMainCompatibility.Creature_.WrappedCombatState(target)!.Enemies
-            .Where(e => e.IsAlive)
-            .Max(e => e.CurrentHp));
+            (target) => target is { IsAlive: true, IsEnemy: true} &&
+                           target.CurrentHp == BetaMainCompatibility.Creature_.WrappedCombatState(target)!.Enemies
+                               .Where(e => e.IsAlive)
+                               .Max(e => e.CurrentHp));
         
         CustomTargetType.RegisterSingleTargetType(CustomTargetType.AnyFullLifeEnemy,
-            target => target is { IsAlive: true, IsEnemy: true}  && target.CurrentHp == target.MaxHp);
+            (target) => target is { IsAlive: true, IsEnemy: true}  && target.CurrentHp == target.MaxHp);
         CustomTargetType.RegisterMultiTargetType(CustomTargetType.AllFullLifeEnemies,
-            target => target is { IsAlive: true, IsEnemy: true} && target.CurrentHp == target.MaxHp); 
+            (target) => target is { IsAlive: true, IsEnemy: true} && target.CurrentHp == target.MaxHp);
+        
+        CustomTargetType.RegisterSingleTargetType(CustomTargetType.PetOrSelf,
+            (target, player) => (target.IsAlive && target.IsPet && target.PetOwner == player) || target == player.Creature);
+        CustomTargetType.RegisterSingleTargetType(CustomTargetType.Pet,
+            (target, player) => target.IsAlive && target.IsPet && target.PetOwner == player);
 
     }
 }
@@ -203,7 +249,7 @@ internal class ShowMultiCreatureTargetingVisualsPatch
         if (room == null) return;
 
         foreach (var creatureNode in room.CreatureNodes)
-            if (filter(creatureNode.Entity))
+            if (filter(creatureNode.Entity, __instance.Card.Owner))
                 creatureNode.ShowMultiselectReticle();
     }
 }
@@ -340,7 +386,7 @@ internal class ControllerSingleCreatureTargetingPatch
     }
 
     private static async Task FilteredControllerTargeting(
-        NControllerCardPlay instance, TargetType targetType, Func<Creature, bool> filter)
+        NControllerCardPlay instance, TargetType targetType, Func<Creature, Player, bool> filter)
     {
         var card = instance.Card;
         var cardNode = instance.CardNode;
@@ -358,7 +404,7 @@ internal class ControllerSingleCreatureTargetingPatch
         }
 
         var nodes = room.CreatureNodes
-            .Where(n => filter(n.Entity))
+            .Where(n => filter(n.Entity, card.Owner))
             .ToList();
 
         if (nodes.Count == 0)
@@ -433,7 +479,13 @@ internal class AllowedToTargetCreaturePatch
     {
         CustomTargetType.SingleTargeting.TryGetValue(__instance._validTargetsType, out var func);
         if (func == null) return true;
-        __result = func.Invoke(creature);
+        
+        var localPlayer = LocalContext.GetMe(RunManager.Instance.State);
+        if (localPlayer == null)
+        {
+            return true;
+        }
+        __result = func.Invoke(creature, localPlayer);
         return false;
     }
 }
@@ -503,7 +555,7 @@ internal class CanPlayTargetingPatch
         if (target == null) return true;
         CustomTargetType.SingleTargeting.TryGetValue(__instance.TargetType, out var func);
         if (func == null) return true;
-        __result = func.Invoke(target);
+        __result = func.Invoke(target, __instance.Owner);
         return false;
     }
 }
@@ -522,7 +574,7 @@ internal class IsValidTargetPatch
         if (target == null) return true;
         CustomTargetType.SingleTargeting.TryGetValue(__instance.TargetType, out var func);
         if (func == null) return true;
-        __result = func.Invoke(target);
+        __result = func.Invoke(target, __instance.Owner);
         return false;
     }
 }

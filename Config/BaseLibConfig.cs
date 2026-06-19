@@ -13,10 +13,10 @@ internal class BaseLibConfig : SimpleModConfig
     public static bool OpenLogWindowOnStartup { get; set; } = false;
     public static bool OpenLogWindowOnError { get; set; } = false;
 
-    [ConfigSlider(128, 2048, 64, Format = "{0:0} lines")]
+    [ConfigSlider(128, 2048, 64)]
     public static int LimitedLogSize { get; set; } = 256;
 
-    [ConfigSlider(8, 48, Format = "{0:0} px")]
+    [ConfigSlider(8, 48)]
     public static int LogFontSize { get; set; } = 14;
 
     [ConfigSection("GeneralSettings")]

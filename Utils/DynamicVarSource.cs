@@ -1,4 +1,5 @@
-﻿using MegaCrit.Sts2.Core.Entities.Creatures;
+﻿using BaseLib.Abstracts;
+using MegaCrit.Sts2.Core.Entities.Creatures;
 using MegaCrit.Sts2.Core.Localization.DynamicVars;
 using MegaCrit.Sts2.Core.Models;
 
@@ -11,8 +12,11 @@ public sealed class DynamicVarSource()
 {
     public required DynamicVarSet DynamicVars { get; init; }
     public required Creature Owner { get; init; }
+    //Used as cardsource when passing a DynamicVarSource to common actions
     public CardModel? Card { get; init; }
+    //Unused
     public RelicModel? Relic { get; init; }
+    //Unused
     public PowerModel? Power { get; init; }
     
     
@@ -44,6 +48,35 @@ public sealed class DynamicVarSource()
             DynamicVars = power.DynamicVars,
             Owner = power.Owner,
             Power = power
+        };
+    }
+    
+    public static implicit operator DynamicVarSource(PotionModel potion)
+    {
+        return new DynamicVarSource
+        {
+            DynamicVars = potion.DynamicVars,
+            Owner = potion.Owner.Creature
+        };
+    }
+    
+    public static implicit operator DynamicVarSource(EnchantmentModel enchant)
+    {
+        return new DynamicVarSource
+        {
+            DynamicVars = enchant.DynamicVars,
+            Owner = enchant.Card.Owner.Creature,
+            Card = enchant.Card
+        };
+    }
+    
+    public static implicit operator DynamicVarSource(CardModifier modifier)
+    {
+        return new DynamicVarSource
+        {
+            DynamicVars = modifier.DynamicVars,
+            Owner = modifier.Owner!.Owner.Creature,
+            Card = modifier.Owner
         };
     }
 }

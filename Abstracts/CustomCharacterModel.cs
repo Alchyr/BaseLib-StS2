@@ -17,7 +17,6 @@ using MegaCrit.Sts2.Core.Multiplayer.Game.Lobby;
 using MegaCrit.Sts2.Core.Nodes.RestSite;
 using MegaCrit.Sts2.Core.Nodes.Screens.CharacterSelect;
 using MegaCrit.Sts2.Core.Nodes.Screens.Shops;
-using MegaCrit.Sts2.Core.Models.Relics;
 
 namespace BaseLib.Abstracts;
 
@@ -25,7 +24,7 @@ public abstract class CustomCharacterModel : CharacterModel, ICustomModel, ILoca
 {
     public CustomCharacterModel()
     {
-        ModelDbCustomCharacters.Register(this);
+        CustomContentDictionary.AddCharacter(this);
     }
     
     /// <summary>
@@ -289,30 +288,6 @@ class EnergyCounterStarAnchorPatch
         starCounter.OffsetBottom = targetSize.Y;
         starCounter.Position = Vector2.Zero;
         starCounter.Scale = currentScale;
-    }
-}
-
-[HarmonyPatch(typeof(ModelDb), nameof(ModelDb.AllCharacters), MethodType.Getter)]
-public class ModelDbCustomCharacters
-{
-    public static readonly List<CustomCharacterModel> CustomCharacters = [];
-
-    [HarmonyPostfix]
-    static IEnumerable<CharacterModel> AddCustomCharacters(IEnumerable<CharacterModel> __result)
-    {
-        return [.. __result, .. CustomCharacters];
-    }
-
-    public static void Register(CustomCharacterModel character)
-    {
-        if (!CustomContentDictionary.RegisterType(character.GetType())) return;
-        
-        CustomCharacters.Add(character);
-        var cookie = character.CustomYummyCookie;
-        if (cookie != null)
-        {
-            RelicImageOverridePatch.AddOverride<YummyCookie>(cookie, (relic) => relic.IsMutable && character.Id.Equals(relic.Owner?.Character.Id));
-        }
     }
 }
 

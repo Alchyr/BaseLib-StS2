@@ -1,20 +1,16 @@
-﻿using BaseLib.Abstracts;
-using MegaCrit.Sts2.Core.Models;
-using MegaCrit.Sts2.Core.Models.Acts;
+﻿using MegaCrit.Sts2.Core.Models;
 
 namespace BaseLib.Extensions;
 
 public static class ActModelExtensions
 {
+    /// <summary>
+    /// Returns 1-based index of an act, or its index value if it is less than 0.
+    /// </summary>
+    /// <param name="actModel"></param>
+    /// <returns></returns>
     public static int ActNumber(this ActModel actModel)
     {
-        return actModel switch
-        {
-            Overgrowth or Underdocks => 1,
-            Hive => 2,
-            Glory => 3,
-            CustomActModel custom => custom.ActNumber,
-            _ => -1
-        };
+        return actModel.Index >= 0 ? actModel.Index + 1 : actModel.Index;
     }
 }

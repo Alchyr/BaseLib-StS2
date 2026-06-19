@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Text;
 using BaseLib.Abstracts;
 using BaseLib.Extensions;
+using BaseLib.Patches.UI;
 using BaseLib.Utils;
 using BaseLib.Utils.Patching;
 using HarmonyLib;
@@ -9,6 +10,7 @@ using MegaCrit.Sts2.Core.Helpers;
 using MegaCrit.Sts2.Core.Modding;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Models.Acts;
+using MegaCrit.Sts2.Core.Models.Relics;
 using MegaCrit.Sts2.Core.Random;
 using MegaCrit.Sts2.Core.Rooms;
 using MegaCrit.Sts2.Core.Runs;
@@ -23,9 +25,11 @@ public static class CustomContentDictionary
 {
     public static readonly HashSet<Type> RegisteredTypes = [];
     private static readonly Dictionary<Type, Type> PoolTypes = [];
+    public static readonly List<CustomCharacterModel> CustomCharacters = [];
     public static readonly List<CustomEncounterModel> CustomEncounters = [];
     public static readonly List<CustomAncientModel> CustomAncients = [];
     public static readonly List<Type> CustomBadgeTypes = [];
+    
     /// <summary>
     /// Custom events tied to a specific act.
     /// </summary>
@@ -106,6 +110,18 @@ public static class CustomContentDictionary
         
         CustomActs.InsertSorted(actModel);
     }
+
+    public static void AddCharacter(CustomCharacterModel character)
+    {
+        if (!RegisterType(character.GetType())) return;
+        
+        CustomCharacters.InsertSorted(character);
+        var cookie = character.CustomYummyCookie;
+        if (cookie != null)
+        {
+            RelicImageOverridePatch.AddOverride<YummyCookie>(cookie, (relic) => relic.IsMutable && character.Id.Equals(relic.Owner?.Character.Id));
+        }
+    }
     
     private static bool IsValidPool(Type modelType, Type poolType)
     {
@@ -132,6 +148,15 @@ public static class CustomContentDictionary
     }
 }
 
+[HarmonyPatch(typeof(ModelDb), nameof(ModelDb.AllCharacters), MethodType.Getter)]
+class AddCustomCharacters
+{
+    [HarmonyPostfix]
+    static IEnumerable<CharacterModel> Patch(IEnumerable<CharacterModel> __result)
+    {
+        return [.. __result, ..CustomContentDictionary.CustomCharacters];
+    }
+}
 
 [HarmonyPatch(typeof(ModelDb), nameof(ModelDb.AllSharedAncients), MethodType.Getter)]
 class CustomAncientExistence
@@ -290,53 +315,30 @@ class CustomSharedEvents
 [HarmonyPatch(typeof(ModelDb), nameof(ModelDb.Acts), MethodType.Getter)]
 class ModelDbCustomActsPatch
 {
-    [HarmonyPostfix]
-    static IEnumerable<ActModel> AddCustomAncientForCompendium(IEnumerable<ActModel> __result)
+    [HarmonyTranspiler]
+    static List<CodeInstruction> AddCustomActs(IEnumerable<CodeInstruction> code)
     {
-        return [.. __result, .. CustomContentDictionary.CustomActs];
+        return new InstructionPatcher(code)
+            .Match(new InstructionMatcher()
+                .stsfld(typeof(ModelDb).DeclaredField("_acts")))
+            .InsertBeforeMatch([
+                CodeInstruction.Call(typeof(ModelDbCustomActsPatch), nameof(AddCustomActsSorted))
+            ]);
     }
-}
 
-// Generate the Act List including Custom Acts
-// This will have to be changed when they add more Acts to the base game
-[HarmonyPatch(typeof(ActModel), nameof(ActModel.GetRandomList))]
-public class ActModelGetRandomListPatch
-{
-    [HarmonyPostfix]
-    public static IEnumerable<ActModel> AdjustResult(IEnumerable<ActModel> __result, Rng rng, UnlockState unlockState, bool isMultiplayer)
+    static List<ActModel> AddCustomActsSorted(List<ActModel> original)
     {
-        bool unlockedDocks = unlockState.IsEpochRevealed<UnderdocksEpoch>();
-        bool forceDocks = !isMultiplayer && !SaveManager.Instance.Progress.DiscoveredActs.Contains(ModelDb.Act<Underdocks>().Id);
-        
-        if (CustomContentDictionary.CustomActs.Count == 0 || (unlockedDocks && forceDocks)) return __result;
-        
-        BaseLibMain.Logger.Info("Rolling with custom acts:");
+        BaseLibMain.Logger.Info($"Adding {CustomContentDictionary.CustomActs.Count} custom acts to act list.");
 
-        List<ActModel> newResult = new List<ActModel>(__result);
+        original.AddRange(CustomContentDictionary.CustomActs);
+        var result = original.OrderBy(act => act.Index)
+            .ThenByDescending(act => act.IsDefault)
+            .ThenBy(act => act.Id)
+            .ToList();
         
-        int[] baseActCounts = [2, 1, 1];
-        for (int i = 0; i < newResult.Count; ++i)
-        {
-            List<ActModel?> possible = [];
-            if (i < baseActCounts.Length)
-            {
-                possible.AddRange(new ActModel?[baseActCounts[i]]);
-            }
-            possible.AddRange(CustomContentDictionary.CustomActs.Where(act => act.ActNumber == (i + 1)));
+        BaseLibMain.Logger.Info($"Result: {result.AsReadable()}");
 
-            var replace = rng.NextItem(possible);
-            if (replace != null)
-            {
-                newResult[i] = replace;
-            }
-        }
-        
-        foreach (var actModel in newResult)
-        {
-            BaseLibMain.Logger.Info(actModel.Id.Entry);
-        }
-
-        return newResult;
+        return result;
     }
 }
 
