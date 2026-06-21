@@ -344,12 +344,15 @@ public record ModSound
     public virtual AudioStream? GetOrLoadStream()
     {
         if (CachedStreams.TryGetValue(File, out var cached))
-            return cached;
-        
-        var stream = GD.Load<AudioStream>(File);
-        if (stream != null && stream.GetLength() < 15)
-            CachedStreams[File] = stream;
+        {
+            if (GodotObject.IsInstanceValid(cached))
+                return cached;
+            CachedStreams.Remove(File); 
+        }
 
+        var stream = GD.Load<AudioStream>(File);
+        if (stream != null && stream.GetLength() < 15.0)
+            CachedStreams[File] = stream;
         return stream;
     }
 
