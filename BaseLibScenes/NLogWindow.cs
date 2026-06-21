@@ -172,6 +172,8 @@ public partial class NLogWindow : Window
     {
         base._Process(delta);
         
+        BaseLibMain.Logger.Info("AAAAA");
+        
         _timeSinceRefresh += delta;
         if (!_needsRefresh || !Visible || Mode == ModeEnum.Minimized) return;
         if (_timeSinceRefresh < 1d / 30d) return;
@@ -274,11 +276,12 @@ public partial class NLogWindow : Window
             ++_writeIndex;
         }
 
-        var paragraphCount = _logLabel.GetParagraphCount();
-        while (paragraphCount > BaseLibConfig.LimitedLogSize)
+        var limit = Math.Max(1, BaseLibConfig.LimitedLogSize);
+        var safety = 64;
+        while (_logLabel.GetParagraphCount() > limit && safety > 0)
         {
             _logLabel.RemoveParagraph(0);
-            --paragraphCount;
+            --safety;
         }
         if (_isFollowingLog) ScrollToBottomAsync();
     }
