@@ -1,0 +1,8 @@
+{
+  "BASELIB-CHOOSE_GENERIC": "选择{Amount:plural:一张牌|[blue]{}[/blue]张牌}。",
+  "BASELIB-DRAW_PILE": "抽牌堆",
+  "BASELIB-DISCARD_PILE": "弃牌堆",
+  "BASELIB-EXHAUST_PILE": "消耗堆",
+  "BASELIB-HAND": "手牌",
+  "BASELIB-DECK": "牌组"
+}
