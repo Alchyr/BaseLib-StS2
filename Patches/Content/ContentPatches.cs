@@ -15,6 +15,7 @@ using MegaCrit.Sts2.Core.Random;
 using MegaCrit.Sts2.Core.Rooms;
 using MegaCrit.Sts2.Core.Runs;
 using MegaCrit.Sts2.Core.Saves;
+using MegaCrit.Sts2.Core.Timeline;
 using MegaCrit.Sts2.Core.Timeline.Epochs;
 using MegaCrit.Sts2.Core.Unlocks;
 
@@ -39,6 +40,8 @@ public static class CustomContentDictionary
     /// </summary>
     public static readonly List<CustomEventModel> SharedCustomEvents = [];
     public static readonly List<CustomActModel> CustomActs = [];
+    public static readonly List<CustomEpochModel> CustomEpochs = [];
+    public static readonly List<CustomStoryModel> CustomStories = [];
     
     static CustomContentDictionary()
     {
@@ -121,6 +124,19 @@ public static class CustomContentDictionary
         {
             RelicImageOverridePatch.AddOverride<YummyCookie>(cookie, (relic) => relic.IsMutable && character.Id.Equals(relic.Owner?.Character.Id));
         }
+    }
+    
+    public static void AddEpoch(CustomEpochModel epochModel)
+    {
+        if (!RegisterType(epochModel.GetType())) return;
+        CustomEpochs.Add(epochModel);
+    }
+    
+    public static void AddStory(CustomStoryModel storyModel)
+    {
+        if (!RegisterType(storyModel.GetType())) return;
+        
+        CustomStories.Add(storyModel);
     }
     
     private static bool IsValidPool(Type modelType, Type poolType)
@@ -406,5 +422,16 @@ public static class AddActContent
             if (origResult.Any(existingEvent => existingEvent.Id.Equals(eventModel.Id))) continue;
             if (eventModel.Acts.Any(act => act.Id.Equals(__instance.Id))) yield return eventModel;
         }
+    }
+}
+
+[HarmonyPatch(typeof(EpochModel), "EpochIds", MethodType.Getter)]
+public class EpochModelCustomEpochsPatch
+{ 
+    
+    [HarmonyPostfix] 
+    private static void InsertEpochIds(EpochModel __instance, ref IEnumerable<string> __result)
+    {
+        __result = [.. __result, .. CustomContentDictionary.CustomEpochs.Select(x => x.Id)];
     }
 }

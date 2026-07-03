@@ -53,7 +53,6 @@
             <HintPath>$(Sts2DataDir)/SmartFormat.dll</HintPath>
             <Private>false</Private>
         </Reference>
-        <PackageReference Include="Krafs.Publicizer" Version="2.3.0" PrivateAssets="All"/>
     </ItemGroup>
 
     <ItemGroup>
@@ -81,6 +80,13 @@
         <Content Condition="Exists('build\BaseLib.props')" Include="build\BaseLib.props" PackagePath="/Content/" />
         <Content Condition="Exists('build\BaseLib.pck')" Include="build\$(MSBuildProjectName).pck" PackagePath="/Content/" />
         <Content Include="$(MSBuildProjectName).json" PackagePath="/Content/" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <PackageReference Include="Krafs.Publicizer" Version="2.3.0">
+        <PrivateAssets>all</PrivateAssets>
+        <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      </PackageReference>
     </ItemGroup>
     
     <Target Name="UpdateManifestVersion" BeforeTargets="BeforeBuild">

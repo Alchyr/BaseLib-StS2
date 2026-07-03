@@ -1,5 +1,6 @@
 ﻿using System.Reflection;
 using BaseLib.Abstracts;
+using BaseLib.Extensions;
 using BaseLib.Patches.Content;
 using BaseLib.Patches.Features;
 using BaseLib.Patches.Saves;
@@ -10,6 +11,7 @@ using MegaCrit.Sts2.Core.Helpers;
 using MegaCrit.Sts2.Core.Localization;
 using MegaCrit.Sts2.Core.Modding;
 using MegaCrit.Sts2.Core.Saves.Runs;
+using MegaCrit.Sts2.Core.Timeline;
 using SmartFormat;
 using SmartFormat.Core.Extensions;
 
@@ -21,7 +23,7 @@ namespace BaseLib.Patches;
 //TODO - If no mods that modify gameplay and use baselib as a dependency are enabled, exclude basemod models from database?
 //This would allow features like vitality to be merged.
 
-[HarmonyPatch(typeof(LocManager), nameof(LocManager.Initialize))] 
+[HarmonyPatch(typeof(LocManager), nameof(LocManager.Initialize))]
 class PostModInitPatch
 {
     private static bool _initialized = false;
@@ -32,7 +34,7 @@ class PostModInitPatch
     {
         if (_initialized) return;
         _initialized = true;
-        
+
         BaseLibMain.Logger.Info("Performing post-mod init patch");
 
         foreach (var mod in ModManager.GetLoadedMods())
@@ -55,27 +57,28 @@ class PostModInitPatch
             //Register custom save data.
             CardModifier.RegisterSave();
         }
-        
+
         CustomMessageWrapper.Initialize();
         CustomTargetedMessageWrapper.Initialize();
-        
+
         Harmony harmony = new("PostModInit");
 
         AddActContent.Patch(harmony);
-        
+
+        InsertEpochSystemRelevantInformationIntoDictionaries();
 
         ModInterop interop = new();
-        
+
         foreach (var type in ReflectionHelper.ModTypes)
         {
             interop.ProcessType(harmony, type);
 
-            if (type.IsAssignableTo(typeof(IAutoRegisterFormatSpecifier)) && 
+            if (type.IsAssignableTo(typeof(IAutoRegisterFormatSpecifier)) &&
                 type is { IsAbstract: false, IsInterface: false })
             {
                 try
                 {
-                    Smart.Default.AddExtensions((IFormatter) type.CreateInstance());
+                    Smart.Default.AddExtensions((IFormatter)type.CreateInstance());
                     BaseLibMain.Logger.Info($"Added custom format specifier {type.Name}");
                 }
                 catch (Exception e)
@@ -98,8 +101,8 @@ class PostModInitPatch
                 else if (!SavePatchUtils.IsHolderTypeBaseSupported(prop.DeclaringType))
                 {
                     var endMsg = ExtendedSaveTypes.IsSaveHolderSupported(type)
-                        ? "change to a SavedSpireField for BaseLib to save it."
-                        : "this type is currently also unsupported by BaseLib for saved values.";
+                                ? "change to a SavedSpireField for BaseLib to save it."
+                                : "this type is currently also unsupported by BaseLib for saved values.";
                     BaseLibMain.Logger.Warn($"SavedProperty {prop.Name} will not work on type {type.Name}; {endMsg}");
                 }
                 else
@@ -125,10 +128,10 @@ class PostModInitPatch
     private static void CheckSpecialSpireField(FieldInfo field)
     {
         Type fType = field.FieldType;
-                
+
         if (!fType.IsGenericType)
             return;
-        
+
         var genericTypeDef = fType.GetGenericTypeDefinition();
 
         if (genericTypeDef != typeof(SavedSpireField<,>) &&
@@ -136,5 +139,11 @@ class PostModInitPatch
             return;
 
         field.GetValue(null); //Trigger field initialization
+    }
+
+    private static void InsertEpochSystemRelevantInformationIntoDictionaries()
+    {
+        CustomStoryModel.FillStoryDictionary(ReflectionUtils.GetListOfInstantiatedSubclasses<CustomStoryModel>());
+        CustomEpochModel.FillEpochDictionaries(ReflectionUtils.GetListOfInstantiatedSubclasses<CustomEpochModel>());
     }
 }

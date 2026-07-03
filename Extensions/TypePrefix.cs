@@ -12,6 +12,20 @@ public static class TypePrefix
             dotIndex = t.Namespace.Length;
         return $"{t.Namespace[..dotIndex].ToUpperInvariant()}{PrefixSplitChar}";
     }
+
+    /// <summary>
+    /// Returns the Mods Prefix without modifying it
+    /// </summary>
+    /// <returns></returns>
+    public static string GetRawPrefix(this Type t, bool includePrefixSplitCharacter = false)
+    {
+        if (t.Namespace == null)
+            return "";
+        var dotIndex = t.Namespace.IndexOf('.');
+        if (dotIndex == -1)
+            dotIndex = t.Namespace.Length;
+        return $"{t.Namespace[..dotIndex]}{(includePrefixSplitCharacter ? PrefixSplitChar : "")}";
+    }
     
     public static string GetRootNamespace(this Type t)
     {

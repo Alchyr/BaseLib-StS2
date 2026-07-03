@@ -13,10 +13,15 @@ using BaseLib.Patches.Content;
 using BaseLib.Patches.UI;
 using BaseLib.Utils.NodeFactories;
 using MegaCrit.Sts2.Core.Helpers;
+using MegaCrit.Sts2.Core.Models.Characters;
 using MegaCrit.Sts2.Core.Multiplayer.Game.Lobby;
 using MegaCrit.Sts2.Core.Nodes.RestSite;
 using MegaCrit.Sts2.Core.Nodes.Screens.CharacterSelect;
+using MegaCrit.Sts2.Core.Nodes.Screens.MainMenu;
 using MegaCrit.Sts2.Core.Nodes.Screens.Shops;
+using MegaCrit.Sts2.Core.Saves;
+using MegaCrit.Sts2.Core.Timeline;
+using MegaCrit.Sts2.Core.Timeline.Epochs;
 
 namespace BaseLib.Abstracts;
 
@@ -106,8 +111,42 @@ public abstract class CustomCharacterModel : CharacterModel, ICustomModel, ILoca
     public override float CastAnimDelay => 0.25f;
 
     protected override CharacterModel? UnlocksAfterRunAs => null;
-
-
+    
+    // These epochs are ordered here based on the numbers the base game uses 1->7
+    // Renamed to better show what unlocks them.
+    
+    /// <summary>
+    /// This Epoch usually unlocks the character. <br></br>
+    /// When overriden, automatically unlocks the Epoch based on <see cref="UnlocksAfterRunAs"/>.
+    /// If that is null, it unlocks after the vey first Ironclad run similar to <see cref="Silent.UnlocksAfterRunAs">The Silent</see>
+    /// </summary>
+    public virtual EpochModel? UnlockEpoch => null;
+    /// <summary>
+    /// This Epoch usually unlocks cards.
+    /// </summary>
+    public virtual EpochModel? Act1Epoch => null;
+    /// <summary>
+    /// This Epoch usually unlocks relics.
+    /// </summary>
+    public virtual EpochModel? Act2Epoch => null;
+    /// <summary>
+    /// This Epoch usually unlocks potions.
+    /// </summary>
+    public virtual EpochModel? Act3Epoch => null;
+    /// <summary>
+    /// This Epoch usually unlocks cards.
+    /// </summary>
+    public virtual EpochModel? FifteenElitesEpoch => null;
+    /// <summary>
+    /// This Epoch usually unlocks relics.
+    /// </summary>
+    public virtual EpochModel? FifteenBossesEpoch => null;
+    /// <summary>
+    /// This Epoch usually unlocks cards.
+    /// </summary>
+    public virtual EpochModel? AscensionOneEpoch => null;
+    
+    
     /// <summary>
     /// Override to provide a custom NCreatureVisuals scene.
     /// If not overridden, an NCreatureVisuals will be generated from CustomVisualPath.
@@ -208,6 +247,98 @@ public abstract class CustomCharacterModel : CharacterModel, ICustomModel, ILoca
         
         CustomEnergyCounterPath?.RegisterSceneForConversion<NEnergyCounter>();
     }
+    
+    
+    
+    // The following two patch classes need access to "UnlocksAfterRunAs"
+    [HarmonyPatch]
+    private static class CharacterUnlockEpochLogic
+    {
+        // We check it every NMainMenu load because of profile switching, deletion, importing
+        // TODO: There might be a better place to hook this up to. -> Run once on game start and then only when profile changes
+        [HarmonyPatch(typeof(NMainMenu), nameof(NMainMenu._Ready))]
+        [HarmonyPrefix]
+        private static void CheckUnlockConditions()
+        {
+            if (!SaveManager.Instance.IsEpochRevealed<NeowEpoch>()) return;
+            foreach (var epochModel in CustomContentDictionary.CustomCharacters
+                                 .Where(c => c.UnlockEpoch is not null && c.UnlocksAfterRunAs is null)
+                                 .Select(c => c.UnlockEpoch))
+            {
+                if (SaveManager.Instance.IsEpochRevealed(epochModel!.Id) 
+                    || SaveManager.Instance.Progress.IsEpochObtained(epochModel.Id)) continue;
+                SaveManager.Instance.ObtainEpochOverride(epochModel.Id, EpochState.Obtained);
+            }
+              
+        }
+    }
+    
+       [HarmonyPatch]
+        private static class EpochInsertions
+        {
+            [HarmonyPatch(typeof(NeowEpoch), nameof(NeowEpoch.QueueUnlocks))]
+            [HarmonyPrefix]
+            private static void QueueUnlocksInsert()
+            {
+                // Ironclad doesn't have an Ironclad1Epoch so we put them here too
+                foreach (var epochModel in CustomContentDictionary.CustomCharacters
+                                     .Where(c => c.UnlockEpoch is not null && c.UnlocksAfterRunAs is null or Ironclad)
+                                     .Select(c => c.UnlockEpoch))
+                {
+                    SaveManager.Instance.ObtainEpochOverride(epochModel!.Id, EpochState.ObtainedNoSlot);
+                }
+            }
+            
+            
+            // Does not support unlocking after custom characters
+            [HarmonyPatch]
+            internal static class TimelineExpansionPatch
+            {
+                private static IEnumerable<MethodBase> TargetMethods()
+                {
+                    yield return AccessTools.Method(typeof(NeowEpoch), nameof(NeowEpoch.GetTimelineExpansion));
+                    yield return AccessTools.Method(typeof(Silent1Epoch), nameof(Silent1Epoch.GetTimelineExpansion));
+                    yield return AccessTools.Method(typeof(Regent1Epoch), nameof(Regent1Epoch.GetTimelineExpansion));
+                    yield return AccessTools.Method(typeof(Necrobinder1Epoch), nameof(Necrobinder1Epoch.GetTimelineExpansion));
+                    yield return AccessTools.Method(typeof(Defect1Epoch), nameof(Defect1Epoch.GetTimelineExpansion));
+                }
+    
+                [HarmonyPostfix]
+                private static void Postfix(MethodBase __originalMethod, ref EpochModel[] __result)
+                {
+                    var unlockSource = __originalMethod.DeclaringType switch
+                    {
+                                var t when t == typeof(NeowEpoch) => typeof(Ironclad), // Ironclad special case
+                                var t when t == typeof(Silent1Epoch) => typeof(Silent),
+                                var t when t == typeof(Regent1Epoch) => typeof(Regent),
+                                var t when t == typeof(Necrobinder1Epoch) => typeof(Necrobinder),
+                                var t when t == typeof(Defect1Epoch) => typeof(Defect),
+                                _ => null
+                    };
+    
+                    if (unlockSource is null)
+                    {
+                        BaseLibMain.Logger.Warn("BaseLib currently only supports base characters");
+                        return;
+                    }
+                    
+                    __result =
+                    [
+                                .. __result, 
+                                .. CustomContentDictionary.CustomCharacters
+                                            .Where(c =>
+                                                        c.UnlockEpoch is not null &&
+                                                        (unlockSource == typeof(Ironclad)
+                                                                    ? c.UnlocksAfterRunAs is null or Ironclad
+                                                                    : c.UnlocksAfterRunAs is not null
+                                                                      && c.UnlocksAfterRunAs == (CharacterModel)ModelDb.Get(unlockSource)))
+                                            .Select(c => c.UnlockEpoch!)
+                    ];
+                }
+            }
+        }
+        
+        
 }
     
 public readonly struct CustomEnergyCounter(Func<int, string> pathFunc, Color outlineColor, Color burstColor) {
