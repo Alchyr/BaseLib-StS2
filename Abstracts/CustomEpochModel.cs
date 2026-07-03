@@ -66,7 +66,7 @@ public abstract class CustomEpochModel : EpochModel, ICustomModel
             return false;
         }
         
-        [HarmonyPatch(typeof(EpochModel), nameof(PackedPortraitPath), MethodType.Getter)]
+        [HarmonyPatch(typeof(EpochModel), "PackedPortraitPath", MethodType.Getter)]
         [HarmonyPrefix]
         private static bool CustomEpochPackedPortraitPath(EpochModel __instance, ref string? __result)
         {
@@ -144,13 +144,6 @@ public abstract class CustomEpochModel : EpochModel, ICustomModel
             [HarmonyTranspiler]
             private static List<CodeInstruction> ResolveSetStateForNewEraPositions(IEnumerable<CodeInstruction> instructions)
             {
-                var insts = instructions.ToList();
-                for (var i = 0; i < insts.Count; i++)
-                {
-                    BaseLibMain.Logger.Info($"Instruction {i} => OpCode: {insts[i].opcode} | Operand: {insts[i].operand}");
-                }
-
-               //ldloc 12 9
                 var getActualEraPosition = typeof(DuplicateEraPositionHandler).Method(nameof(GetActualEraPosition));
                  var matcher = new CodeMatcher(instructions)
                              .MatchStartForward([
@@ -171,14 +164,7 @@ public abstract class CustomEpochModel : EpochModel, ICustomModel
                                          new CodeInstruction(OpCodes.Ldloc, epochModel),
                                          new CodeInstruction(OpCodes.Call, getActualEraPosition),
                                          new CodeInstruction(OpCodes.Brfalse_S, target),
-                             ])
-                             ;
-
-                 var list = matcher.InstructionEnumeration().ToList();
-                 for (var i = 0; i <  list.Count; i++)
-                 {
-                     BaseLibMain.Logger.Info($"Instruction {i} => OpCode: {list[i].opcode} | Operand: {list[i].operand}");
-                 }
+                             ]);
                  return matcher.InstructionEnumeration().ToList();
             }
             private static bool GetActualEraPosition(NEpochSlot nEpochSlot, EpochModel epochModel)
@@ -187,24 +173,6 @@ public abstract class CustomEpochModel : EpochModel, ICustomModel
             }
         }
         
-        
-        // If the patch above stops working we can also do this.
-        // However, the patch above runs BEFORE NEpochSlot._Ready() is called, where as this runs after 
-        
-        // [HarmonyPatch(typeof(NEraColumn), nameof(NEraColumn.AddSlot))]
-        // [HarmonyPostfix]
-        // private static void AdjustNEpochSlotEraPosition(NEraColumn __instance)
-        // {
-        //     var nEpochSlot = __instance.GetChildren().OfType<NEpochSlot>().FirstOrDefault();
-        //     if (nEpochSlot is null) return;
-        //     var allCurrentNEpochSlots = __instance.GetChildren().OfType<NEpochSlot>().Except([nEpochSlot]).ToList();
-        //     var oldEraPosition = nEpochSlot.eraPosition;
-        //     while (allCurrentNEpochSlots.Any(o => o.eraPosition == nEpochSlot.eraPosition))
-        //         nEpochSlot.eraPosition++;
-        //     if (oldEraPosition == nEpochSlot.eraPosition) return;
-        //     nEpochSlot.Name = $"Slot{nEpochSlot.eraPosition}"; // We dont need to move the child because the game always moves them to pos 0
-        //     BaseLibMain.Logger.Info($"Moved EpochSlot position for Epoch {nEpochSlot.model.Id} from {oldEraPosition} to {nEpochSlot.eraPosition}");
-        // }
         
         [HarmonyPatch(typeof(SaveManager), "GetCardUnlockEpochIds")]
         [HarmonyPostfix]
@@ -226,7 +194,7 @@ public abstract class CustomEpochModel : EpochModel, ICustomModel
     
         private static readonly MethodInfo? TryObtainEpochMidRunMethod = typeof(ProgressSaveManager)
                 .GetMethod("TryObtainEpochMidRun", BindingFlags.Instance | BindingFlags.NonPublic);
-        private static readonly MethodInfo? TryObtainEpochPostRunMethod = typeof(ProgressSaveManager)
+        public static readonly MethodInfo? TryObtainEpochPostRunMethod = typeof(ProgressSaveManager)
                     .GetMethod("TryObtainEpochPostRun", BindingFlags.Instance | BindingFlags.NonPublic);
         private static readonly MethodInfo? GetEliteEncountersMethod = typeof(ProgressSaveManager)
                     .GetMethod("GetEliteEncounters", BindingFlags.Static | BindingFlags.NonPublic);
@@ -346,7 +314,8 @@ public abstract class CustomEpochModel : EpochModel, ICustomModel
             return false;
         }
         
-
+    
+       
 
     
      

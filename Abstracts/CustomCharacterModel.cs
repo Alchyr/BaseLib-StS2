@@ -20,6 +20,8 @@ using MegaCrit.Sts2.Core.Nodes.Screens.CharacterSelect;
 using MegaCrit.Sts2.Core.Nodes.Screens.MainMenu;
 using MegaCrit.Sts2.Core.Nodes.Screens.Shops;
 using MegaCrit.Sts2.Core.Saves;
+using MegaCrit.Sts2.Core.Saves.Managers;
+using MegaCrit.Sts2.Core.Saves.Runs;
 using MegaCrit.Sts2.Core.Timeline;
 using MegaCrit.Sts2.Core.Timeline.Epochs;
 
@@ -291,8 +293,9 @@ public abstract class CustomCharacterModel : CharacterModel, ICustomModel, ILoca
             
             
             // Does not support unlocking after custom characters
+            // in CustomCharacterModel because it needs to access "UnlocksAfterRunAs"
             [HarmonyPatch]
-            internal static class TimelineExpansionPatch
+            private static class TimelineExpansionPatch
             {
                 private static IEnumerable<MethodBase> TargetMethods()
                 {
@@ -335,6 +338,31 @@ public abstract class CustomCharacterModel : CharacterModel, ICustomModel, ILoca
                                             .Select(c => c.UnlockEpoch!)
                     ];
                 }
+            }
+            
+            [HarmonyPatch]
+            private static class PostRunUnlock
+            {
+                [HarmonyPatch(typeof(ProgressSaveManager), "PostRunUnlockCharacterEpochCheck")]
+                [HarmonyPrefix]
+                private static void UnlockCustomCharacterEpoch(ProgressSaveManager __instance, SerializablePlayer serializablePlayer, SerializableRun serializableRun)
+                {
+                    var customCharacters = CustomContentDictionary.CustomCharacters
+                                .Where(c => c.UnlockEpoch is not null)
+                                .Where(c => c.UnlocksAfterRunAs is not null or Ironclad);
+                    foreach (var customCharacter in customCharacters)
+                    {
+                        if (customCharacter.UnlocksAfterRunAs!.Id != serializablePlayer.CharacterId) continue;
+                        var res = CustomEpochModel.CustomEpochPatches.TryObtainEpochPostRunMethod?.Invoke(__instance, 
+                                    [customCharacter.UnlockEpoch, serializablePlayer, serializableRun]);
+                        if(res is true)
+                            BaseLibMain.Logger.Info($"Epoch {customCharacter.UnlockEpoch!.Id} obtained for playing a run as {serializablePlayer.CharacterId}.");
+                    }
+                   
+                    
+                    
+                }
+
             }
         }
         
