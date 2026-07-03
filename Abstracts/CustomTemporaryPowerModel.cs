@@ -13,10 +13,15 @@ using MegaCrit.Sts2.Core.Models;
 
 namespace BaseLib.Abstracts;
 
+internal interface IBetaCompatTempPower
+{
+    void IgnoreNextInstance();
+}
+
 /// <summary>
 /// A generic version of the base games Temporary Strength and Dexterity Power with small functionality improvements
 /// </summary>
-public abstract class CustomTemporaryPowerModel : CustomPowerModel, ITemporaryPower, IAddDumbVariablesToPowerDescription
+public abstract class CustomTemporaryPowerModel : CustomPowerModel, ITemporaryPower, IBetaCompatTempPower, IAddDumbVariablesToPowerDescription
 {
      private const string LocTurnEndBoolVar = "UntilEndOfOtherSideTurn";
      
