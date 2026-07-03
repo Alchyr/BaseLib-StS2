@@ -1,4 +1,4 @@
-using System.Runtime.CompilerServices;
+/*using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using HarmonyLib;
@@ -10,6 +10,8 @@ using MegaCrit.Sts2.Core.Runs;
 using MegaCrit.Sts2.Core.Saves.Runs;
 
 namespace BaseLib.Patches.Fixes;
+
+// COMMENTED OUT TEMPORARILY; AN ACTUAL FIX IS NECESSARY
 
 internal sealed class RewardExtData
 {
@@ -281,4 +283,4 @@ public static class RewardFromSerializableExtPatch
 
         return new CardReward(poolOptions, save.OptionCount, player);
     }
-}
+}*/
