@@ -10,12 +10,46 @@ using MegaCrit.Sts2.Core.Saves.Runs;
 namespace BaseLib.Utils;
 
 /// <summary>
+/// Marks a SpireField whose value will be copied if it has been set.
+/// SpireFields utilizing this interface add themselves to <see cref="CloneFields"/>
+/// if their Clone method should be called.
+/// </summary>
+public interface ICloneableField
+{
+    private static NotNullSpireField<AbstractModel, HashSet<ICloneableField>> CloneFields = new(() => []);
+
+    /// <summary>
+    /// Adds an ICloneableField to the set of fields whose Clone method will be called when the model is cloned.
+    /// </summary>
+    public static void AddClonedField(AbstractModel model, ICloneableField field)
+    {
+        CloneFields[model].Add(field);
+    }
+    
+    /// <summary>
+    /// Copies this field's data from a source model to a destination model when the model is cloned.
+    /// </summary>
+    public void Clone(AbstractModel src, AbstractModel dst);
+    
+    [HarmonyPatch(typeof(AbstractModel), nameof(AbstractModel.MutableClone))]
+    private static class CloneSpireFields {
+        [HarmonyPostfix]
+        static void ModifyResult(AbstractModel __instance, AbstractModel __result)
+        {
+            var cloneFields = CloneFields[__instance];
+            foreach (var cloneableField in cloneFields)
+            {
+                cloneableField.Clone(__instance, __result);
+            }
+        }
+    }
+}
+
+/// <summary>
 /// A basic wrapper around <seealso cref="ConditionalWeakTable{TKey, TValue}"/> for convenience.
 /// While this can be used to store value types, they will be boxed and thus is somewhat inefficient.
 /// </summary>
-/// <typeparam name="TKey"></typeparam>
-/// <typeparam name="TVal"></typeparam>
-public class SpireField<TKey, TVal> where TKey : class
+public class SpireField<TKey, TVal> : ICloneableField where TKey : class
 {
     private readonly ConditionalWeakTable<TKey, object?> _table = [];
     private readonly Func<TKey, TVal?> _defaultVal;
@@ -30,6 +64,47 @@ public class SpireField<TKey, TVal> where TKey : class
         _defaultVal = defaultVal;
     }
 
+    /// <summary>
+    /// Causes this SpireField's value to be copied when the model it is attached to is cloned. Only valid for
+    /// SpireFields attached to types inheriting from AbstractModel.
+    /// The value will only be copied over if it has been set at least once outside of the default value, or if the
+    /// default value is a reference type and its value has been retrieved at least once.
+    /// Note that this is a shallow clone; reference types will be assigned directly to the new instance, not copied.
+    /// Optional cloneVal parameter will change how the value is copied to the new instance.
+    /// </summary>
+    /// <param name="cloneVal">A function to copy the value to the new model. Receives the source model,
+    /// destination model, and the field's value for the source model. Should call Set on this SpireField with the
+    /// destination model or otherwise copy values over.</param>
+    public SpireField<TKey, TVal> CopyOnClone(Action<TKey, TKey, TVal?>? cloneVal = null)
+    {
+        if (!typeof(TKey).IsAssignableTo(typeof(AbstractModel)))
+        {
+            throw new InvalidOperationException(
+                $"Cannot enable CopyOnClone for SpireField on type {typeof(TKey).Name}; only valid for SpireFields attached to AbstractModel types.");
+        }
+        _cloneFunc = cloneVal ?? ((_, dst, val) => Set(dst, val));
+        return this;
+    }
+
+    private Action<TKey, TKey, TVal?>? _cloneFunc;
+    /// <summary>
+    /// Returns true if this SpireField's value should be copied over when a model it is attached to is cloned.
+    /// </summary>
+    public bool ShouldClone => _cloneFunc != null;
+
+    /// <summary>
+    /// Copies this SpireField's value from one AbstractModel to another.
+    /// Only usable if this SpireField is attached to a model type.
+    /// </summary>
+    public void Clone(AbstractModel src, AbstractModel dst)
+    {
+        if (src is not TKey srcKey || dst is not TKey dstKey)
+            throw new ArgumentException(
+                $"Unable to clone SpireField on type {typeof(TKey).Name} from {src.GetType().Name} to {dst.GetType().Name}.");
+        if (!ShouldClone) return;
+        _cloneFunc!(srcKey, dstKey, Get(srcKey));
+    }
+
     public TVal? this[TKey obj]
     {
         get => Get(obj);
@@ -40,19 +115,27 @@ public class SpireField<TKey, TVal> where TKey : class
         if (_table.TryGetValue(obj, out var result)) return (TVal?)result;
 
         _table.Add(obj, result = _defaultVal(obj));
+        if (ShouldClone && !typeof(TVal).IsValueType && obj is AbstractModel model)
+        {
+            ICloneableField.AddClonedField(model, this);
+        }
         return (TVal?)result;
     }
 
     public void Set(TKey obj, TVal? val)
     {
         _table.AddOrUpdate(obj, val);
+        if (ShouldClone && obj is AbstractModel model)
+        {
+            ICloneableField.AddClonedField(model, this);
+        }
     }
 }
 
 /// <summary>
 /// A SpireField containing an object whose value is guaranteed to not be null.
 /// </summary>
-public class NotNullSpireField<TKey, TVal> where TKey : class where TVal : class
+public class NotNullSpireField<TKey, TVal> : ICloneableField where TKey : class where TVal : class
 {
     private readonly ConditionalWeakTable<TKey, TVal> _table = [];
     private readonly Func<TKey, TVal> _defaultVal;
@@ -66,6 +149,45 @@ public class NotNullSpireField<TKey, TVal> where TKey : class where TVal : class
     {
         _defaultVal = defaultVal;
     }
+
+    /// <summary>
+    /// Causes this SpireField's value to be copied when the model it is attached to is cloned. Only valid for
+    /// SpireFields attached to types inheriting from AbstractModel.
+    /// The value will only be copied over if it has been set at least once outside of the default value, or if the
+    /// default value is a reference type.
+    /// Note that this is a shallow clone; reference types will be assigned directly to the new instance, not copied.
+    /// Optional cloneVal parameter will change how the value is copied to the new instance.
+    /// </summary>
+    public NotNullSpireField<TKey, TVal> CopyOnClone(Action<TKey, TKey, TVal>? cloneVal = null)
+    {
+        if (!typeof(TKey).IsAssignableTo(typeof(AbstractModel)))
+        {
+            throw new InvalidOperationException(
+                $"Cannot enable CopyOnClone for SpireField on type {typeof(TKey).Name}; only valid for SpireFields attached to AbstractModel types.");
+        }
+        _cloneFunc = cloneVal ?? ((_, dst, val) => Set(dst, val));
+        return this;
+    }
+
+    private Action<TKey, TKey, TVal>? _cloneFunc;
+    /// <summary>
+    /// Returns true if this SpireField's value should be copied over when a model it is attached to is cloned.
+    /// </summary>
+    public bool ShouldClone => _cloneFunc != null;
+
+    /// <summary>
+    /// Copies this SpireField's value from one AbstractModel to another.
+    /// Only usable if this SpireField is attached to a model type.
+    /// </summary>
+    public void Clone(AbstractModel src, AbstractModel dst)
+    {
+        if (src is not TKey srcKey || dst is not TKey dstKey)
+            throw new ArgumentException(
+                $"Unable to clone SpireField on type {typeof(TKey).Name} from {src.GetType().Name} to {dst.GetType().Name}.");
+        if (!ShouldClone) return;
+
+        _cloneFunc!(srcKey, dstKey, Get(srcKey));
+    }
     
     public TVal this[TKey obj]
     {
@@ -77,13 +199,22 @@ public class NotNullSpireField<TKey, TVal> where TKey : class where TVal : class
         if (_table.TryGetValue(obj, out var result)) return result;
 
         var defaultVal = _defaultVal(obj);
+        
         _table.Add(obj, defaultVal);
+        if (ShouldClone && !typeof(TVal).IsValueType && obj is AbstractModel model)
+        {
+            ICloneableField.AddClonedField(model, this);
+        }
         return defaultVal;
     }
 
     public void Set(TKey obj, TVal val)
     {
         _table.AddOrUpdate(obj, val);
+        if (ShouldClone && obj is AbstractModel model)
+        {
+            ICloneableField.AddClonedField(model, this);
+        }
     }
 }
 
@@ -214,8 +345,6 @@ internal interface ISavedSpireField
 /// A SpireField whose value will automatically be saved and loaded.
 /// Only functions on model types that support SavedProperty, so mainly just cards and relics.
 /// </summary>
-/// <typeparam name="TKey"></typeparam>
-/// <typeparam name="TVal"></typeparam>
 public class SavedSpireField<TKey, TVal> : SpireField<TKey, TVal>, ISavedSpireField where TKey : class
 {
     public SavedSpireField(Func<TVal?> defaultVal, string name) : this(_ => defaultVal(), name) { }

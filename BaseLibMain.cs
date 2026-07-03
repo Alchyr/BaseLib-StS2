@@ -52,9 +52,16 @@ public static class BaseLibMain
         
         ModConfigRegistry.Register(ModId, new BaseLibConfig());
 
-        TheBigPatchToCardPileCmdAdd.Patch(MainHarmony);
-        CustomBadgesPatch.Patch(MainHarmony);
-        ExtendedSavePatches.Patch(MainHarmony);
+        try
+        {
+            ExtendedSavePatches.Patch(MainHarmony);
+            TheBigPatchToCardPileCmdAdd.Patch(MainHarmony);
+            CustomBadgesPatch.Patch(MainHarmony);
+        }
+        catch (Exception e)
+        {
+            Logger.Error(e.ToString());
+        }
 
         MainHarmony.TryPatchAll(assembly);
         

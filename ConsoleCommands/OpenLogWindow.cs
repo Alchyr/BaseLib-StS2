@@ -5,6 +5,7 @@ using MegaCrit.Sts2.Core.DevConsole.ConsoleCommands;
 using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.Helpers;
 using MegaCrit.Sts2.Core.Nodes;
+using Steamworks;
 
 namespace BaseLib.ConsoleCommands;
 
@@ -26,6 +27,12 @@ public class OpenLogWindow : AbstractConsoleCmd
         if (!BaseLibMain.IsMainThread)
         {
             BaseLibMain.Logger.Info("OpenWindow called when not on main thread");
+            return;
+        }
+
+        if (SteamUtils.IsSteamRunningOnSteamDeck())
+        {
+            BaseLibMain.Logger.Info("OpenWindow cancelled; log window disabled on steam deck");
             return;
         }
         

@@ -21,9 +21,9 @@
         <PackageId>Alchyr.Sts2.BaseLib</PackageId>
         <Title>BaseLib-StS2</Title>
         <Description>Mod for Slay the Spire 2 providing utilities and features for other mods.</Description>
-        <Version>3.3.2</Version>
+        <Version>3.3.4</Version>
         <Authors>Alchyr</Authors>
-        <PackageReleaseNotes>Bugfixes</PackageReleaseNotes>
+        <PackageReleaseNotes>Fix for temp powers on main branch</PackageReleaseNotes>
         <PackageTags>c#</PackageTags>
         <NoWarn>$(NoWarn);NU5128;MSB3270</NoWarn>
 
@@ -53,6 +53,11 @@
             <HintPath>$(Sts2DataDir)/SmartFormat.dll</HintPath>
             <Private>false</Private>
         </Reference>
+        <Reference Include="Steamworks">
+            <HintPath>$(Sts2DataDir)/Steamworks.NET.dll</HintPath>
+            <Private>false</Private>
+        </Reference>
+        <PackageReference Include="Krafs.Publicizer" Version="2.3.0" PrivateAssets="All"/>
     </ItemGroup>
 
     <ItemGroup>
@@ -80,13 +85,6 @@
         <Content Condition="Exists('build\BaseLib.props')" Include="build\BaseLib.props" PackagePath="/Content/" />
         <Content Condition="Exists('build\BaseLib.pck')" Include="build\$(MSBuildProjectName).pck" PackagePath="/Content/" />
         <Content Include="$(MSBuildProjectName).json" PackagePath="/Content/" />
-    </ItemGroup>
-
-    <ItemGroup>
-      <PackageReference Include="Krafs.Publicizer" Version="2.3.0">
-        <PrivateAssets>all</PrivateAssets>
-        <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-      </PackageReference>
     </ItemGroup>
     
     <Target Name="UpdateManifestVersion" BeforeTargets="BeforeBuild">
@@ -117,6 +115,12 @@
         <Copy SourceFiles="$(MSBuildProjectName).json" DestinationFolder="$(ModsPath)$(MSBuildProjectName)/" />
     </Target>
 
+    <Target Name="CopyToUploadFolderOnBuild" AfterTargets="AfterBuild" Condition="'$(UploadBuild)' == 'true'">
+        <Message Text="Copying .dll and manifest to upload location folder ($(Sts2Path)/mod_upload/$(MSBuildProjectName)/content/$(MSBuildProjectName))." Importance="high" />
+        <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(Sts2Path)/mod_upload/$(MSBuildProjectName)/content/$(MSBuildProjectName)/" />
+        <Copy SourceFiles="$(MSBuildProjectName).json" DestinationFolder="$(Sts2Path)/mod_upload/$(MSBuildProjectName)/content/$(MSBuildProjectName)/" />
+    </Target>
+
     <Target Name="GodotPublish" AfterTargets="Publish" Condition="'$(GodotPath)' != '' and Exists('$(GodotPath)') and '$(IsInnerGodotExport)' != 'true'">
         <Message Text="Exporting Godot .pck to build folder" Importance="high"/>
         <Exec Command="&quot;$(GodotPath)&quot; --headless --export-pack &quot;BasicExport&quot; &quot;build/$(MSBuildProjectName).pck&quot;"
@@ -124,6 +128,11 @@
               ContinueOnError="WarnAndContinue"/>
         <Message Text="Copying Godot .pck to mods folder" Importance="high"/>
         <Copy SourceFiles="build/$(MSBuildProjectName).pck" DestinationFolder="$(ModsPath)$(MSBuildProjectName)/" />
+    </Target>
+
+    <Target Name="CopyGodotPackToUploadFolder" AfterTargets="GodotPublish" Condition="'$(UploadBuild)' == 'true'">
+        <Message Text="Copying .pck to upload location folder." Importance="high" />
+        <Copy SourceFiles="build/$(MSBuildProjectName).pck" DestinationFolder="$(Sts2Path)/mod_upload/$(MSBuildProjectName)/content/$(MSBuildProjectName)/" />
     </Target>
 
     <Target Name="GodotPublishSkipped" AfterTargets="Publish" Condition="'$(GodotPath)' == '' or !Exists('$(GodotPath)')">

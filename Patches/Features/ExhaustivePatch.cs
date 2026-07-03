@@ -6,28 +6,62 @@ using MegaCrit.Sts2.Core.Models;
 
 namespace BaseLib.Patches.Features;
 
-[HarmonyPatch(typeof(CardModel))]
+[HarmonyPatch]
 public static class ExhaustivePatch
 {
-    static MethodBase TargetMethod()
+    [HarmonyPatch(typeof(CardModel))]
+    static class OldExhaustivePatch
     {
-        var targetMethod = AccessTools.DeclaredMethod(typeof(CardModel), "GetResultPileTypeForCardPlay");
-        if (targetMethod == null)
-            targetMethod = AccessTools.DeclaredMethod(typeof(CardModel), "GetResultPileType");
+        static MethodInfo? TargetMethod = AccessTools.DeclaredMethod(typeof(CardModel), "GetResultPileTypeForCardPlay")
+                                          ?? AccessTools.DeclaredMethod(typeof(CardModel), "GetResultPileType");
+        
+        static IEnumerable<MethodBase> TargetMethods()
+        {
+            if (TargetMethod != null) yield return TargetMethod;
+        }
 
-        return targetMethod;
+        static bool Prepare()
+        {
+            return TargetMethod != null;
+        }
+    
+        [HarmonyPostfix]
+        static void ExhaustForExhaustive(CardModel __instance, ref PileType __result)
+        {
+            if (ShouldExhaustForExhaustive(__instance))
+            {
+                __result = PileType.Exhaust;
+            }
+        }
     }
     
-    [HarmonyPostfix]
-    static void ExhaustForExhaustive(CardModel __instance, ref PileType __result)
+    [HarmonyPatch(typeof(CardModel))]
+    static class BetaExhaustivePatch
     {
-        if (ExhaustForExhaustive(__instance))
+        private static MethodInfo? TargetMethod =
+            AccessTools.DeclaredMethod(typeof(CardModel), "GetResultPileTypeAndPositionForCardPlay");
+        
+        static IEnumerable<MethodBase> TargetMethods()
         {
-            __result = PileType.Exhaust;
+            if (TargetMethod != null) yield return TargetMethod;
+        }
+
+        static bool Prepare()
+        {
+            return TargetMethod != null;
+        }
+    
+        [HarmonyPostfix]
+        static void ExhaustForExhaustive(CardModel __instance, ref (PileType, CardPilePosition) __result)
+        {
+            if (ShouldExhaustForExhaustive(__instance))
+            {
+                __result = (PileType.Exhaust, CardPilePosition.Bottom);
+            }
         }
     }
 
-    static bool ExhaustForExhaustive(CardModel card)
+    static bool ShouldExhaustForExhaustive(CardModel card)
     {
         return GetExhaustive(card) == 1;
     }

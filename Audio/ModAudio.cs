@@ -285,7 +285,7 @@ public class AutoModAudio(string folder)
             _sounds[path] = sound;
         }
         
-        return ModAudio.PlaySound(sound, volume, pitchVariation, basePitch);
+        return ModAudio.PlaySound(sound, volume, volumeMult, pitchVariation, basePitch);
     }
     
     /// <param name="volume">Adjustment to volume in dB</param>
@@ -300,7 +300,7 @@ public class AutoModAudio(string folder)
             _sounds[path] = sound;
         }
         
-        return ModAudio.PlaySound(sound, volume, pitchVariation, basePitch);
+        return ModAudio.PlaySound(sound, volume, volumeMult, pitchVariation, basePitch);
     }
     
     /// <param name="volume">Adjustment to volume in dB</param>
@@ -315,7 +315,7 @@ public class AutoModAudio(string folder)
             _sounds[path] = sound;
         }
         
-        return ModAudio.PlaySound(sound, volume, pitchVariation, basePitch);
+        return ModAudio.PlaySound(sound, volume, volumeMult, pitchVariation, basePitch);
     }
 }
 

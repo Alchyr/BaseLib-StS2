@@ -23,12 +23,12 @@ public static class CardExtensions
         switch (card.TargetType)
         {
             case TargetType.AllAllies:
-                var state = BetaMainCompatibility.CardModel_.WrappedCombatState(card);
+                var state = card.CombatState;
                 return state?.PlayerCreatures.Where(c => c is { IsAlive: true }).ToList() ?? [];
             case TargetType.AllEnemies:
-                return BetaMainCompatibility.CardModel_.WrappedCombatState(card)?.HittableEnemies.ToList() ?? [];
+                return card.CombatState?.HittableEnemies.ToList() ?? [];
             case TargetType.RandomEnemy:
-                var allTargets = BetaMainCompatibility.CardModel_.WrappedCombatState(card)?.HittableEnemies;
+                var allTargets = card.CombatState?.HittableEnemies;
                 if (allTargets == null || allTargets.Count == 0) return [];
                 var target = card.Owner.RunState.Rng.CombatTargets.NextItem(allTargets);
                 if (target == null) return [];
@@ -40,7 +40,7 @@ public static class CardExtensions
             default:
                 if (CustomTargetType.IsCustomMultiTargetType(card.TargetType))
                 {
-                    state = BetaMainCompatibility.CardModel_.WrappedCombatState(card);
+                    state = card.CombatState;
                     return state?.Creatures.Where(c => CustomTargetType.CanMultiTarget(card.TargetType, c, card.Owner)).ToList() ?? [];
                 }
                 
@@ -54,11 +54,21 @@ public static class CardExtensions
 
     /// <summary>
     /// Convenience shortcut to <see cref="CardModifier.AddModifier"/>.
-    /// Adds a modifier to a card.
+    /// Adds a modifier to a card. Use this method if you need to perform setup on a mutable instance of the modifier.
+    /// Otherwise, use <see cref="AddModifier&lt;T&gt;"/>.
     /// </summary>
     public static void AddModifier(this CardModel card, CardModifier modifier)
     {
         CardModifier.AddModifier(card, modifier);
+    }
+    
+    /// <summary>
+    /// Convenience shortcut to <see cref="CardModifier.AddModifier&lt;T&gt;(CardModel, int)"/>.
+    /// Adds a card modifier to a card.
+    /// </summary>
+    public static void AddModifier<T>(this CardModel card, int amount = 0) where T : CardModifier
+    {
+        CardModifier.AddModifier<T>(card, amount);
     }
 
     /// <summary>

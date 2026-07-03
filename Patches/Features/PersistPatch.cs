@@ -12,34 +12,38 @@ namespace BaseLib.Patches.Features;
 [HarmonyPatch(typeof(CardModel))]
 public static class PersistPatch
 {
-    static MethodBase TargetMethod()
+    static MethodInfo? TargetMethod = 
+        AccessTools.DeclaredMethod(typeof(CardModel), "GetResultPileTypeForCardPlay")
+        ?? AccessTools.DeclaredMethod(typeof(CardModel), "GetResultPileType")
+        ?? AccessTools.DeclaredMethod(typeof(CardModel), "GetResultPileTypeAndPositionForCardPlay");
+        
+    static IEnumerable<MethodBase> TargetMethods()
     {
-        var targetMethod = AccessTools.DeclaredMethod(typeof(CardModel), "GetResultPileTypeForCardPlay");
-        if (targetMethod == null)
-            targetMethod = AccessTools.DeclaredMethod(typeof(CardModel), "GetResultPileType");
+        if (TargetMethod != null) yield return TargetMethod;
+    }
 
-        return targetMethod;
+    static bool Prepare()
+    {
+        return TargetMethod != null;
     }
     
     [HarmonyTranspiler]
     static List<CodeInstruction> AltDestination(IEnumerable<CodeInstruction> instructions)
     {
         return new InstructionPatcher(instructions)
-           .Match(new InstructionMatcher()
-               .ldc_i4_4()
-               .ret()
-               .ldc_i4_3()
-           )
-           .Insert([
-               CodeInstruction.LoadArgument(0),
-               CodeInstruction.Call(typeof(PersistPatch), nameof(NormalOrPersist)),
+            .MatchFromEnd(new InstructionMatcher()
+                .ldc_i4_3()
+            )
+            .Insert([
+                CodeInstruction.LoadArgument(0),
+                CodeInstruction.Call(typeof(PersistPatch), nameof(NormalOrPersist)),
             ]);
     }
 
     //patched to be lower priority than exhaust
     static PileType NormalOrPersist(PileType dest, CardModel model)
     {
-        if (dest == PileType.Discard && IsPersist(model))
+        if (dest == PileType.Discard && model.IsPersist())
         {
             return PileType.Hand;
         }

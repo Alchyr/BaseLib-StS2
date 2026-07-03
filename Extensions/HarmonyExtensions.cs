@@ -34,7 +34,7 @@ public static class HarmonyExtensions
                     }
                     catch (Exception e)
                     {
-                        BaseLibMain.Logger.Error(e.ToString());
+                        BaseLibMain.Logger.Error($"Patch {processor.Item1.FullName} failed;\n{e}");
                         ++failCount;
                     }
                 });

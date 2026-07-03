@@ -8,12 +8,14 @@ using HarmonyLib;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Creatures;
 using MegaCrit.Sts2.Core.GameActions.Multiplayer;
+using MegaCrit.Sts2.Core.HoverTips;
 using MegaCrit.Sts2.Core.Localization;
 using MegaCrit.Sts2.Core.Localization.DynamicVars;
 using MegaCrit.Sts2.Core.Modding;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Multiplayer.Serialization;
 using MegaCrit.Sts2.Core.Saves.Runs;
+using MegaCrit.Sts2.Core.ValueProps;
 
 namespace BaseLib.Abstracts;
 
@@ -21,12 +23,25 @@ namespace BaseLib.Abstracts;
 /// A model that is attached to a card to modify its behavior.
 /// Receives all combat hooks, and is capable of modifying the card's description.
 /// More features to be added in the future.
-/// TODO - base value modification like enchants/afflictions
+/// TODO - in progress - base value modification like enchants/afflictions
+/// Passive cost modification? Without calling cost modification methods; works as a "modifier" in EnergyCost
 /// </summary>
 public abstract class CardModifier : AbstractModel, IComparable<CardModifier>
 {
+    private static readonly NotNullSpireField<CardModel, List<CardModifier>> _modifiers = 
+            new NotNullSpireField<CardModel, List<CardModifier>>(() => [])
+                .CopyOnClone((src, dst, modifiers) =>
+                {
+                    foreach (var modifier in modifiers)
+                    {
+                        var cloneModifier = (CardModifier) modifier.MutableClone();
+                        dst.AddModifier(cloneModifier);
+                        cloneModifier.AfterClonedOnCard(dst);
+                    }
+                });
+    
     /// <summary>
-    /// Obtains a new instance of a CardModifier from ModelDb using <see cref="ModelDbExtensions.CardModifier"/>.
+    /// Obtains a new instance of a CardModifier from ModelDb using <see cref="CardModifier"/>.
     /// </summary>
     /// <typeparam name="T"></typeparam>
     /// <returns></returns>
@@ -35,7 +50,7 @@ public abstract class CardModifier : AbstractModel, IComparable<CardModifier>
         return ModelDb.CardModifier<T>();
     }
     
-    public static void RegisterSave()
+    internal static void RegisterSave()
     {
         ExtendedSaveTypes.RegisterListSaveType<ModifierSave>();
         ExtendedSaveTypes.RegisterDictionarySaveType<string, int>();
@@ -70,6 +85,11 @@ public abstract class CardModifier : AbstractModel, IComparable<CardModifier>
                 return saves;
             });
     }
+    
+    private static void LoadModifierSaves(CardModel card, List<ModifierSave>? modifiers)
+    {
+        _modifiers[card] = modifiers?.Select(mod => mod.ToRealMod(card)).ToList() ?? [];
+    }
 
     public sealed class ModifierSave : IPacketSerializable
     {
@@ -77,7 +97,8 @@ public abstract class CardModifier : AbstractModel, IComparable<CardModifier>
         {
             var save = new ModifierSave()
             {
-                Id = modifier.Id
+                Id = modifier.Id,
+                Amount = modifier.Amount
             };
             modifier.StoreSaveData(save);
             return save;
@@ -87,11 +108,13 @@ public abstract class CardModifier : AbstractModel, IComparable<CardModifier>
         {
             var mod = (CardModifier) ModelDb.GetById<CardModifier>(Id!).MutableClone();
             mod.Owner = owner;
+            mod.Amount = Amount;
             mod.LoadSaveData(this);
             return mod;
         }
         
         public ModelId? Id { get; set; }
+        public int Amount { get; set; }
         public Dictionary<string, int> IntProperties { get; set; } = [];
         public Dictionary<string, string> AdditionalProperties { get; set; } = [];
 
@@ -99,12 +122,16 @@ public abstract class CardModifier : AbstractModel, IComparable<CardModifier>
         public void Serialize(PacketWriter writer)
         {
             writer.WriteModelEntry(Id!);
+            
+            writer.WriteInt(Amount);
+            
             writer.WriteInt(IntProperties.Count);
             foreach (var entry in IntProperties)
             {
                 writer.WriteString(entry.Key);
                 writer.WriteInt(entry.Value);
             }
+            
             writer.WriteInt(AdditionalProperties.Count);
             foreach (var entry in AdditionalProperties)
             {
@@ -117,6 +144,8 @@ public abstract class CardModifier : AbstractModel, IComparable<CardModifier>
         public void Deserialize(PacketReader reader)
         {
             Id = reader.ReadModelIdAssumingType<CardModifier>();
+            
+            Amount = reader.ReadInt();
             
             int capacity = reader.ReadInt();
             IntProperties = new(capacity);
@@ -139,6 +168,7 @@ public abstract class CardModifier : AbstractModel, IComparable<CardModifier>
 
     /// <summary>
     /// Store values that must be saved in IntProperties or AdditionalProperties.
+    /// Override this and <see cref="LoadSaveData"/> if you need to save additional information besides <see cref="Amount"/>.
     /// </summary>
     public virtual void StoreSaveData(ModifierSave save)
     {
@@ -146,19 +176,12 @@ public abstract class CardModifier : AbstractModel, IComparable<CardModifier>
     }
     /// <summary>
     /// Loads saved values into a new instance of this modifier.
+    /// Override this and <see cref="StoreSaveData"/> if you need to save additional information besides <see cref="Amount"/>.
     /// </summary>
     public virtual void LoadSaveData(ModifierSave save)
     {
         
     }
-
-    private static void LoadModifierSaves(CardModel card, List<ModifierSave>? modifiers)
-    {
-        _modifiers[card] = modifiers?.Select(mod => mod.ToRealMod(card)).ToList() ?? [];
-    }
-    
-    
-    private static readonly SpireField<CardModel, List<CardModifier>> _modifiers = new(() => []);
 
     /// <summary>
     /// Gets the list of modifiers on a card.
@@ -181,6 +204,16 @@ public abstract class CardModifier : AbstractModel, IComparable<CardModifier>
     }
     
     /// <summary>
+    /// Adds a card modifier to a card with a specified amount.
+    /// </summary>
+    public static void AddModifier<T>(CardModel card, int amount) where T : CardModifier
+    {
+        var mod = ModelDb.CardModifier<T>(true);
+        mod.Amount = amount;
+        AddModifier(card, mod);
+    }
+    
+    /// <summary>
     /// Adds a card modifier to a card. The modifier being applied should be a mutable instance.
     /// Use the overload with a generic parameter if you don't need to set up the modifier before application.
     /// Otherwise, obtain a mutable instance using the ModelDb.CardModifier extension methods.
@@ -190,6 +223,9 @@ public abstract class CardModifier : AbstractModel, IComparable<CardModifier>
         modifier.ApplyInternal(card);
     }
 
+    /// <summary>
+    /// Remove a specific CardModifier instance from a card.
+    /// </summary>
     public static bool RemoveModifier(CardModel card, CardModifier modifier)
     {
         return modifier.RemoveInternal(card);
@@ -236,8 +272,22 @@ public abstract class CardModifier : AbstractModel, IComparable<CardModifier>
     /// Mostly unused; overridden just in case.
     /// </summary>
     public override bool ShouldReceiveCombatHooks => Owner?.ShouldReceiveCombatHooks ?? false;
-    private DynamicVarSet? _dynamicVars;
     
+    private DynamicVarSet? _dynamicVars;
+
+    /// <summary>
+    /// An integer value attached to enchantments that is saved.
+    /// </summary>
+    public int Amount
+    {
+        get;
+        set
+        {
+            AssertMutable();
+            field = value;
+        }
+    }
+
     public CardModel? Owner
     {
         get; 
@@ -289,11 +339,8 @@ public abstract class CardModifier : AbstractModel, IComparable<CardModifier>
             if (_dynamicVars != null)
                 return _dynamicVars;
             
-            if (Owner == null)
-                throw new InvalidOperationException("Attempted to access a card modifier's dynamic vars before it has an owner");
-            
             _dynamicVars = new DynamicVarSet(CanonicalVars);
-            _dynamicVars.InitializeWithOwner(Owner);
+            _dynamicVars.InitializeWithOwner(this);
             return _dynamicVars;
         }
     }
@@ -305,13 +352,15 @@ public abstract class CardModifier : AbstractModel, IComparable<CardModifier>
     protected virtual IEnumerable<DynamicVar> CanonicalVars => [];
 
     /// <summary>
-    /// Retrieves a <see cref="LocString"/> from a card_modifiers.json table using this modifier's ID
-    /// and adds this modifier's dynamic variables to it.
+    /// Retrieves a <see cref="LocString"/> from a card_modifiers.json table using this modifier's ID.
+    /// Adds this modifier's dynamic variables, <see cref="Amount"/>, and attached card's TargetType to the loc.
     /// </summary>
     public virtual LocString GetLoc(string subKey = "description")
     {
         var loc = new LocString("card_modifiers", $"{Id.Entry}.{subKey}");
+        loc.Add("Amount", Amount);
         DynamicVars.AddTo(loc);
+        loc.Add("TargetType", Owner == null ? "None" : Owner.TargetType.ToString());
         return loc;
     }
 
@@ -329,6 +378,14 @@ public abstract class CardModifier : AbstractModel, IComparable<CardModifier>
     /// Receives target passed into CardModel.GetDescriptionForPile.
     /// </summary>
     public virtual void ModifyDescriptionPost(Creature? target, ref string description)
+    {
+        
+    }
+
+    /// <summary>
+    /// Receives the card's list of tips to add to.
+    /// </summary>
+    public virtual void AddTips(List<IHoverTip> tips)
     {
         
     }
@@ -359,6 +416,10 @@ public abstract class CardModifier : AbstractModel, IComparable<CardModifier>
         _dynamicVars.InitializeWithOwner(Owner!);
     }
     
+    /// <summary>
+    /// Called whenever the attached card updates its dynamic variable previews to update the modifier's dynamic vars.
+    /// Can be overridden if some custom behavior to update display information is needed.
+    /// </summary>
     public virtual void UpdateDynamicVarPreview(CardPreviewMode previewMode, Creature? target, bool runGlobalHooks)
     {
         foreach (var dynVar in DynamicVars.Values)
@@ -375,35 +436,63 @@ public abstract class CardModifier : AbstractModel, IComparable<CardModifier>
     {
         
     }
+
+    /// <summary>
+    /// Functions like an EnchantmentModel's EnchantDamageAdditive.
+    /// Add to the amount of damage that this modifier's card does.
+    /// This hook runs BEFORE all other damage modification hooks.
+    /// NOT YET FULLY FUNCTIONAL.
+    /// </summary>
+    /// <param name="originalDamage">The amount of damage that would be dealt.</param>
+    /// <param name="props">ValueProp for damage.</param>
+    /// <returns>Amount of damage to be added.</returns>
+    public virtual decimal ModifyBaseDamageAdditive(decimal originalDamage, ValueProp props) => 0;
+    
+    /// <summary>
+    /// Functions like an EnchantmentModel's EnchantDamageMultiplicative.
+    /// Multiply the amount of damage that this modifier's card does.
+    /// This hook runs BEFORE all other damage modification hooks.
+    /// NOT YET FULLY FUNCTIONAL.
+    /// </summary>
+    /// <param name="originalDamage">The amount of damage that would be dealt.</param>
+    /// <param name="props">ValueProp for damage.</param>
+    /// <returns>Amount that the damage should be multiplied by.</returns>
+    public virtual decimal ModifyBaseDamageMultiplicative(decimal originalDamage, ValueProp props) => 1;
+    
+    /// <summary>
+    /// Functions like an EnchantmentModel's EnchantBlockAdditive.
+    /// Add to the amount of block that this modifier's card gains.
+    /// This hook runs BEFORE all other block modification hooks.
+    /// NOT YET FUNCTIONAL.
+    /// </summary>
+    /// <param name="originalBlock">The original amount of block that would be gained.</param>
+    /// <returns>The amount to add to the block gain.</returns>
+    public virtual decimal ModifyBaseBlockAdditive(decimal originalBlock) => 0M;
+
+    /// <summary>
+    /// Functions like an EnchantmentModel's EnchantBlockMultiplicative.
+    /// Modify the amount of block that this modifier's card gains.
+    /// This hook runs BEFORE all other block modification hooks.
+    /// NOT YET FUNCTIONAL.
+    /// </summary>
+    /// <param name="originalBlock">The original amount of block that would be gained.</param>
+    /// <returns>The amount to multiply the block gain by.</returns>
+    public virtual decimal ModifyBaseBlockMultiplicative(decimal originalBlock) => 1M;
     
     /// <summary>
     /// Called after the card's OnPlay method is called. Occurs before normal AfterCardPlayed hook.
     /// </summary>
-    public virtual Task OnPlay(PlayerChoiceContext choiceContext, CardPlay cardPlay)
-    {
-        return Task.CompletedTask;
-    }
+    public virtual Task OnPlay(PlayerChoiceContext choiceContext, CardPlay cardPlay) => Task.CompletedTask;
 
     int IComparable<CardModifier>.CompareTo(CardModifier? other)
     {
         return Priority.CompareTo(other?.Priority ?? 0);
     }
-}
 
-[HarmonyPatch(typeof(AbstractModel), nameof(AbstractModel.MutableClone))]
-static class CloneModifiers {
-    [HarmonyPostfix]
-    static void ModifyResult(AbstractModel __instance, AbstractModel __result)
+    /// Called when a mutable clone is created, after the standard MemberwiseClone creates the instance.
+    protected override void DeepCloneFields()
     {
-        if (__instance is CardModel card && __result is CardModel resultCard)
-        {
-            foreach (var modifier in CardModifier.Modifiers(card))
-            {
-                var cloneModifier = (CardModifier) modifier.MutableClone();
-                resultCard.AddModifier(cloneModifier);
-                cloneModifier.AfterClonedOnCard(resultCard);
-            }
-        }
+        _dynamicVars = DynamicVars.Clone(this);
     }
 }
 

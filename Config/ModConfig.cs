@@ -64,6 +64,8 @@ public abstract partial class ModConfig
 
     protected readonly List<PropertyInfo> ConfigProperties = [];
     private readonly Dictionary<string, object?> _defaultValues = new();
+    private bool _hasVisibleSettings;
+    private bool _hasButton;
 
     public static class ModConfigLogger
     {
@@ -122,15 +124,22 @@ public abstract partial class ModConfig
     }
 
     public bool HasSettings() => ConfigProperties.Count > 0;
-    public bool HasVisibleSettings() =>
-        ConfigProperties.Any(p => p.GetCustomAttribute<ConfigHideInUI>() == null);
+    public bool HasVisibleSettings() => _hasVisibleSettings;
 
+    /// <summary>
+    /// If true, this ModConfig will show up in the mod list. By default, a mod is shown if it has any visible setting
+    /// or button, but for a fully custom UI, there may be rare cases where you need to override this.
+    /// </summary>
+    public virtual bool VisibleInModList() => _hasVisibleSettings || _hasButton;
 
     private void CheckConfigProperties()
     {
         var configType = GetType();
 
+        _hasVisibleSettings = false;
+        _hasButton = false;
         ConfigProperties.Clear();
+
         foreach (var property in configType.GetProperties())
         {
             if (property.GetCustomAttribute<ConfigIgnoreAttribute>() != null) continue;
@@ -142,7 +151,14 @@ public abstract partial class ModConfig
             }
 
             ConfigProperties.Add(property);
+
+            if (property.GetCustomAttribute<ConfigHideInUI>() == null)
+                _hasVisibleSettings = true;
         }
+
+        _hasButton = configType
+            .GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance)
+            .Any(m => m.GetCustomAttribute<ConfigButtonAttribute>() != null);
     }
 
     public T? GetDefaultValue<T>(string propertyName)

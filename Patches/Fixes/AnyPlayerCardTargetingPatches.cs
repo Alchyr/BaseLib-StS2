@@ -288,8 +288,8 @@ internal static class NControllerCardPlaySingleTargetingAnyPlayerPatch
             return;
         }
 
-        var combatState = BetaMainCompatibility.CardModel_.WrappedCombatState(card)
-                         ?? BetaMainCompatibility.Creature_.WrappedCombatState(card.Owner.Creature);
+        var combatState = card.CombatState
+                          ?? card.Owner.Creature.CombatState;
         if (combatState == null)
         {
             instance.CancelPlayCard();
@@ -376,8 +376,8 @@ internal static class CardCmdAutoPlayAnyPlayerPatch
         if (!IsAnyPlayerMultiplayer(card) || target != null)
             return;
 
-        var combatState = BetaMainCompatibility.CardModel_.WrappedCombatState(card)
-                         ?? BetaMainCompatibility.Creature_.WrappedCombatState(card.Owner.Creature);
+        var combatState = card.CombatState
+                          ?? card.Owner.Creature.CombatState;
         if (combatState == null)
             return;
 

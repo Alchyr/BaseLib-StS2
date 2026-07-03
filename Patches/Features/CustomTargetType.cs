@@ -204,12 +204,12 @@ internal static class ModelDbTargetTypeInitPatch
         
         CustomTargetType.RegisterMultiTargetType(CustomTargetType.AllLowestHpEnemies,
             (target) => target is { IsAlive: true,  IsEnemy: true } 
-                           && target.CurrentHp == BetaMainCompatibility.Creature_.WrappedCombatState(target)!.Enemies
+                           && target.CurrentHp == target.CombatState!.Enemies
                                .Where(e => e.IsAlive)
                                .Min(e => e.CurrentHp));
         CustomTargetType.RegisterMultiTargetType(CustomTargetType.AllHighestHpEnemies,
             (target) => target is { IsAlive: true, IsEnemy: true} &&
-                           target.CurrentHp == BetaMainCompatibility.Creature_.WrappedCombatState(target)!.Enemies
+                           target.CurrentHp == target.CombatState!.Enemies
                                .Where(e => e.IsAlive)
                                .Max(e => e.CurrentHp));
         
@@ -298,7 +298,7 @@ public static class AttackCommandExtensions
             cmd, new StrongBox<IReadOnlyList<Creature>>(list));
         if (cmd.Attacker == null) return cmd;
         
-        AttackCommandCombatState.SetValue(cmd, BetaMainCompatibility.Creature_.CombatState.Get(cmd.Attacker));
+        AttackCommandCombatState.SetValue(cmd, cmd.Attacker.CombatState);
         return cmd;
     }
 }
@@ -390,7 +390,7 @@ internal class ControllerSingleCreatureTargetingPatch
     {
         var card = instance.Card;
         var cardNode = instance.CardNode;
-        if (card == null || BetaMainCompatibility.CardModel_.WrappedCombatState(card) == null || cardNode == null)
+        if (card?.CombatState == null || cardNode == null)
         {
             instance.CancelPlayCard();
             return;

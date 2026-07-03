@@ -45,7 +45,7 @@ class ModelLocPatch
                 
                 var table = locProvider.LocTable
                                ?? CategoryToLocTable.GetValueOrDefault(content.Key.Category, null)
-                               ?? throw new Exception("Override LocTable in your ILocalizationProvider.");
+                               ?? throw new Exception($"Override LocTable in your ILocalizationProvider {content.Key}.");
                 var locTable = LocManager.Instance.GetTable(table);
                 var dict = LocDictionaryField.GetValue(locTable) as Dictionary<string, string> 
                            ?? throw new Exception("Failed to get localization dictionary.");

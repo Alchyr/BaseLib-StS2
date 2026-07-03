@@ -48,7 +48,7 @@ public static class HealthBarForecastPatch
     private static void RefreshForegroundOverlay(NHealthBar healthBar)
     {
         var creature = healthBar._creature;
-        if (creature.CurrentHp <= 0 || BetaMainCompatibility.Creature_.ShowsInfiniteHp(creature))
+        if (creature.CurrentHp <= 0 || creature.HpDisplay.IsInfinite())
         {
             HideAllCustomSegments(healthBar);
             return;
@@ -196,7 +196,7 @@ public static class HealthBarForecastPatch
             return;
 
         var creature = healthBar._creature;
-        if (creature.CurrentHp <= 0 || BetaMainCompatibility.Creature_.ShowsInfiniteHp(creature))
+        if (creature.CurrentHp <= 0 || creature.HpDisplay.IsInfinite())
             return;
 
         var hpMiddleground = healthBar._hpMiddleground;
@@ -220,7 +220,7 @@ public static class HealthBarForecastPatch
             return;
 
         var creature = healthBar._creature;
-        if (creature.CurrentHp <= 0 || BetaMainCompatibility.Creature_.ShowsInfiniteHp(creature))
+        if (creature.CurrentHp <= 0 || creature.HpDisplay.IsInfinite())
             return;
 
         var lethalColor = state.LastRender.LethalRightColor ?? state.LastRender.LethalLeftColor;

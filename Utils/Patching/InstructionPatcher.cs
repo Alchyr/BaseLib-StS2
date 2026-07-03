@@ -29,12 +29,11 @@ public class InstructionPatcher(IEnumerable<CodeInstruction> instructions)
     /// After matching is complete, position is on the code instruction following the last match.
     /// If a match is not found, an exception will be thrown.
     /// </summary>
-    /// <param name="matchers"></param>
-    /// <returns></returns>
     public InstructionPatcher Match(params IMatcher[] matchers)
     {
         return Match(DefaultMatchFailure, matchers);
     }
+    
     /// <summary>
     /// Iterates over given matchers and attempts to match each in order.
     /// After matching is complete, position is on the code instruction following the last match.
@@ -75,6 +74,54 @@ public class InstructionPatcher(IEnumerable<CodeInstruction> instructions)
         }
 
         Log.Add("Found end of match at " + _index + "; last match starts at " + _lastMatchStart);
+        return this;
+    }
+    /// <summary>
+    /// Iterates over given matchers and attempts to match each in order, starting from the end of the method.
+    /// After matching is complete, position is on the code instruction following the last match.
+    /// If a match is not found, an exception will be thrown.
+    /// </summary>
+    public InstructionPatcher MatchFromEnd(params IMatcher[] matchers)
+    {
+        return MatchFromEnd(DefaultMatchFailure, matchers);
+    }
+    
+    /// <summary>
+    /// Iterates over given matchers and attempts to match each in order, starting from the end of the method.
+    /// After matching is complete, position is on the code instruction following the last match.
+    /// If a match is not found, onFailMatch is called. By default, this will throw an exception.
+    /// </summary>
+    public InstructionPatcher MatchFromEnd(Action<IMatcher[]> onFailMatch, params IMatcher[] matchers)
+    {
+        int searchIndex = _code.Count;
+        while (searchIndex > 0)
+        {
+            _index = --searchIndex;
+            var matched = true;
+            
+            foreach (IMatcher matcher in matchers)
+            {
+                if (!matcher.Match(Log, _code, _index, out _lastMatchStart, out _index))
+                {
+                    matched = false;
+                    break;
+                }
+            }
+
+            if (matched)
+            {
+                break;
+            }
+        }
+
+        if (searchIndex == 0)
+        {
+            onFailMatch(matchers);
+            return this;
+        }
+
+        Log.Add("Found end of match at " + _index + "; last match starts at " + _lastMatchStart);
+
         return this;
     }
 

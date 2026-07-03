@@ -60,13 +60,13 @@ public class CustomCalculatedVar : CalculatedVar
             //Treated same as normal cards where calculation is disabled out of combat
             case EnchantmentModel enchant:
                 mult = (!CombatManager.Instance.IsInProgress || 
-                        BetaMainCompatibility.Creature_.WrappedCombatState(enchant.Card.Owner.Creature) == null) ? 0 : 
+                        enchant.Card.Owner.Creature.CombatState == null) ? 0 : 
                     generalCalc?.Invoke(enchant, target) ?? throw new InvalidOperationException(
                     $"{dynVar.GetType().Name} {dynVar.Name} does not have multiplier calc defined for enchantments in {owner.Id}");
                 return baseVar.BaseValue + extraVar.BaseValue * mult;
             case CardModifier modifier:
                 mult = (!CombatManager.Instance.IsInProgress || 
-                        BetaMainCompatibility.Creature_.WrappedCombatState(modifier.Owner!.Owner.Creature) == null) ? 0 : 
+                        modifier.Owner!.Owner.Creature.CombatState == null) ? 0 : 
                     generalCalc?.Invoke(modifier, target) ?? throw new InvalidOperationException(
                         $"{dynVar.GetType().Name} {dynVar.Name} does not have multiplier calc defined for card modifiers in {owner.Id}");
                 return baseVar.BaseValue + extraVar.BaseValue * mult;

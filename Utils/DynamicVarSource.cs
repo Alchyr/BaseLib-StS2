@@ -11,7 +11,8 @@ namespace BaseLib.Utils;
 public sealed class DynamicVarSource()
 {
     public required DynamicVarSet DynamicVars { get; init; }
-    public required Creature Owner { get; init; }
+    public required Creature? Owner { get; init; }
+    
     //Used as cardsource when passing a DynamicVarSource to common actions
     public CardModel? Card { get; init; }
     //Unused
@@ -26,7 +27,7 @@ public sealed class DynamicVarSource()
         return new DynamicVarSource
         {
             DynamicVars = card.DynamicVars,
-            Owner = card.Owner.Creature,
+            Owner = card is { IsMutable: true, Owner: not null } ? card.Owner.Creature : null,
             Card = card
         };
     }
@@ -36,7 +37,7 @@ public sealed class DynamicVarSource()
         return new DynamicVarSource
         {
             DynamicVars = relic.DynamicVars,
-            Owner = relic.Owner.Creature,
+            Owner = relic is { IsMutable: true, Owner: not null } ? relic.Owner.Creature : null,
             Relic = relic
         };
     }
@@ -56,7 +57,7 @@ public sealed class DynamicVarSource()
         return new DynamicVarSource
         {
             DynamicVars = potion.DynamicVars,
-            Owner = potion.Owner.Creature
+            Owner = potion is { IsMutable: true, Owner: not null } ? potion.Owner.Creature : null
         };
     }
     
@@ -65,7 +66,7 @@ public sealed class DynamicVarSource()
         return new DynamicVarSource
         {
             DynamicVars = enchant.DynamicVars,
-            Owner = enchant.Card.Owner.Creature,
+            Owner = enchant.Card.IsMutable ? enchant.Card.Owner.Creature : null,
             Card = enchant.Card
         };
     }
@@ -75,7 +76,7 @@ public sealed class DynamicVarSource()
         return new DynamicVarSource
         {
             DynamicVars = modifier.DynamicVars,
-            Owner = modifier.Owner!.Owner.Creature,
+            Owner = modifier.Owner?.IsMutable == true ? modifier.Owner?.Owner.Creature : null,
             Card = modifier.Owner
         };
     }
