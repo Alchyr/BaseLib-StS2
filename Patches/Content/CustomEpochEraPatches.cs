@@ -13,13 +13,21 @@ using MegaCrit.Sts2.Core.Timeline;
 namespace BaseLib.Patches.Content;
 
 /// <summary>
-/// Massive patch to hand insertion of entirely new Eras
+/// Massive patch to handle insertion of entirely new Eras and their respective Epochs
 /// </summary>
 [HarmonyPatch]
 public class AddCustomEpochSlots
 {
+    /// <summary>
+    /// Our custom Epochs that belong to a custom Era. <br/>
+    /// Removed from <see cref="NTimelineScreen.AddEpochSlots"/> in a Prefix and later inserted via Transpiler.
+    /// </summary>
     private static List<EpochSlotData> _customEpochSlotData = [];
-    private static Vector2 _originalEpochSlotsContainerPosition = new(0, 0);
+    /// <summary>
+    /// If too many Epochs are in one Era (more than 5) the epochSlotsContainer must be offset
+    /// to properly align the Timeline line at the bottom.
+    /// </summary>
+    private static Vector2 _epochSlotsContainerPositionOffset = new(0, 0);
 
     private static readonly FieldInfo? UniqueEpochErasField = AccessTools.Field(typeof(NTimelineScreen), "_uniqueEpochEras");
     private static readonly FieldInfo? EpochSlotContainerField = AccessTools.Field(typeof(NTimelineScreen), "_epochSlotContainer");
@@ -61,24 +69,19 @@ public class AddCustomEpochSlots
 
     private static void CustomEpochEraHandler(NTimelineScreen instance, List<NEraColumn> newlyCreatedColumns)
     {
-        BaseLibMain.Logger.Warn($"Called {nameof(CustomEpochEraHandler)}");
-        BaseLibMain.Logger.Warn($"List count: {newlyCreatedColumns.Count}");
+        BaseLibMain.Logger.VeryDebug($"Called {nameof(CustomEpochEraHandler)}");
 
         if (UniqueEpochErasField is null || EpochSlotContainerField is null) return;
         var uniqueEpochErasObject = UniqueEpochErasField.GetValue(instance);
         var epochSlotContainerObject = EpochSlotContainerField.GetValue(instance);
-        if (uniqueEpochErasObject == null || epochSlotContainerObject == null) return;
         if (uniqueEpochErasObject is not Dictionary<EpochEra, NEraColumn> uniqueEpochEras) return;
         if (epochSlotContainerObject is not HBoxContainer epochSlotContainer) return;
-
-        BaseLibMain.Logger.Warn("Reflection successful");
 
         var customEraColumnData = SortSlotsIntoCustomEraColumns();
 
         var originalNEraColumns = epochSlotContainer.GetChildren().OfType<NEraColumn>().ToList();
         var ourCustomColumns = new Dictionary<EpochEra, CustomEpochEra>();
 
-        // For every column we have
         foreach (var columnData in customEraColumnData)
         {
             var customEpochEra = columnData.CustomEpochEra.CustomEra;
@@ -97,13 +100,13 @@ public class AddCustomEpochSlots
                     var newNEraColumn = NEraColumn.Create(columnData.EpochSlotData[epochSlotDataIndex]);
                     ourCustomColumns.Add(columnData.CustomEpochEra.CustomEra, columnData.CustomEpochEra);
 
-                    // is being modified so grab it again every time
+                    // children are being modified so grab it again every time
                     var nEraColumns = epochSlotContainer.GetChildren().OfType<NEraColumn>().ToList();
 
                     var validEraEntryPoint = FindValidCustomEraEntryPoint(nEraColumns, customEpochModel, columnData, originalNEraColumns);
+                    BaseLibMain.Logger.Debug($"ValidEraEntryPoint: Direction={validEraEntryPoint.RelativeInsertDirection} | Index={validEraEntryPoint.NEraColumnIndex} | Depth={validEraEntryPoint.PositionDepth}");
 
-                    BaseLibMain.Logger.Info($"FirstIndex: {validEraEntryPoint.NEraColumnIndex.ToString()}");
-
+                    // Insert custom era
                     var searchBefore = validEraEntryPoint.RelativeInsertDirection == RelativeEraDirection.Before;
                     var curDepth = searchBefore ? -1 : 1;
                     var curIndex = validEraEntryPoint.NEraColumnIndex + curDepth;
@@ -136,18 +139,25 @@ public class AddCustomEpochSlots
             }
         }
 
-        // I originally wanted to do this by referencing the state before and after inserting the custom epochs, but the container has not yet updated its size
-        // so instead we do it manually
+        // I originally wanted to do this by referencing the state before and after inserting the custom epochs,
+        // but the container has not yet updated its size, so instead we do it manually
         var largestEpochCount = epochSlotContainer.GetChildren().OfType<NEraColumn>().ToList().Select(nEraColumn => nEraColumn.GetChildCount() - 1).Prepend(0).Max();
         var overCount = largestEpochCount - 5;
         if (overCount <= 0) return;
         const float epochSize = -24f;
         const float spacing = -32f;
-        _originalEpochSlotsContainerPosition = new Vector2(0, overCount * epochSize + (overCount - 1) * spacing);
-        epochSlotContainer.Position += _originalEpochSlotsContainerPosition;
+        _epochSlotsContainerPositionOffset = new Vector2(0, overCount * epochSize + (overCount - 1) * spacing);
+        epochSlotContainer.Position += _epochSlotsContainerPositionOffset;
     }
 
-
+    /// <summary>
+    /// Finds a new entry point that keeps the expected position of the custom era in the Timeline the same. <br/>
+    /// Eras are only added to the Timeline if at least one Epoch from it is visible.
+    /// This means our reference Era might not exist. <br/>
+    /// During Timeline unlocks custom eras might misalign when new base eras get added. This is fixed automatically when
+    /// exiting and re-entering the Timeline. -> Not worth fixing.
+    /// </summary>
+    /// <returns>Tuple of relevant information to place custom era in Timeline</returns>
     private static (RelativeEraDirection RelativeInsertDirection, int PositionDepth, int NEraColumnIndex)
                 FindValidCustomEraEntryPoint(List<NEraColumn> nEraColumns, CustomEpochModel customEpochModel,
                             CustomEraColumnData columnData, List<NEraColumn> originalNEraColumns)
@@ -200,7 +210,7 @@ public class AddCustomEpochSlots
 
             if (columns.Any(c => c.CustomEpochEra == customEpochModel.CustomEra))
             {
-                var columnData = columns.Where(c => c.CustomEpochEra == customEpochModel.CustomEra).First();
+                var columnData = columns.First(c => c.CustomEpochEra == customEpochModel.CustomEra);
                 columnData.EpochSlotData.Add(epochSlotData);
                 columnData.CustomEpochs.Add(customEpochModel);
             }
@@ -331,11 +341,11 @@ public class AddCustomEpochSlots
         [HarmonyPatch(typeof(NTimelineScreen), "ResetScreen")]
         private static void ResetEpochSlotContainerPosition(NTimelineScreen __instance)
         {
-            if (_originalEpochSlotsContainerPosition == new Vector2(0, 0)) return;
+            if (_epochSlotsContainerPositionOffset == new Vector2(0, 0)) return;
             var epochSlotContainerObject = EpochSlotContainerField?.GetValue(__instance);
             if (epochSlotContainerObject is not HBoxContainer epochSlotContainer) return;
-            epochSlotContainer.Position -= _originalEpochSlotsContainerPosition;
-            _originalEpochSlotsContainerPosition = new Vector2(0, 0);
+            epochSlotContainer.Position -= _epochSlotsContainerPositionOffset;
+            _epochSlotsContainerPositionOffset = new Vector2(0, 0);
         }
     }
 }

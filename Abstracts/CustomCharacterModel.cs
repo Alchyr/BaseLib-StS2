@@ -258,20 +258,21 @@ public abstract class CustomCharacterModel : CharacterModel, ICustomModel, ILoca
     {
         // We check it every NMainMenu load because of profile switching, deletion, importing
         // TODO: There might be a better place to hook this up to. -> Run once on game start and then only when profile changes
+        // It is a likely scenario that anyone installing mods already has a save file with NeowEpoch unlocked.
+        // So we check for that and unlock the character epoch immediately.
         [HarmonyPatch(typeof(NMainMenu), nameof(NMainMenu._Ready))]
         [HarmonyPrefix]
         private static void CheckUnlockConditions()
         {
             if (!SaveManager.Instance.IsEpochRevealed<NeowEpoch>()) return;
             foreach (var epochModel in CustomContentDictionary.CustomCharacters
-                                 .Where(c => c.UnlockEpoch is not null && c.UnlocksAfterRunAs is null)
+                                 .Where(c => c.UnlockEpoch is not null && c.UnlocksAfterRunAs is null or Ironclad)
                                  .Select(c => c.UnlockEpoch))
             {
                 if (SaveManager.Instance.IsEpochRevealed(epochModel!.Id) 
                     || SaveManager.Instance.Progress.IsEpochObtained(epochModel.Id)) continue;
                 SaveManager.Instance.ObtainEpochOverride(epochModel.Id, EpochState.Obtained);
             }
-              
         }
     }
     

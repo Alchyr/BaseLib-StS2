@@ -11,7 +11,7 @@ namespace BaseLib.Abstracts;
 
 
 /// <summary>
-/// These are not stored in <see cref="ModelDb"/>
+/// Despite the name these are not stored in <see cref="ModelDb"/>
 /// </summary>
 public abstract class CustomStoryModel : StoryModel, ICustomModel
 {
@@ -28,16 +28,16 @@ public abstract class CustomStoryModel : StoryModel, ICustomModel
     /// <summary>
     /// Should only be called once from <seealso cref="PostModInitPatch"/>
     /// </summary>
-    public static void FillStoryDictionary(List<CustomStoryModel> models)
+    internal static void FillStoryDictionaries(List<CustomStoryModel> models)
     {
-        BaseLibMain.Logger.Info("Inserting CustomStories into dictionary");
+        BaseLibMain.Logger.Info("Inserting CustomStories into dictionaries");
         var storyTypeDictionary = (AccessTools.Field(typeof(StoryModel), "_storyTypeDictionary").GetValue(null) as Dictionary<string, Type>)!;
         foreach (var customStoryModel in models)
         {
             var type = customStoryModel.GetType();
             BaseLibMain.Logger.Debug($"CustomStory Type: {type.Name} | Id: {customStoryModel.Id} | Saved in dict as: {StringHelper.Slugify(customStoryModel.Id)}");
             CustomContentDictionary.AddStory(customStoryModel);
-            // slugify it to match what the game does for lookup even if it currently removes the prefix -
+            // slugify it to match what the game does for lookup even if it currently removes the prefix '-'
             storyTypeDictionary[StringHelper.Slugify(customStoryModel.Id)] = type;
         }
     }

@@ -10,8 +10,12 @@ using MegaCrit.Sts2.Core.Timeline;
 
 namespace BaseLib.Abstracts;
 
-
-
+// Has no entry in CustomContentDictionary since "EpochEra" is actually just an Enum
+// and this class exists only to hold all information needed to bypass a lot of
+// base games assumptions on how to set eras up.
+/// <summary>
+/// Setup for a custom era column. Still requires a "[CustomEnum] EpochEra" for dictionary entry
+/// </summary>
 public abstract class CustomEpochEra
 {
     /// <summary>
@@ -27,6 +31,13 @@ public abstract class CustomEpochEra
     /// The direction in which the custom era will be inserted.
     /// </summary>
     public abstract RelativeEraDirection Direction { get; }
+    
+    
+    // Duplicate numbers from different mods (or the same mod) won't cause any issues here.
+    // They will simply be placed next to each other in a random order.
+    // If a mod creator wants to make sure their eras are directly next to each other without
+    // eras from a different mod mixed in, just pick a random starting number.
+    // E.g. Don't use 0,1,2 but -300,-299,-298 or 3247822, 3247823, 3247824.
     /// <summary>
     /// Used for ordering multiple custom eras at the same <see cref="ReferenceEra">Reference Era</see> and <seealso cref="Direction"/>.
     /// Larger numbers are further away from the reference era.
@@ -58,7 +69,6 @@ public abstract class CustomEpochEra
         [HarmonyPatch(typeof(NEraColumn), nameof(NEraColumn.Init))]
         private static void ReplaceIconForCustomEraColumn(NEraColumn __instance, EpochSlotData epochSlot)
         {
-            BaseLibMain.Logger.Info("ReplaceIconForCustomEraColumn");
             // We assume in a custom Era can only be CustomEpochs
             if (epochSlot.Model is not CustomEpochModel customEpochModel) return;
             if (customEpochModel.CustomEra is null) return;
@@ -69,7 +79,6 @@ public abstract class CustomEpochEra
             if (textureRect.Texture is null)
                 textureRect.Visible = true; // set to false at some point if the original method cant get a proper texture
             textureRect.Texture = customEpochModel.CustomEra.EraIconTexture;
-            BaseLibMain.Logger.Info($"{textureRect.Texture.ResourcePath}");
             if (customEpochModel.CustomEra.UseOriginalImageSize)
             {
                 var originalSize = customEpochModel.CustomEra.EraIconTexture.GetSize();

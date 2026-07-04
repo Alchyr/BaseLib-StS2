@@ -10,6 +10,7 @@ using HarmonyLib;
 using MegaCrit.Sts2.Core.Helpers;
 using MegaCrit.Sts2.Core.Localization;
 using MegaCrit.Sts2.Core.Modding;
+using MegaCrit.Sts2.Core.Multiplayer.Serialization;
 using MegaCrit.Sts2.Core.Saves.Runs;
 using MegaCrit.Sts2.Core.Timeline;
 using SmartFormat;
@@ -143,7 +144,10 @@ class PostModInitPatch
 
     private static void InsertEpochSystemRelevantInformationIntoDictionaries()
     {
-        CustomStoryModel.FillStoryDictionary(ReflectionUtils.GetListOfInstantiatedSubclasses<CustomStoryModel>());
-        CustomEpochModel.FillEpochDictionaries(ReflectionUtils.GetListOfInstantiatedSubclasses<CustomEpochModel>());
+        CustomStoryModel.FillStoryDictionaries(ReflectionUtils.GetListOfInstantiatedSubclassesFromAllAssemblies<CustomStoryModel>());
+        CustomEpochModel.FillEpochDictionaries(ReflectionUtils.GetListOfInstantiatedSubclassesFromAllAssemblies<CustomEpochModel>());
+        
     }
+    
+    
 }

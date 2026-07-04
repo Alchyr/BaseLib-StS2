@@ -430,15 +430,20 @@ public class EpochModelCustomEpochsPatch
 { 
     [HarmonyPatch(typeof(EpochModel), nameof(EpochModel.AllEpochIds), MethodType.Getter)]
     [HarmonyPostfix] 
-    private static void InsertEpochIds(EpochModel __instance, ref IReadOnlyList<string> __result)
+    private static void InsertEpochIds(ref IReadOnlyList<string> __result)
     {
         __result = [.. __result, .. CustomContentDictionary.CustomEpochs.Select(x => x.Id)];
     }
     
-    [HarmonyPatch(typeof(EpochModel), nameof(EpochModel.AllEpochs), MethodType.Getter)]
-    [HarmonyPostfix] 
-    private static void InsertEpochTypes(EpochModel __instance, ref IReadOnlyList<Type> __result)
-    {
-        __result = [.. __result, .. CustomContentDictionary.CustomEpochs.Select(x => x.GetType())];
-    }
+    // Not needed anymore.
+    // The reason for this is that when 'ModelIdSerializationCache' Initializes, this harmony patch isn't
+    // running yet.
+    // So instead we insert them during PostModInit directly into the _allEpochs list.
+    
+    // [HarmonyPatch(typeof(EpochModel), nameof(EpochModel.AllEpochs), MethodType.Getter)]
+    // [HarmonyPostfix] 
+    // private static void InsertEpochTypes(ref IReadOnlyList<Type> __result)
+    // { 
+    //     __result = [.. __result, .. CustomContentDictionary.CustomEpochs.Select(x => x.GetType())];
+    // }
 }
