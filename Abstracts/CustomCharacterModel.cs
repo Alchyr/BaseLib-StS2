@@ -258,20 +258,48 @@ public abstract class CustomCharacterModel : CharacterModel, ICustomModel, ILoca
     {
         // We check it every NMainMenu load because of profile switching, deletion, importing
         // TODO: There might be a better place to hook this up to. -> Run once on game start and then only when profile changes
-        // It is a likely scenario that anyone installing mods already has a save file with NeowEpoch unlocked.
+        // It is a likely scenario that anyone installing mods already has a save file with epochs unlocked.
         // So we check for that and unlock the character epoch immediately.
         [HarmonyPatch(typeof(NMainMenu), nameof(NMainMenu._Ready))]
         [HarmonyPrefix]
         private static void CheckUnlockConditions()
         {
-            if (!SaveManager.Instance.IsEpochRevealed<NeowEpoch>()) return;
-            foreach (var epochModel in CustomContentDictionary.CustomCharacters
-                                 .Where(c => c.UnlockEpoch is not null && c.UnlocksAfterRunAs is null or Ironclad)
-                                 .Select(c => c.UnlockEpoch))
+            foreach (var characterModel in CustomContentDictionary.CustomCharacters
+                                 .Where(c => c.UnlockEpoch is not null))
             {
-                if (SaveManager.Instance.IsEpochRevealed(epochModel!.Id) 
-                    || SaveManager.Instance.Progress.IsEpochObtained(epochModel.Id)) continue;
-                SaveManager.Instance.ObtainEpochOverride(epochModel.Id, EpochState.Obtained);
+                if(SaveManager.Instance.IsEpochRevealed(characterModel.UnlockEpoch!.Id) 
+                   || SaveManager.Instance.Progress.IsEpochObtained(characterModel.UnlockEpoch!.Id)) continue;
+                
+                switch (characterModel.UnlocksAfterRunAs)
+                {
+                    case null:
+                    case Ironclad:
+                        if(SaveManager.Instance.IsEpochRevealed<NeowEpoch>())
+                            SaveManager.Instance.ObtainEpochOverride(characterModel.UnlockEpoch!.Id, EpochState.Obtained);
+                        break;
+                    case Silent:
+                        if(SaveManager.Instance.IsEpochRevealed<Silent1Epoch>())
+                            SaveManager.Instance.ObtainEpochOverride(characterModel.UnlockEpoch!.Id, EpochState.Obtained);
+                        break;
+                    case Regent:
+                        if(SaveManager.Instance.IsEpochRevealed<Regent1Epoch>())
+                            SaveManager.Instance.ObtainEpochOverride(characterModel.UnlockEpoch!.Id, EpochState.Obtained);
+                        break;
+                    case Necrobinder:
+                        if(SaveManager.Instance.IsEpochRevealed<Necrobinder1Epoch>())
+                            SaveManager.Instance.ObtainEpochOverride(characterModel.UnlockEpoch!.Id, EpochState.Obtained);
+                        break;
+                    case Defect:
+                        if(SaveManager.Instance.IsEpochRevealed<Defect1Epoch>())
+                            SaveManager.Instance.ObtainEpochOverride(characterModel.UnlockEpoch!.Id, EpochState.Obtained);
+                        break;
+                }
+
+                if (characterModel.UnlocksAfterRunAs is not CustomCharacterModel unlocksAfterCustomCharacter)
+                    continue;
+                if(unlocksAfterCustomCharacter.UnlockEpoch is not null 
+                   && SaveManager.Instance.IsEpochRevealed(unlocksAfterCustomCharacter.UnlockEpoch.Id))
+                    SaveManager.Instance.ObtainEpochOverride(characterModel.UnlockEpoch!.Id, EpochState.Obtained);
             }
         }
     }
