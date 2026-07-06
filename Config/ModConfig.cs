@@ -60,7 +60,8 @@ public abstract partial class ModConfig
     private bool _savingDisabled;
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
     private CancellationTokenSource? _saveDebounceToken;
-    private readonly SemaphoreSlim _saveLock = new SemaphoreSlim(1, 1);
+    private readonly SemaphoreSlim _configFileLock = new SemaphoreSlim(1, 1);
+    private readonly Lock _debounceLock = new();
 
     protected readonly List<PropertyInfo> ConfigProperties = [];
     private readonly Dictionary<string, object?> _defaultValues = new();
@@ -249,22 +250,31 @@ public abstract partial class ModConfig
     {
         try
         {
-            // Cancel the previous request, if any, prior to replacing it
-            _saveDebounceToken?.Cancel();
-            _saveDebounceToken?.Dispose();
+            // Cancel the previous request, if any, prior to replacing it; lock to prevent a race condition
+            // when SaveDebounced is called from multiple threads simultaneously
+            CancellationToken token;
+            lock (_debounceLock)
+            {
+                _saveDebounceToken?.Cancel();
+                _saveDebounceToken = new CancellationTokenSource();
+                token = _saveDebounceToken.Token;
+            }
 
-            _saveDebounceToken = new CancellationTokenSource();
-            var token = _saveDebounceToken.Token;
             await Task.Delay(delayMs, token);
 
-            await _saveLock.WaitAsync(token);
+            if (!await _configFileLock.WaitAsync(TimeSpan.FromSeconds(3), token))
+            {
+                BaseLibMain.Logger.Warn($"Timed out waiting for {_modConfigName} save lock in SaveDebounced; skipping save");
+                return;
+            }
+
             try
             {
-                Save();
+                SaveInternal();
             }
             finally
             {
-                _saveLock.Release();
+                _configFileLock.Release();
             }
         }
         catch (OperationCanceledException)
@@ -281,9 +291,20 @@ public abstract partial class ModConfig
     /// Immediately save the current configuration to disk. Prefer using <see cref="SaveDebounced"/> (on the instance or
     /// its static variant) instead unless you absolutely must save *now*. Indeed, using SaveDebounced(0) is likely still
     /// better than calling this directly.<br/>
-    /// Using both is not recommended and may cause issues with locking/hangs.
     /// </summary>
     public void Save()
+    {
+        if (!_configFileLock.Wait(TimeSpan.FromSeconds(3)))
+        {
+            BaseLibMain.Logger.Warn($"Timed out waiting to save config {_modConfigName}.");
+            return;
+        }
+
+        try { SaveInternal(); }
+        finally { _configFileLock.Release(); }
+    }
+
+    private void SaveInternal()
     {
         if (_savingDisabled)
         {
@@ -351,6 +372,24 @@ public abstract partial class ModConfig
 
     public void Load()
     {
+        if (!_configFileLock.Wait(TimeSpan.FromSeconds(3)))
+        {
+            BaseLibMain.Logger.Warn($"Timed out waiting to load config {_modConfigName}.");
+            return;
+        }
+
+        try
+        {
+            LoadInternal();
+        }
+        finally
+        {
+            _configFileLock.Release();
+        }
+    }
+
+    private void LoadInternal()
+    {
         if (!File.Exists(_path))
         {
             ModConfigLogger.Error($"Load for {_modConfigName} failed. File not found: {_path}");
@@ -414,11 +453,11 @@ public abstract partial class ModConfig
             return;
         }
 
-        if (hasSoftErrors && !_savingDisabled)
-        {
-            ModConfigLogger.Warn($"Saving fresh config for {_modConfigName} to correct soft errors (missing fields, invalid fields).");
-            Save();
-        }
+        if (!hasSoftErrors) return;
+
+        // If we got here via Load() we hold _configFileLock, so we can't call Save() here, or it will deadlock
+        ModConfigLogger.Warn($"Saving fresh config for {_modConfigName} to correct soft errors (missing fields, invalid fields).");
+        SaveInternal();
     }
 
     // Convert a single value and update the property. Return true on success, false on failure.
