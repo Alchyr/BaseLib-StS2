@@ -57,20 +57,22 @@ class AddSubtypesToTypePlaquePatch
             locStringList = locStringList.Concat(visualCardSubtypeSource.GetTypeModifiers(card));
         }
 
-        // Finally apply all gathered modifiers to the original plaque text
+        // Split modifiers by whether they reference the original type
+        var lookup = locStringList.ToLookup(locString => locString.GetRawText().Contains("{" + ArgName + "}"));
+
+        foreach (var locString in lookup[false])
+        {
+            // Modifiers that do NOT reference the original text should just replace it (race conditions be damned)
+            originalPlaqueText = locString;
+        }
+
+        // Finally, process modifiers that DO reference the original type
         var previousTypeText = originalPlaqueText;
 
-        foreach (var locString in locStringList)
+        foreach (var locString in lookup[true])
         {
-            if (locString.GetRawText().Contains("{"+ArgName+"}"))
-            {
-                locString.Add(ArgName, previousTypeText);
-                previousTypeText = locString;
-            }
-            else
-            {
-                previousTypeText.Add(ArgName, locString);
-            }
+            locString.Add(ArgName, previousTypeText);
+            previousTypeText = locString;
         }
 
         // And return
