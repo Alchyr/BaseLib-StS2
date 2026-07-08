@@ -111,14 +111,10 @@ public static class ModCardHandOutlineRegistry
     /// <returns><see langword="true" /> if a rule was applied.</returns>
     public static bool TryRefreshOutlineForHolder(NHandCardHolder? holder)
     {
-        if (holder == null || !holder.IsNodeReady() || holder.CardNode?.Model is not { } model)
+        if (!ModCardHandOutlinePatchHelper.TryGetRule(holder, out var model, out var rule))
             return false;
 
-        var rule = EvaluateBest(model);
-        if (!rule.HasValue)
-            return false;
-
-        ModCardHandOutlinePatchHelper.ApplyHighlight(holder, model, rule.Value);
+        ModCardHandOutlinePatchHelper.ApplyHighlight(holder, model, rule);
         return true;
     }
 
@@ -127,14 +123,11 @@ public static class ModCardHandOutlineRegistry
     /// </summary>
     public static bool TryRefreshDynamicOutlineForHolder(NHandCardHolder? holder)
     {
-        if (holder == null || !holder.IsNodeReady() || holder.CardNode?.Model is not { } model)
+        if (!ModCardHandOutlinePatchHelper.TryGetRule(holder, out var model, out var rule) ||
+            rule.DynamicColor == null)
             return false;
 
-        var rule = EvaluateBest(model);
-        if (!rule.HasValue || rule.Value.DynamicColor == null)
-            return false;
-
-        ModCardHandOutlinePatchHelper.ApplyHighlight(holder, model, rule.Value);
+        ModCardHandOutlinePatchHelper.ApplyHighlight(holder, model, rule);
         return true;
     }
 
