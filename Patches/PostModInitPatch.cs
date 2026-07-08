@@ -10,7 +10,7 @@ using HarmonyLib;
 using MegaCrit.Sts2.Core.Helpers;
 using MegaCrit.Sts2.Core.Localization;
 using MegaCrit.Sts2.Core.Modding;
-using MegaCrit.Sts2.Core.Multiplayer.Serialization;
+using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Saves.Runs;
 using MegaCrit.Sts2.Core.Timeline;
 using SmartFormat;
@@ -24,19 +24,20 @@ namespace BaseLib.Patches;
 //TODO - If no mods that modify gameplay and use baselib as a dependency are enabled, exclude basemod models from database?
 //This would allow features like vitality to be merged.
 
-[HarmonyPatch(typeof(LocManager), nameof(LocManager.Initialize))]
+[HarmonyPatch] 
 class PostModInitPatch
 {
-    private static bool _initialized = false;
+    private static bool _earlyInit = false, _lateInit = false;
     public static bool CanModifyGameplay { get; private set; } = false;
 
+    [HarmonyPatch(typeof(LocManager), nameof(LocManager.Initialize))] 
     [HarmonyPrefix]
-    private static void PostModInit()
+    private static void EarlyPostInit()
     {
-        if (_initialized) return;
-        _initialized = true;
-
-        BaseLibMain.Logger.Info("Performing post-mod init patch");
+        if (_earlyInit) return;
+        _earlyInit = true;
+        
+        BaseLibMain.Logger.Info("Performing early post-mod init");
 
         foreach (var mod in ModManager.GetLoadedMods())
         {
@@ -58,7 +59,8 @@ class PostModInitPatch
             //Register custom save data.
             CardModifier.RegisterSave();
         }
-
+        
+        //Loads custom message types into custom message type maps
         CustomMessageWrapper.Initialize();
         CustomTargetedMessageWrapper.Initialize();
 
@@ -87,7 +89,24 @@ class PostModInitPatch
                     BaseLibMain.Logger.Error($"Exception occurred adding format specifier {type}; {e}");
                 }
             }
+        }
+    }
 
+
+    /// <summary>
+    /// After SavedPropertiesTypeCache is initialized.
+    /// </summary>
+    [HarmonyPatch(typeof(ModelDb), nameof(ModelDb.InitIds))]
+    [HarmonyPrefix]
+    private static void LatePostInit()
+    {
+        if (_lateInit) return;
+        _lateInit = true;
+        
+        BaseLibMain.Logger.Info("Performing late post-mod init");
+        
+        foreach (var type in ReflectionHelper.ModTypes)
+        {
             bool hasSavedProperty = false;
             foreach (var prop in type.GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
             {
@@ -117,12 +136,17 @@ class PostModInitPatch
                 CheckSpecialSpireField(field);
             }
 
+            //TODO - Remove on next beta->main merge; SavedPropertiesTypeCache already loads modded types.
             if (hasSavedProperty)
             {
+                if (SavedPropertiesTypeCache._cache.Count == 0)
+                {
+                    BaseLibMain.Logger.Warn("Adding saved properties too early; type cache is still empty.");
+                }
+                
                 SavedPropertiesTypeCache.InjectTypeIntoCache(type);
             }
         }
-
         SavedSpireFieldPatch.AddFieldsSorted();
     }
 

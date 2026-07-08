@@ -120,7 +120,7 @@ public static class CommonActions
                 case TargetType.RandomEnemy:
                     var combatStateB = card.CombatState;
                     if (combatStateB == null) return cmd;
-                    cmd.TargetingAllOpponents(combatStateB);
+                    cmd.TargetingRandomOpponents(combatStateB);
                     break;
                 default:
                     throw new Exception($"Unsupported AttackCommand target type {card.TargetType} for card {card.Title}");

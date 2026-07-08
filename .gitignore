@@ -15,3 +15,4 @@ build/BaseLib.pck
 *.import
 .vscode/*
 /.dotnet
+.directory

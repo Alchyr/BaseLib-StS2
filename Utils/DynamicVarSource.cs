@@ -47,7 +47,7 @@ public sealed class DynamicVarSource()
         return new DynamicVarSource
         {
             DynamicVars = power.DynamicVars,
-            Owner = power.Owner,
+            Owner = power is { IsMutable: true, Owner: not null } ? power.Owner : null,
             Power = power
         };
     }
@@ -66,7 +66,7 @@ public sealed class DynamicVarSource()
         return new DynamicVarSource
         {
             DynamicVars = enchant.DynamicVars,
-            Owner = enchant.Card.IsMutable ? enchant.Card.Owner.Creature : null,
+            Owner = enchant is { IsMutable: true, Card: not null, Card.IsMutable: true, Card.Owner: not null } ? enchant.Card.Owner.Creature : null,
             Card = enchant.Card
         };
     }
