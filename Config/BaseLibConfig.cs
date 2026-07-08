@@ -9,6 +9,11 @@ internal class BaseLibConfig : SimpleModConfig
     // Should likely be at the top, as an easy and obvious opt-out
     public static bool ShowModConfigInMainMenu { get; set; } = true;
 
+    [ConfigSection("GeneralSettings")]
+
+    [ConfigSlider(1, 64)]
+    public static int SfxPlayerLimit { get; set; } = 16;
+    
     [ConfigSection("LogSection")]
     public static bool OpenLogWindowOnStartup { get; set; } = false;
     public static bool OpenLogWindowOnError { get; set; } = false;
@@ -19,11 +24,15 @@ internal class BaseLibConfig : SimpleModConfig
     [ConfigSlider(8, 48)]
     public static int LogFontSize { get; set; } = 14;
 
-    [ConfigSection("GeneralSettings")]
-    public static bool ShowModSourceTooltip { get; set; } = true;
-
-    [ConfigSlider(1, 64)]
-    public static int SfxPlayerLimit { get; set; } = 16;
+    [ConfigSection("WhatModSection")]
+    public static bool IncludeModId { get; set; } = true;
+    public static bool ShowCardModSource { get; set; } = false;
+    public static bool ShowRelicModSource { get; set; } = true;
+    public static bool ShowPotionModSource { get; set; } = true;
+    public static bool ShowAncientModSource { get; set; } = true;
+    public static bool ShowEventModSource { get; set; } = true;
+    public static bool ShowMonsterModSource { get; set; } = true;
+    public static bool ShowCombatElementModSource { get; set; } = false;
 
     [ConfigSection("HarmonyDumpSection")]
     [ConfigTextInput(MaxLength = 1024)]

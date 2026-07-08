@@ -8,7 +8,7 @@ using MegaCrit.Sts2.Core.Localization;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Nodes.Events;
 
-namespace BaseLib.Patches.Localization;
+namespace BaseLib.Patches.UI;
 
 /// <summary>
 /// Events have no hover tip, so for modded events the source mod is shown as a small corner label
@@ -27,19 +27,16 @@ public static class EventSourceLabel
 
         var existing = __instance.GetNodeOrNull<MegaLabel>(LabelName);
 
-        var name = BaseLibConfig.ShowModSourceTooltip ? WhatMod.FindModName(eventModel.GetType()) : null;
+        var name = BaseLibConfig.ShowEventModSource ? WhatMod.FindModName(eventModel.GetType()) : null;
         if (name == null)
         {
             existing?.QueueFree();
             return;
         }
 
-        var title = new LocString("gameplay_ui", "BASELIB-MOD_SOURCE.title").GetFormattedText();
-        var text = $"{title}: {name}";
-
         if (existing != null)
         {
-            existing.SetTextAutoSize(text);
+            existing.SetTextAutoSize(name);
             return;
         }
 
@@ -58,7 +55,7 @@ public static class EventSourceLabel
         label.AddThemeColorOverride("font_color", StsColors.cream);
         label.AddThemeColorOverride("font_outline_color", Colors.Black with { A = 0.55f });
         label.AddThemeConstantOverride("outline_size", 6);
-        label.SetTextAutoSize(text);
+        label.SetTextAutoSize(name);
         __instance.AddChild(label);
 
         // Pin to the bottom-left of the screen with equal margins, using global coordinates so the

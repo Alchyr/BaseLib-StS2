@@ -8,7 +8,7 @@ using MegaCrit.Sts2.Core.Localization;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Nodes;
 
-namespace BaseLib.Patches.Localization;
+namespace BaseLib.Patches.UI;
 
 /// <summary>
 /// Ancient events show their name as a banner instead of a hover tip. For modded ancients the source
@@ -29,7 +29,7 @@ public static class AncientSourceLabel
         await original;
 
         if (!GodotObject.IsInstanceValid(banner)) return;
-        if (!BaseLibConfig.ShowModSourceTooltip) return;
+        if (!BaseLibConfig.ShowAncientModSource) return;
 
         var ancient = Traverse.Create(banner).Field("_ancient").GetValue<AncientEventModel>();
         if (ancient == null) return;
@@ -39,8 +39,6 @@ public static class AncientSourceLabel
 
         var epithet = banner.GetNodeOrNull<MegaLabel>("%Epithet");
         if (epithet == null || epithet.GetNodeOrNull(LabelName) != null) return;
-
-        var title = new LocString("gameplay_ui", "BASELIB-MOD_SOURCE.title").GetFormattedText();
 
         // Child of the now-settled epithet, so it follows its final position and 0.5 fade-in.
         var label = new MegaLabel
@@ -60,7 +58,7 @@ public static class AncientSourceLabel
         if (font != null) label.AddThemeFontOverride("font", font);
         label.AddThemeColorOverride("font_color", StsColors.cream);
         label.AddThemeColorOverride("font_outline_color", Colors.Transparent);
-        label.SetTextAutoSize($"{title}: {name}");
+        label.SetTextAutoSize($"{name}");
         epithet.AddChild(label);
     }
 }

@@ -36,6 +36,8 @@ class PostModInitPatch
         _earlyInit = true;
         
         BaseLibMain.Logger.Info("Performing early post-mod init");
+        
+        WhatMod.BuildAfterInit();
 
         foreach (var mod in ModManager.GetLoadedMods())
         {
