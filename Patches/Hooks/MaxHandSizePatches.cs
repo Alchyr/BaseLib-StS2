@@ -65,14 +65,27 @@ public static class MaxHandSizePatch
     /// <returns>The calculated max hand size.</returns>
     public static int GetMaxHandSize(Player player, int baseLimit)
     {
-        var combatState = player.Creature.CombatState;
-        if (combatState == null)
+        var runState = player.RunState ?? NullRunState.Instance;
+        var combatState = BetaMainCompatibility.Creature_.CombatState.Get(player.Creature);
+
+        var amount = baseLimit;
+        var list = new List<IMaxHandSizeModifier>();
+
+        foreach (var modifier in BetaMainCompatibility.RunState.IterateHookListeners.Invoke<IEnumerable<AbstractModel>>(runState, combatState)
+                                 ?? throw new InvalidOperationException("Failed to invoke IterateHookListeners properly"))
         {
-            return Math.Max(0, baseLimit);
+            if (modifier is IMaxHandSizeModifier maxHandSizeModifier)
+            {
+                list.Add(maxHandSizeModifier);
+                amount = maxHandSizeModifier.ModifyMaxHandSize(player, amount);
+            }
         }
-        var modifiers = combatState.IterateHookListeners().OfType<IMaxHandSizeModifier>().ToList();
-        var amount = modifiers.Aggregate(baseLimit, (current, mod) => mod.ModifyMaxHandSize(player, current));
-        amount = modifiers.Aggregate(amount, (current, mod) => mod.ModifyMaxHandSizeLate(player, current));
+
+        foreach (var modifier in list)
+        {
+            amount = modifier.ModifyMaxHandSizeLate(player, amount);
+        }
+
         return Math.Max(0, amount);
     }
 
