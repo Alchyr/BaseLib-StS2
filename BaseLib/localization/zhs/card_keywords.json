@@ -1,4 +1,6 @@
 {
   "BASELIB-PURGE.title": "即逝",
-  "BASELIB-PURGE.description": "从战斗和你的[gold]牌组[/gold]中永久移除。"
+  "BASELIB-PURGE.description": "从战斗和你的[gold]牌组[/gold]中永久移除。",
+  "BASELIB-TEMP_HP.title": "临时生命",
+  "BASELIB-TEMP_HP.description": "在损失生命值之前吸收伤害，即使是无视[gold]格挡[/gold]的伤害。战斗结束时消失。"
 }

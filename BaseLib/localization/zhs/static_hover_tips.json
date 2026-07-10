@@ -4,5 +4,7 @@
   "BASELIB-EXHAUSTIVE.title": "耐久",
   "BASELIB-EXHAUSTIVE.description": "这张牌在被使用 {Exhaustive:cond:>1?[blue]{Exhaustive}[/blue] |}次后会[gold]消耗[/gold]。",
   "BASELIB-REFUND.title": "回能",
-  "BASELIB-REFUND.description": "当此牌花费能量时，返还最多 [blue]{Refund}[/blue] 点能量。"
+  "BASELIB-REFUND.description": "当此牌花费能量时，返还最多 [blue]{Refund}[/blue] 点能量。",
+  "BASELIB-TEMP_HP.title": "临时生命",
+  "BASELIB-TEMP_HP.description": "在损失生命值之前吸收伤害，即使是无视[gold]格挡[/gold]的伤害。战斗结束时消失。"
 }

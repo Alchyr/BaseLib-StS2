@@ -4,5 +4,7 @@
   "BASELIB-EXHAUSTIVE.title": "Угасание",
   "BASELIB-EXHAUSTIVE.description": "Эта карта [gold]сжигается[/gold] после того, как будет разыграна еще {Exhaustive:cond:>1?[blue]{Exhaustive}[/blue] |}{Exhaustive:plural(ru):раз|раза|раз}.",
   "BASELIB-REFUND.title": "Возврат",
-  "BASELIB-REFUND.description": "Когда вы тратите энергию при разыгрывании этой карты, возвращает до [blue]{Refund}[/blue] {energyPrefix:energyIcons(1)} назад."
+  "BASELIB-REFUND.description": "Когда вы тратите энергию при разыгрывании этой карты, возвращает до [blue]{Refund}[/blue] {energyPrefix:energyIcons(1)} назад.",
+  "BASELIB-TEMP_HP.title": "Временное здоровье",
+  "BASELIB-TEMP_HP.description": "Поглощает урон до потери здоровья, даже урон, игнорирующий [gold]блок[/gold]. Исчезает в конце боя."
 }
