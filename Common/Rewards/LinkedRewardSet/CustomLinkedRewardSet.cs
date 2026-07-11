@@ -15,8 +15,13 @@ using MegaCrit.Sts2.Core.Saves.Runs;
 
 namespace BaseLib.Common.Rewards.LinkedRewardSet;
 
+// We do not use BaseGame rewards because they are slightly buggy, and we are providing additional features which is too much work to patch in.
+// May get obsolete once base game fully implements their version of it
 /// <summary>
-/// We do not use BaseGame rewards because they are slightly buggy, and we are providing additional features which is too much work to patch in.
+/// Custom RewardSet for linked rewards. Supports two ways of resolving: <br/>
+/// 1. May choose one or none (Default. Equal to Sts1 behaviour) <br/>
+/// 2. Must choose all or none <br/> <br/>
+/// Do not nest LinkedRewards
 /// </summary>
 public class CustomLinkedRewardSet : CustomReward
 {
@@ -74,19 +79,12 @@ public class CustomLinkedRewardSet : CustomReward
             ParentCustomLinkedRewardSet.Set(reward, this);
     }
     
-    private void RestoreRewards(List<Reward> rewards, LinkedRewardType linkedRewardType)
-    {
-        _rewards = rewards;
-        _linkedRewardType = linkedRewardType;
-        foreach (var reward in _rewards)
-            ParentCustomLinkedRewardSet.Set(reward, this);
-    }
+
 
     public override void Populate()
     {
         foreach (var reward in _rewards)
             reward.Populate();
-        
     }
 
     
@@ -148,12 +146,17 @@ public class CustomLinkedRewardSet : CustomReward
   
 
     
-    // Builds an empty placeholder. 'ExtendedSaveHandlers' existing postfix on
-    // Reward.FromSerializable calls our registered setter right after this returns,
-    // which is what actually fills in _rewards via RestoreRewards.
+
     public static CustomReward CreateFromSerializable(SerializableReward save, Player player)
         => new CustomLinkedRewardSet([], player);
 
+    private void RestoreRewards(List<Reward> rewards, LinkedRewardType linkedRewardType)
+    {
+        _rewards = rewards;
+        _linkedRewardType = linkedRewardType;
+        foreach (var reward in _rewards)
+            ParentCustomLinkedRewardSet.Set(reward, this);
+    }
 
     public override void Initialize()
     {

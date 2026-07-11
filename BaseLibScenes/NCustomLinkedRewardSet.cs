@@ -1,19 +1,19 @@
 ﻿using System.Reflection;
 using System.Reflection.Emit;
-using BaseLib.Abstracts;
 using BaseLib.Common.Rewards.LinkedRewardSet;
 using BaseLib.Utils;
 using Godot;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Assets;
 using MegaCrit.Sts2.Core.Helpers;
-using MegaCrit.Sts2.Core.Multiplayer.Game;
 using MegaCrit.Sts2.Core.Nodes.Rewards;
 using MegaCrit.Sts2.Core.Nodes.Screens;
 using MegaCrit.Sts2.Core.Rewards;
 
 namespace BaseLib.BaseLibScenes;
 
+// Our own linked reward node. The scene is identical to the base games linked rewards scene.
+// But having our own ensures base game changes to linked rewards will not cause issues.
 [GlobalClass]
 public partial class NCustomLinkedRewardSet : Control
 {
@@ -23,8 +23,8 @@ public partial class NCustomLinkedRewardSet : Control
     public delegate void RewardClaimedEventHandler(NCustomLinkedRewardSet customLinkedRewardSet);
 
     /// <summary>
-    /// Similar to <see cref="NRewardButtonEvents"/> only this class uses this. But technically anyone can now make use of the highlighting.
-    /// Including other modders. <br>
+    /// Similar case to <see cref="NRewardButtonEvents"/> only this class uses this. But technically anyone can now make use of the highlighting.
+    /// Including other modders. <br/>
     /// Every NRewardButton gets the highlight node added, not just those used by CustomLinkedRewards.
     /// </summary>
     public static AddedNode<NRewardButton, NRewardHighlight> NHighlights = new((rewardButton) =>
@@ -204,15 +204,13 @@ public static class NCustomLinkedRewardSetPatches
         var nRewardButtonCreate = AccessTools.Method(typeof(NRewardButton), nameof(NRewardButton.Create));
 
         var matcher = new CodeMatcher(instructions)
-                    // Anchor on the unique call that starts the `else` branch:
-                    // option = NRewardButton.Create(item, this);
                     .MatchStartForward(new CodeMatch(OpCodes.Call, nRewardButtonCreate))
                     .ThrowIfInvalid("Could not find NRewardButton.Create call (else-branch start)");
 
-        // Step back to the else-branch's real first instruction: ldloc.s V_7
-        matcher.Advance(-3);
+        
+        matcher.Advance(-3); // Step back to the else-branch's real first instruction: ldloc.s V_7
 
-        var optionField = (FieldInfo)matcher.InstructionAt(4).operand; // grab the real field, no guessing
+        var optionField = (FieldInfo)matcher.InstructionAt(4).operand; // grab the real field
         var endLabel = matcher.InstructionAt(-1).operand; // the preceding br.s's target = IL_037f
 
         // This instruction is the actual jump target for the `if` check (item is LinkedRewardSet == false).
