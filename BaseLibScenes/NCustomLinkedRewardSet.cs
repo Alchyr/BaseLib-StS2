@@ -1,6 +1,7 @@
 ﻿using System.Reflection;
 using System.Reflection.Emit;
 using BaseLib.Abstracts;
+using BaseLib.Utils;
 using Godot;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Assets;
@@ -19,30 +20,56 @@ public partial class NCustomLinkedRewardSet : Control
     [Signal]
     public delegate void RewardClaimedEventHandler(NCustomLinkedRewardSet customLinkedRewardSet);
 
+    /// <summary>
+    /// Similar to <see cref="NRewardButtonEvents"/> only this class uses this. But technically anyone can now make use of the highlighting.
+    /// Including other modders. <br>
+    /// Every NRewardButton gets the highlight node added, not just those used by CustomLinkedRewards.
+    /// </summary>
+    public static AddedNode<NRewardButton, NRewardHighlight> NHighlights = new((rewardButton) =>
+    {
+        var textureRec = new NRewardHighlight();
+        textureRec.Texture = PreloadManager.Cache.GetCompressedTexture2D("res://images/packed/card_template/card_frame_sdf.exr");
+        rewardButton.AddChildSafely(textureRec);
+        rewardButton.MoveChild(textureRec, rewardButton.GetNode("%Background").GetIndex());
+        textureRec.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
+        textureRec.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
+        textureRec.Modulate = new Color("00f4fcfa");
+        textureRec.Scale = new Vector2(1.8f, 0.3f);
+        textureRec.Position = new Vector2(-270f, -33f);
+        textureRec.MouseFilter = MouseFilterEnum.Ignore;
+        return textureRec;
+    });
+
+
     private NRewardsScreen _rewardsScreen;
-
     private Control _rewardContainer;
-
     private Control _chainsContainer;
 
     public CustomLinkedRewardSet CustomLinkedRewardSet { get; private set; }
 
-    //private static string ScenePath => SceneHelper.GetScenePath("/rewards/linked_reward_set");
     private static string ScenePath => $"res://BaseLib/scenes/linked_reward_set.tscn";
+    
+    
+    // The game groups some assets in AssetSets which exists to not clutter PreloadManager. We aren't using it yet.
+    // public static IEnumerable<string> AssetPaths => [ScenePath];
 
-    private static string ChainImagePath => ImageHelper.GetImagePath("/ui/reward_screen/reward_chain.png");
-
-    public static IEnumerable<string> AssetPaths => new string[2] { ScenePath, ChainImagePath };
-
-    private bool _grabbedReward = false;
-    private List<NRewardButton> rewardButtons = new();
+    private bool _signalAlreadyReceived = false;
+    private readonly List<NRewardButton> _rewardButtons = [];
     
     
     public override void _Ready()
     {
         _rewardContainer = GetNode<Control>("%RewardContainer");
         _chainsContainer = GetNode<Control>("%ChainContainer");
+        NRewardButtonEvents.Focused += OnFocused;
+        NRewardButtonEvents.Unfocused += OnUnfocused;
         Reload();
+    }
+
+    public override void _ExitTree()
+    {
+        NRewardButtonEvents.Focused -= OnFocused;
+        NRewardButtonEvents.Unfocused -= OnUnfocused;
     }
 
     public static NCustomLinkedRewardSet Create(CustomLinkedRewardSet linkedReward, NRewardsScreen screen)
@@ -68,43 +95,101 @@ public partial class NCustomLinkedRewardSet : Control
         {
             return;
         }
-        rewardButtons.Clear();
+        _rewardButtons.Clear();
         for (var i = 0; i < CustomLinkedRewardSet.Rewards.Count; i++)
         {
             var reward = CustomLinkedRewardSet.Rewards[i];
             var nRewardButton = NRewardButton.Create(reward, _rewardsScreen);
-            rewardButtons.Add(nRewardButton);
+            _rewardButtons.Add(nRewardButton);
             nRewardButton.CustomMinimumSize -= Vector2.Right * 20f;
             _rewardContainer.AddChildSafely(nRewardButton);
             nRewardButton.Connect(NRewardButton.SignalName.RewardClaimed, Callable.From<NRewardButton>(GetReward));
-            if (i >= CustomLinkedRewardSet.Rewards.Count - 1) continue;
-            var textureRect = new TextureRect();
-            textureRect.MouseFilter = MouseFilterEnum.Ignore;
-            textureRect.Texture = PreloadManager.Cache.GetCompressedTexture2D(ChainImagePath);
-            textureRect.Size = Vector2.One * 50f;
-            _chainsContainer.AddChildSafely(textureRect);
-            textureRect.GlobalPosition = _chainsContainer.GlobalPosition + Vector2.Down * i * (3f + nRewardButton.CustomMinimumSize.Y);
         }
     }
 
+    private void OnFocused(NRewardButton button)
+    {
+        if (!_rewardButtons.Contains(button)) return;
+        switch (CustomLinkedRewardSet.LinkedRewardType)
+        {
+            case LinkedRewardType.Exclusive:
+                foreach (var rewardButton in _rewardButtons)
+                {
+                    var rewardHighlight = NHighlights.Get(rewardButton);
+                    rewardHighlight.AnimShow();
+                    rewardHighlight.Modulate = rewardButton == button ? NRewardHighlight.gold : NRewardHighlight.red;
+                }
+                break;
+            case LinkedRewardType.Bundled:
+                foreach (var rewardHighlight in _rewardButtons.Select(rewardButton => NHighlights.Get(rewardButton)))
+                {
+                    rewardHighlight.AnimShow();
+                    rewardHighlight.Modulate = NRewardHighlight.gold;
+                }
+               
+                break;
+            default:
+                break;
+        }
+       
+    }
+
+    private void OnUnfocused(NRewardButton button)
+    {
+        if (!_rewardButtons.Contains(button)) return;
+        foreach (var rewardButton in _rewardButtons)
+            NHighlights.Get(rewardButton)?.AnimHide();
+    }
+    
     private void GetReward(NRewardButton button)
     {
         if (CustomLinkedRewardSet.LinkedRewardType == LinkedRewardType.Bundled)
         {
-            if (_grabbedReward) return;
-            _grabbedReward = true;
-            rewardButtons.Remove(button);
-            foreach (var rewardButton in rewardButtons)
+            if (_signalAlreadyReceived) return;
+            _signalAlreadyReceived = true;
+            _rewardButtons.Remove(button);
+            foreach (var rewardButton in _rewardButtons)
             {
                 rewardButton.GetReward();
             }
         }
-        //_rewardsScreen.RewardCollectedFrom(this);
         CustomLinkedRewardSet.OnSkipped();
         EmitSignal(RewardClaimedSignalName, this);
         this.QueueFreeSafely();
     }
 }
+
+/// <summary>
+/// Currently only <see cref="NCustomLinkedRewardSet"/> subscribes to these. But technically anyone could subscribe to them. <br/>
+/// If it turns out others will use these, we could also add the "OnPress" and "OnRelease". <br/>
+/// Note that these are invoked after the original method fully ran.
+/// </summary>
+[HarmonyPatch]
+public static class NRewardButtonEvents
+{
+    /// <summary>
+    /// Invoked whenever a NRewardButton gets focused by the player
+    /// </summary>
+    public static event Action<NRewardButton> Focused;
+    /// <summary>
+    /// Invoked whenever a NRewardButton gets unfocused by the player
+    /// </summary>
+    public static event Action<NRewardButton> Unfocused;
+    
+    [HarmonyPatch(typeof(NRewardButton), "OnFocus")]
+    [HarmonyPostfix]
+    private static void OnFocusEvent(NRewardButton __instance)
+    {
+        Focused?.Invoke(__instance);
+    }
+    [HarmonyPatch(typeof(NRewardButton), "OnUnfocus")]
+    [HarmonyPostfix]
+    private static void OnUnfocusEvent(NRewardButton __instance)
+    {
+        Unfocused?.Invoke(__instance);
+    }
+}
+
 
 [HarmonyPatch]
 public static class NCustomLinkedRewardSetPatches

@@ -4,5 +4,10 @@
   "BASELIB-EXHAUSTIVE.title": "Exhaustive",
   "BASELIB-EXHAUSTIVE.description": "This card [gold]Exhausts[/gold] after {Exhaustive:cond:>1?[blue]{Exhaustive}[/blue] |}{Exhaustive:plural:use|uses}.",
   "BASELIB-REFUND.title": "Refund",
-  "BASELIB-REFUND.description": "When energy is spent on this card, up to [blue]{Refund}[/blue] of that energy is refunded."
+  "BASELIB-REFUND.description": "When energy is spent on this card, up to [blue]{Refund}[/blue] of that energy is refunded.",
+  
+  "BASELIB-BUNDLED_REWARDS.title": "Bundled Rewards",
+  "BASELIB-BUNDLED_REWARDS.description": "You can only select [gold]All[/gold] or [gold]No[/gold] reward from this set.",
+  "BASELIB-EXCLUSIVE_REWARDS.title": "Exclusive Rewards",
+  "BASELIB-EXCLUSIVE_REWARDS.description": "You can only select [blue]1[/blue] reward from this set."
 }
