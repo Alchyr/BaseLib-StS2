@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics.CodeAnalysis;
+using BaseLib.Abstracts;
 using BaseLib.Patches.Content;
 using BaseLib.Patches.Saves;
 using BaseLib.Utils;
@@ -6,12 +7,13 @@ using HarmonyLib;
 using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.HoverTips;
 using MegaCrit.Sts2.Core.Localization;
+using MegaCrit.Sts2.Core.Multiplayer.Game;
 using MegaCrit.Sts2.Core.Multiplayer.Serialization;
 using MegaCrit.Sts2.Core.Nodes.Rewards;
 using MegaCrit.Sts2.Core.Rewards;
 using MegaCrit.Sts2.Core.Saves.Runs;
 
-namespace BaseLib.Abstracts;
+namespace BaseLib.Common.Rewards.LinkedRewardSet;
 
 /// <summary>
 /// We do not use BaseGame rewards because they are slightly buggy, and we are providing additional features which is too much work to patch in.
@@ -49,6 +51,11 @@ public class CustomLinkedRewardSet : CustomReward
     private LinkedRewardType _linkedRewardType;
     public LinkedRewardType LinkedRewardType => _linkedRewardType;
     
+    private bool _selectionStarted = false;
+    
+    private Reward? _pendingExclusiveSelection;
+    public void SetPendingExclusiveSelection(Reward chosen) => _pendingExclusiveSelection = chosen;
+
     
     /// <summary>
     /// Exists only for BaseLib Save logic registration. <br/>
@@ -82,9 +89,41 @@ public class CustomLinkedRewardSet : CustomReward
         
     }
 
-    protected override Task<bool> OnSelect()
+    
+    protected override async Task<bool> OnSelect()
     {
-        return Task.FromResult(result: true);
+        if (_selectionStarted) return true;
+        _selectionStarted = true;
+        
+        if (LinkedRewardType == LinkedRewardType.Exclusive)
+        {
+            var chosen = _pendingExclusiveSelection;
+            _pendingExclusiveSelection = null;
+            if (chosen == null)
+            {
+                BaseLibMain.Logger.Error("No Reward selected. Should not happen!");
+                return false;
+            }
+
+            if (!chosen.SuccessfullySelected)
+                await chosen.SelectUnsynchronized();
+
+            foreach (var reward in _rewards.ToList())
+            {
+                if (reward != chosen && !reward.SuccessfullySelected)
+                    reward.OnSkipped();
+            }
+        }
+        if(LinkedRewardType == LinkedRewardType.Bundled)
+        {
+            foreach (var reward in _rewards.ToList())
+            {
+                if (reward.SuccessfullySelected) continue;
+                await reward.SelectUnsynchronized(); // we do only want local machine!
+            }
+        }
+        
+        return true;
     }
 
     public override void MarkContentAsSeen()
@@ -143,27 +182,6 @@ public class CustomLinkedRewardSet : CustomReward
     }
 }
 
-
-/// <summary>
-/// Reward gain rules for the Linked Reward
-/// </summary>
-public enum LinkedRewardType
-{
-    /// <summary>
-    /// Do not use
-    /// </summary>
-    None,
-    /// <summary>
-    /// You may only choose 1 option
-    /// </summary>
-    Exclusive,
-    /// <summary>
-    /// You either choose All or No options
-    /// </summary>
-    Bundled
-}
-
-
 public class SerializableCustomLinkedRewardData : IPacketSerializable
 {
     public List<SerializableReward> Rewards { get; set; } = [];
@@ -202,5 +220,49 @@ public static class CustomLinkedRewardSetPatches
         var list = __result.ToList();
         list.Add(customLinkedRewardSet.HoverTip);
         __result = list;
+    }
+}
+
+
+[HarmonyPatch]
+public static class CustomLinkedRewardSetMultiplayerPatches
+{
+    [HarmonyPatch(typeof(RewardsSetSynchronizer), nameof(RewardsSetSynchronizer.SelectLocalReward))]
+    static class RedirectBundledNestedRewardSelection
+    {
+        // index must be top level reward, so we reroute to linked container
+        [HarmonyPrefix]
+        static bool Prefix(RewardsSetSynchronizer __instance, ref Task<bool> __result, ref Reward reward)
+        {
+            if (!CustomLinkedRewardSet.TryGetCustomLinkedRewardSet(reward, out var parent)) return true;
+                
+            if(parent.LinkedRewardType == LinkedRewardType.Bundled)
+            {
+                reward = parent;
+                return true;
+            }
+            // We can not use the existing Synchronisation method for Exclusive Linked rewards.
+            // The game only sends the index of the reward, no information about anything else.
+            // Use custom message to bypass base games RewardSetSynchronizer completely in this case.
+            if (parent.LinkedRewardType == LinkedRewardType.Exclusive)
+            {
+                var rewardStateForPlayer = __instance.GetRewardStateForPlayer(__instance.LocalPlayer);
+                var rewardsSetState = rewardStateForPlayer.rewardsStack.Last();
+                var containerIndex = rewardsSetState.set.Rewards.IndexOf(parent);
+                var nestedIndex = parent.Rewards.ToList().IndexOf(reward);
+
+                parent.SetPendingExclusiveSelection(reward);
+                __result = __instance.SelectRewardForPlayer(rewardsSetState, parent); // apply locally immediately
+
+                CustomMessageWrapper.Send(new ExclusiveLinkedRewardChoiceMessage
+                {
+                            setId = rewardsSetState.set.Id,
+                            containerIndex = containerIndex,
+                            nestedIndex = nestedIndex
+                });
+                return false;
+            }
+            return true;
+        }
     }
 }
