@@ -7,7 +7,7 @@
   "BASELIB-REFUND.description": "When energy is spent on this card, up to [blue]{Refund}[/blue] of that energy is refunded.",
   
   "BASELIB-BUNDLED_REWARDS.title": "Bundled Rewards",
-  "BASELIB-BUNDLED_REWARDS.description": "You can only select [gold]All[/gold] or [gold]No[/gold] reward from this set.",
+  "BASELIB-BUNDLED_REWARDS.description": "You can only select [gold]All[/gold] or [gold]No[/gold] rewards from this set.",
   "BASELIB-EXCLUSIVE_REWARDS.title": "Exclusive Rewards",
   "BASELIB-EXCLUSIVE_REWARDS.description": "You can only select [blue]1[/blue] reward from this set."
 }

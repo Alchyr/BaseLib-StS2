@@ -113,7 +113,7 @@ public partial class NCustomLinkedRewardSet : Control
             textureRect.Texture = PreloadManager.Cache.GetCompressedTexture2D(ChainImagePath);
             textureRect.Size = Vector2.One * 50f;
             _chainsContainer.AddChildSafely(textureRect);
-            textureRect.GlobalPosition = _chainsContainer.GlobalPosition + Vector2.Down * i * (5f + nRewardButton.CustomMinimumSize.Y);
+            textureRect.GlobalPosition = _chainsContainer.GlobalPosition + Vector2.Down * (-8 + i * (5f + nRewardButton.CustomMinimumSize.Y));
         }
     }
 
