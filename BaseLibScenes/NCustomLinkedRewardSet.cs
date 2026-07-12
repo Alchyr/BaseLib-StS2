@@ -49,11 +49,12 @@ public partial class NCustomLinkedRewardSet : Control
 
     public CustomLinkedRewardSet CustomLinkedRewardSet { get; private set; }
 
+    // We are using our own scene because we don't know how/when MegaCrit modifies theirs
     private static string ScenePath => $"res://BaseLib/scenes/linked_reward_set.tscn";
-    
+    private static string ChainImagePath => ImageHelper.GetImagePath("/ui/reward_screen/reward_chain.png");
     
     // The game groups some assets in AssetSets which exists to not clutter PreloadManager. We aren't using it yet.
-    // public static IEnumerable<string> AssetPaths => [ScenePath];
+    // public static IEnumerable<string> AssetPaths => [ScenePath, ChainImagePath];
 
     private bool _signalAlreadyReceived = false;
     private readonly List<NRewardButton> _rewardButtons = [];
@@ -106,6 +107,13 @@ public partial class NCustomLinkedRewardSet : Control
             nRewardButton.CustomMinimumSize -= Vector2.Right * 20f;
             _rewardContainer.AddChildSafely(nRewardButton);
             nRewardButton.Connect(NRewardButton.SignalName.RewardClaimed, Callable.From<NRewardButton>(GetReward));
+            if (i >= CustomLinkedRewardSet.Rewards.Count - 1) continue;
+            var textureRect = new TextureRect();
+            textureRect.MouseFilter = MouseFilterEnum.Ignore;
+            textureRect.Texture = PreloadManager.Cache.GetCompressedTexture2D(ChainImagePath);
+            textureRect.Size = Vector2.One * 50f;
+            _chainsContainer.AddChildSafely(textureRect);
+            textureRect.GlobalPosition = _chainsContainer.GlobalPosition + Vector2.Down * i * (5f + nRewardButton.CustomMinimumSize.Y);
         }
     }
 
