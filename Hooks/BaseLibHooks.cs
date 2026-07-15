@@ -1,4 +1,6 @@
-﻿using BaseLib.Utils;
+﻿using BaseLib.Abstracts;
+using BaseLib.Utils;
+using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.GameActions.Multiplayer;
 using MegaCrit.Sts2.Core.Models;
@@ -101,5 +103,10 @@ public static class BaseLibHooks
     public static Task AfterModifyingScryAmount(PlayerChoiceContext ctx, Player player, IEnumerable<IModifyScryAmount> modifiers, int originalAmount, int modifiedAmount)
     {
         return HookUtils.AfterModifying(player.Creature.CombatState!, modifiers, a => a.AfterModifyingScryAmount(ctx, player, originalAmount, modifiedAmount));
+    }
+
+    public static void AfterSpendCustomResource<T>(ICombatState combatState, AbstractModel? spender, int amount) where T : CustomResource
+    {
+        HookUtils.Dispatch<IAfterSpendResource<T>>(combatState, m => m.AfterSpendResource(combatState, spender, amount));
     }
 }

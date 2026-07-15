@@ -73,21 +73,54 @@ class PostModInitPatch
         {
             interop.ProcessType(harmony, type);
 
-            if (type.IsAssignableTo(typeof(IAutoRegisterFormatSpecifier)) && 
-                type is { IsAbstract: false, IsInterface: false })
+            if (type.IsAbstract || type.IsInterface) continue;
+            
+            if (type.IsAssignableTo(typeof(CustomResource)))
             {
                 try
                 {
-                    var formatter = (IFormatter) type.CreateInstance();
-                    if (LocManager._smartFormatter != null)
+                    var resourceManager = typeof(CustomResources<>).MakeGenericType(type);
+                    var registerMethod = resourceManager.GetMethod("Register", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
+
+                    if (registerMethod == null)
                     {
-                        LocManager._smartFormatter.AddExtensions(formatter);
+                        BaseLibMain.Logger.Warn($"Failed to get registration method for custom resource type {type}");
+                    }
+                    else if (Activator.CreateInstance(type) is not CustomResource resource)
+                    {
+                        BaseLibMain.Logger.Warn($"Failed to initialize custom resource type {type}");
                     }
                     else
                     {
-                        AddLaterFormatters.Add(formatter);
+                        BaseLibMain.Logger.Info($"Registering custom resource {type.Name}");
+                        registerMethod.Invoke(null, [resource]);
                     }
-                    BaseLibMain.Logger.Info($"Added custom format specifier {type.Name}");
+                }
+                catch (Exception e)
+                {
+                    BaseLibMain.Logger.Error($"Exception occurred registering custom resource {type}; {e}");
+                }
+            }
+            if (type.IsAssignableTo(typeof(IAutoRegisterFormatSpecifier)))
+            {
+                try
+                {
+                    if (Activator.CreateInstance(type) is IFormatter formatter)
+                    {
+                        if (LocManager._smartFormatter != null)
+                        {
+                            LocManager._smartFormatter.AddExtensions(formatter);
+                        }
+                        else
+                        {
+                            AddLaterFormatters.Add(formatter);
+                        }
+                        BaseLibMain.Logger.Info($"Added custom format specifier {type.Name}");
+                    }
+                    else
+                    {
+                        BaseLibMain.Logger.Warn($"Failed to initialize IAutoRegisterFormatSpecifier type {type}");
+                    }
                 }
                 catch (Exception e)
                 {
