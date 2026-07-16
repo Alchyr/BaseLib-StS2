@@ -3,4 +3,5 @@
   "BASELIB-PURGE.description": "Wird dauerhaft aus dem Kampf und deinem Deck entfernt.",
   "BASELIB-TEMP_HP.title": "Temporäre LP",
   "BASELIB-TEMP_HP.description": "Absorbiert Schaden, bevor LP verloren gehen – auch Schaden, der [gold]Block[/gold] ignoriert. Verschwindet am Ende des Kampfes."
+  "BASELIB-PURGE.description": "Wird dauerhaft aus dem Kampf und deinem [gold]Deck[/gold] entfernt."
 }

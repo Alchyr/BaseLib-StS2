@@ -12,6 +12,13 @@ namespace BaseLib.Utils.NodeFactories;
 /// </summary>
 public abstract class NodeFactory
 {
+    protected static readonly SpireField<Node, bool> CreatedFromFactoryInternal = new(() => false);
+    /// <summary>
+    /// Returns true for any node created through a factory.
+    /// Will not be true for all nodes in the scene, only the root node of the generated scene.
+    /// </summary>
+    public static bool CreatedFromFactory(Node n) => CreatedFromFactoryInternal.Get(n);
+    
     public static void Init()
     {
         new ControlFactory();
@@ -332,6 +339,7 @@ public abstract class NodeFactory<T> : NodeFactory where T : Node, new()
         BaseLibMain.Logger.Info($"Creating {typeof(T).Name} from resource {resource.GetType().Name}");
         var n = _instance.CreateBareFromResource(resource);
         _instance.ConvertScene(n, null);
+        CreatedFromFactoryInternal[n] = true;
         return n;
     }
 
@@ -363,7 +371,9 @@ public abstract class NodeFactory<T> : NodeFactory where T : Node, new()
         }
         
         BaseLibMain.Logger.Info($"Creating {typeof(T).Name} from scene {scene.ResourcePath}");
-        return _instance.CreateFromNode(scene.Instantiate());
+        var result = _instance.CreateFromNode(scene.Instantiate());
+        CreatedFromFactoryInternal[result] = true;
+        return result;
     }
 
     protected override T CreateFromNode(Node n)
