@@ -1,5 +1,7 @@
-﻿using System.Diagnostics.CodeAnalysis;
+﻿using System.ComponentModel;
+using System.Diagnostics.CodeAnalysis;
 using BaseLib.Abstracts;
+using BaseLib.BaseLibScenes;
 using BaseLib.Patches.Content;
 using BaseLib.Patches.Saves;
 using BaseLib.Utils;
@@ -28,15 +30,8 @@ public class CustomLinkedRewardSet : CustomReward
     [CustomEnum] public static RewardType CustomLinkedRewardType;
     private const string SaveId = "baselib_customlinkedrewardset_children";
     
-    private LocString HoverTipTitle => new("static_hover_tips", LinkedRewardType == LinkedRewardType.Bundled 
-                ? "BASELIB-BUNDLED_REWARDS.title" : "BASELIB-EXCLUSIVE_REWARDS.title");
-    private LocString HoverTipDesc => new("static_hover_tips", LinkedRewardType == LinkedRewardType.Bundled
-                ? "BASELIB-BUNDLED_REWARDS.description" : "BASELIB-EXCLUSIVE_REWARDS.description");
-    
-    public HoverTip HoverTip => new(HoverTipTitle, HoverTipDesc);
     
     private static readonly SpireField<Reward, CustomLinkedRewardSet?> ParentCustomLinkedRewardSet = new(() => null);
-
     public static bool TryGetCustomLinkedRewardSet(Reward reward, [NotNullWhen(true)] out CustomLinkedRewardSet? customLinkedRewardSet)
     {
         customLinkedRewardSet = ParentCustomLinkedRewardSet.Get(reward);
@@ -44,22 +39,25 @@ public class CustomLinkedRewardSet : CustomReward
     }
     
     
-    private List<Reward> _rewards;
-    public IReadOnlyList<Reward> Rewards => _rewards.ToList();
-    
-    protected override RewardType RewardType  => CustomLinkedRewardType;
-    public override int RewardsSetIndex  => Rewards.Max(r => r.RewardsSetIndex);
-    public override CreateRewardFromSave<CustomReward> DeserializeMethod => CreateFromSerializable;
+    private LocString HoverTipTitle => new("static_hover_tips", LinkedRewardType == LinkedRewardType.Bundled 
+                ? "BASELIB-BUNDLED_REWARDS.title" : "BASELIB-EXCLUSIVE_REWARDS.title");
+    private LocString HoverTipDesc => new("static_hover_tips", LinkedRewardType == LinkedRewardType.Bundled
+                ? "BASELIB-BUNDLED_REWARDS.description" : "BASELIB-EXCLUSIVE_REWARDS.description");
+    public HoverTip HoverTip => new(HoverTipTitle, HoverTipDesc);
     public override LocString Description => new("gameplay_ui", "COMBAT_REWARD_LINKED");
+    
+    
+    private List<Reward> _rewards;
+    private LinkedRewardType _linkedRewardType;
+    private bool _selectionStarted = false;
+    private Reward? _pendingSelection;
+    
+    public IReadOnlyList<Reward> Rewards => _rewards.ToList();
+    protected override RewardType RewardType  => CustomLinkedRewardType;
+    public LinkedRewardType LinkedRewardType => _linkedRewardType;
+    public override int RewardsSetIndex  => Rewards.Max(r => r.RewardsSetIndex);
     public override bool IsPopulated  => _rewards.All(r => r.IsPopulated);
 
-    private LinkedRewardType _linkedRewardType;
-    public LinkedRewardType LinkedRewardType => _linkedRewardType;
-    
-    private bool _selectionStarted = false;
-    
-    private Reward? _pendingExclusiveSelection;
-    public void SetPendingExclusiveSelection(Reward chosen) => _pendingExclusiveSelection = chosen;
 
     
     /// <summary>
@@ -70,7 +68,6 @@ public class CustomLinkedRewardSet : CustomReward
     {
         _rewards = [];
     }
-    
     public CustomLinkedRewardSet(List<Reward> rewards, Player player, LinkedRewardType linkedRewardType = LinkedRewardType.Exclusive) : base(player)
     {
         _rewards = rewards;
@@ -79,74 +76,97 @@ public class CustomLinkedRewardSet : CustomReward
             ParentCustomLinkedRewardSet.Set(reward, this);
     }
     
-
-
     public override void Populate()
     {
         foreach (var reward in _rewards)
             reward.Populate();
     }
-
-    
-    protected override async Task<bool> OnSelect()
-    {
-        if (_selectionStarted) return true;
-        _selectionStarted = true;
-        
-        if (LinkedRewardType == LinkedRewardType.Exclusive)
-        {
-            var chosen = _pendingExclusiveSelection;
-            _pendingExclusiveSelection = null;
-            if (chosen == null)
-            {
-                BaseLibMain.Logger.Error("No Reward selected. Should not happen!");
-                return false;
-            }
-
-            if (!chosen.SuccessfullySelected)
-                await chosen.SelectUnsynchronized();
-
-            foreach (var reward in _rewards.ToList())
-            {
-                if (reward != chosen && !reward.SuccessfullySelected)
-                    reward.OnSkipped();
-            }
-        }
-        if(LinkedRewardType == LinkedRewardType.Bundled)
-        {
-            foreach (var reward in _rewards.ToList())
-            {
-                if (reward.SuccessfullySelected) continue;
-                await reward.SelectUnsynchronized(); // we do only want local machine!
-            }
-        }
-        
-        return true;
-    }
-
+       
     public override void MarkContentAsSeen()
     {
         foreach (var reward in _rewards)
             reward.MarkContentAsSeen();
-        
     }
     
     public override void OnSkipped()
     {
         foreach (var reward in _rewards)
             reward.OnSkipped();
-        
     }
-
-    public void RemoveReward(Reward reward)
+    
+    protected override async Task<bool> OnSelect()
     {
-        _rewards.Remove(reward);
+        if (_selectionStarted) return SuccessfullySelected;
+        _selectionStarted = true;
+        return LinkedRewardType switch
+        {
+                    LinkedRewardType.Exclusive => await OnSelectExclusive(),
+                    LinkedRewardType.Bundled => await OnSelectBundled(),
+                    _ => true
+        };
+    }
+
+    private async Task<bool> OnSelectExclusive()
+    {
+        var chosen = _pendingSelection;
+        _pendingSelection = null;
+        if (chosen == null)
+        {
+            BaseLibMain.Logger.Error("No Reward selected. Should not happen!");
+            _selectionStarted = false;
+            return false;
+        }
+
+        if (!(chosen.SuccessfullySelected || await chosen.SelectUnsynchronized()))
+        {
+            _selectionStarted = false;
+            return false;
+        }
+        foreach (var reward in _rewards.ToList().Where(reward => reward != chosen && !reward.SuccessfullySelected))
+            reward.OnSkipped();
+        return true;
+    }
+    private async Task<bool> OnSelectBundled()
+    {
+        var ordered = _rewards.ToList();
+        var clicked = _pendingSelection;
+        _pendingSelection = null;
+        if (clicked != null && ordered.Remove(clicked)) // move the selected reward to the front, so it is offered first
+            ordered.Insert(0, clicked);
+        foreach (var reward in ordered)
+        {
+            if (reward.SuccessfullySelected) continue;
+            if (await reward.SelectUnsynchronized()) continue;
+            if (!_rewards.Any(r => r.SuccessfullySelected))
+            {
+                // Nothing claimed yet: the player was only peeking, back out and keep the set available.
+                _selectionStarted = false;
+                return false;
+            }
+
+            // The bundle is already committed, so a skip is a final "I don't want any of these" (for this reward only).
+            // The remaining rewards are still offered before the set resolves.
+            reward.OnSkipped();
+        }
+        return true;
     }
     
-  
-
+    /// <summary>
+    /// <see cref="NCustomLinkedRewardSet"/> is not being notified of this.
+    /// Using it during the reward screen can lead to undefined behaviour.
+    /// </summary>
+    /// <param name="reward"></param>
+    public void RemoveReward(Reward reward) => _rewards.Remove(reward);
     
-
+    
+    public override CreateRewardFromSave<CustomReward> DeserializeMethod => CreateFromSerializable;
+    
+    /// <summary>
+    /// Exclusive: the reward the player chose.
+    /// Bundled: the reward whose button was clicked (player should see that one first to not confuse them)
+    /// </summary>
+    public void SetPendingSelection(Reward chosen) => _pendingSelection = chosen;
+    
     public static CustomReward CreateFromSerializable(SerializableReward save, Player player)
         => new CustomLinkedRewardSet([], player);
 
@@ -161,16 +181,16 @@ public class CustomLinkedRewardSet : CustomReward
     public override void Initialize()
     {
         base.Initialize();
-        ExtendedSaveTypes.RegisterObjectSaveType<SerializableCustomLinkedRewardData>(
-                    ExtendedSaveTypes.PropertyFunc<SerializableCustomLinkedRewardData, List<SerializableReward>>(
-                                nameof(SerializableCustomLinkedRewardData.Rewards)),
-                    ExtendedSaveTypes.PropertyFunc<SerializableCustomLinkedRewardData, int>(
-                                nameof(SerializableCustomLinkedRewardData.LinkedRewardTypeValue))
+        ExtendedSaveTypes.RegisterObjectSaveType<SerializableCustomLinkedRewardSet>(
+                    ExtendedSaveTypes.PropertyFunc<SerializableCustomLinkedRewardSet, List<SerializableReward>>(
+                                nameof(SerializableCustomLinkedRewardSet.Rewards)),
+                    ExtendedSaveTypes.PropertyFunc<SerializableCustomLinkedRewardSet, int>(
+                                nameof(SerializableCustomLinkedRewardSet.LinkedRewardTypeValue))
         );
-        ExtendedSaveHandlers<Reward, SerializableReward>.RegisterSave<SerializableCustomLinkedRewardData>(
+        ExtendedSaveHandlers<Reward, SerializableReward>.RegisterSave<SerializableCustomLinkedRewardSet>(
                     SaveId,
                     reward => reward is CustomLinkedRewardSet clrs
-                                ? new SerializableCustomLinkedRewardData
+                                ? new SerializableCustomLinkedRewardSet
                                 {
                                             Rewards = clrs.Rewards.Select(r => r.ToSerializable()).ToList(),
                                             LinkedRewardTypeValue  = (int)clrs.LinkedRewardType
@@ -185,7 +205,7 @@ public class CustomLinkedRewardSet : CustomReward
     }
 }
 
-public class SerializableCustomLinkedRewardData : IPacketSerializable
+public class SerializableCustomLinkedRewardSet : IPacketSerializable
 {
     public List<SerializableReward> Rewards { get; set; } = [];
     public int LinkedRewardTypeValue { get; set; }
@@ -205,7 +225,7 @@ public class SerializableCustomLinkedRewardData : IPacketSerializable
 }
 
 [HarmonyPatch]
-public static class CustomLinkedRewardSetPatches
+public static class CustomLinkedRewardSet_Patches
 {
     [HarmonyPatch(typeof(NRewardButton), "SetReward")]
     [HarmonyPrefix]
@@ -228,44 +248,46 @@ public static class CustomLinkedRewardSetPatches
 
 
 [HarmonyPatch]
-public static class CustomLinkedRewardSetMultiplayerPatches
+public static class CustomLinkedRewardSet_MultiplayerPatches
 {
     [HarmonyPatch(typeof(RewardsSetSynchronizer), nameof(RewardsSetSynchronizer.SelectLocalReward))]
-    static class RedirectBundledNestedRewardSelection
+    private static class RedirectNestedRewardSelection
     {
         // index must be top level reward, so we reroute to linked container
         [HarmonyPrefix]
         static bool Prefix(RewardsSetSynchronizer __instance, ref Task<bool> __result, ref Reward reward)
         {
             if (!CustomLinkedRewardSet.TryGetCustomLinkedRewardSet(reward, out var parent)) return true;
-                
-            if(parent.LinkedRewardType == LinkedRewardType.Bundled)
+            if (parent.SuccessfullySelected)
             {
-                reward = parent;
-                return true;
-            }
-            // We can not use the existing Synchronisation method for Exclusive Linked rewards.
-            // The game only sends the index of the reward, no information about anything else.
-            // Use custom message to bypass base games RewardSetSynchronizer completely in this case.
-            if (parent.LinkedRewardType == LinkedRewardType.Exclusive)
-            {
-                var rewardStateForPlayer = __instance.GetRewardStateForPlayer(__instance.LocalPlayer);
-                var rewardsSetState = rewardStateForPlayer.rewardsStack.Last();
-                var containerIndex = rewardsSetState.set.Rewards.IndexOf(parent);
-                var nestedIndex = parent.Rewards.ToList().IndexOf(reward);
-
-                parent.SetPendingExclusiveSelection(reward);
-                __result = __instance.SelectRewardForPlayer(rewardsSetState, parent); // apply locally immediately
-
-                CustomMessageWrapper.Send(new ExclusiveLinkedRewardChoiceMessage
-                {
-                            setId = rewardsSetState.set.Id,
-                            containerIndex = containerIndex,
-                            nestedIndex = nestedIndex
-                });
+                // Bundled sibling buttons re-enter here via NCustomLinkedRewardSet.GetReward after the set
+                // already completed.
+                // Report success without reselecting.
+                __result = Task.FromResult(true);
                 return false;
             }
-            return true;
+            // We can not use the existing Synchronisation method for Linked rewards.
+            // The game only sends the index of the reward, no information about anything else.
+            // Exclusive needs to know which nested reward was chosen
+            //  Bundled  needs to know which nested reward to resolve first
+            // (nested CardReward choices sync in resolution order via PlayerChoiceSynchronizer,
+            // so all clients must resolve in the same order).
+            // Using a custom message to bypass base games RewardsSetSynchronizer completely.
+            var rewardStateForPlayer = __instance.GetRewardStateForPlayer(__instance.LocalPlayer);
+            var rewardsSetState = rewardStateForPlayer.rewardsStack.Last();
+            var containerIndex = rewardsSetState.set.Rewards.IndexOf(parent);
+            var nestedIndex = parent.Rewards.ToList().IndexOf(reward);
+
+            parent.SetPendingSelection(reward);
+            __result = __instance.SelectRewardForPlayer(rewardsSetState, parent); // apply locally immediately
+
+            CustomMessageWrapper.Send(new CustomLinkedRewardChoiceMessage
+            {
+                        setId = rewardsSetState.set.Id,
+                        containerIndex = containerIndex,
+                        nestedIndex = nestedIndex
+            });
+            return false;
         }
     }
 }

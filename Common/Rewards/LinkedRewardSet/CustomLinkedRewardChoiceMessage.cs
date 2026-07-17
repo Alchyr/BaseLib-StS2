@@ -5,7 +5,7 @@ using MegaCrit.Sts2.Core.Runs;
 
 namespace BaseLib.Common.Rewards.LinkedRewardSet;
 
-public class ExclusiveLinkedRewardChoiceMessage : ICustomMessage
+public class CustomLinkedRewardChoiceMessage : ICustomMessage
 {
     public int setId;
     public int containerIndex;
@@ -45,7 +45,7 @@ public class ExclusiveLinkedRewardChoiceMessage : ICustomMessage
         if (set.Rewards[containerIndex] is not CustomLinkedRewardSet container) return;
         if (nestedIndex < 0 || nestedIndex >= container.Rewards.Count) return;
 
-        container.SetPendingExclusiveSelection(container.Rewards[nestedIndex]);
+        container.SetPendingSelection(container.Rewards[nestedIndex]);
         TaskHelper.RunSafely(synchronizer.SelectRewardForPlayer(rewardsSetState, container));
     }
 }

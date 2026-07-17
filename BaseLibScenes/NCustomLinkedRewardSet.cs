@@ -30,24 +30,20 @@ public partial class NCustomLinkedRewardSet : Control
     public static AddedNode<NRewardButton, NRewardHighlight> NHighlights = new((rewardButton) =>
     {
         var textureRec = new NRewardHighlight();
+        // I am using the card glow texture and morph it into something that fits.
+        // If need be, we can add our own glow-reward-button hdr texture.
         textureRec.Texture = PreloadManager.Cache.GetCompressedTexture2D("res://images/packed/card_template/card_frame_sdf.exr");
         rewardButton.AddChildSafely(textureRec);
         rewardButton.MoveChild(textureRec, rewardButton.GetNode("%Background").GetIndex());
+        textureRec.Modulate = new Color("00f4fcfa");
+        textureRec.MouseFilter = MouseFilterEnum.Ignore;
         textureRec.ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize;
         textureRec.StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered;
-        textureRec.Modulate = new Color("00f4fcfa");
         textureRec.Scale = new Vector2(1.8f, 0.3f);
         textureRec.Position = new Vector2(-270f, -33f);
-        textureRec.MouseFilter = MouseFilterEnum.Ignore;
         return textureRec;
     });
 
-
-    private NRewardsScreen _rewardsScreen;
-    private Control _rewardContainer;
-    private Control _chainsContainer;
-
-    public CustomLinkedRewardSet CustomLinkedRewardSet { get; private set; }
 
     // We are using our own scene because we don't know how/when MegaCrit modifies theirs
     private static string ScenePath => $"res://BaseLib/scenes/linked_reward_set.tscn";
@@ -55,10 +51,23 @@ public partial class NCustomLinkedRewardSet : Control
     
     // The game groups some assets in AssetSets which exists to not clutter PreloadManager. We aren't using it yet.
     // public static IEnumerable<string> AssetPaths => [ScenePath, ChainImagePath];
-
+    
+    private NRewardsScreen _rewardsScreen;
+    private Control _rewardContainer;
+    private Control _chainsContainer;
     private bool _signalAlreadyReceived = false;
     private readonly List<NRewardButton> _rewardButtons = [];
     
+    public CustomLinkedRewardSet CustomLinkedRewardSet { get; private set; }
+
+
+    public static NCustomLinkedRewardSet Create(CustomLinkedRewardSet linkedReward, NRewardsScreen screen)
+    {
+        var nCustomLinkedRewardSet = PreloadManager.Cache.GetScene(ScenePath).Instantiate<NCustomLinkedRewardSet>(PackedScene.GenEditState.Disabled);
+        nCustomLinkedRewardSet._rewardsScreen = screen;
+        nCustomLinkedRewardSet.SetReward(linkedReward);
+        return nCustomLinkedRewardSet;
+    }
     
     public override void _Ready()
     {
@@ -74,14 +83,7 @@ public partial class NCustomLinkedRewardSet : Control
         NRewardButtonEvents.Focused -= OnFocused;
         NRewardButtonEvents.Unfocused -= OnUnfocused;
     }
-
-    public static NCustomLinkedRewardSet Create(CustomLinkedRewardSet linkedReward, NRewardsScreen screen)
-    {
-        var nCustomLinkedRewardSet = PreloadManager.Cache.GetScene(ScenePath).Instantiate<NCustomLinkedRewardSet>(PackedScene.GenEditState.Disabled);
-        nCustomLinkedRewardSet._rewardsScreen = screen;
-        nCustomLinkedRewardSet.SetReward(linkedReward);
-        return nCustomLinkedRewardSet;
-    }
+    
 
     private void SetReward(CustomLinkedRewardSet linkedReward)
     {
@@ -163,7 +165,6 @@ public partial class NCustomLinkedRewardSet : Control
                 rewardButton.GetReward();
             }
         }
-        CustomLinkedRewardSet.OnSkipped();
         EmitSignal(RewardClaimedSignalName, this);
         this.QueueFreeSafely();
     }
@@ -204,6 +205,9 @@ public static class NRewardButtonEvents
 [HarmonyPatch]
 public static class NCustomLinkedRewardSetPatches
 {
+    
+    // roughly at line 190 - 205 in the decompiled code
+    // Add support for NCustomLinkedRewardSet
     [HarmonyTranspiler]
     [HarmonyPatch(typeof(NRewardsScreen), "_Ready")]
     private static IEnumerable<CodeInstruction> ReplaceConnectMethodWithCustom(IEnumerable<CodeInstruction> instructions, MethodBase originalMethod)
@@ -214,32 +218,26 @@ public static class NCustomLinkedRewardSetPatches
         var matcher = new CodeMatcher(instructions)
                     .MatchStartForward(new CodeMatch(OpCodes.Call, nRewardButtonCreate))
                     .ThrowIfInvalid("Could not find NRewardButton.Create call (else-branch start)");
-
-        
-        matcher.Advance(-3); // Step back to the else-branch's real first instruction: ldloc.s V_7
-
-        var optionField = (FieldInfo)matcher.InstructionAt(4).operand; // grab the real field
-        var endLabel = matcher.InstructionAt(-1).operand; // the preceding br.s's target = IL_037f
+        matcher.Advance(-3); // Step back to the else-branch's real first instruction
+        var optionField = (FieldInfo)matcher.InstructionAt(4).operand;
+        var endLabel = matcher.InstructionAt(-1).operand;
 
         // This instruction is the actual jump target for the `if` check (item is LinkedRewardSet == false).
         // Detach its label so we can move it onto our own first instruction instead.
         var elseEntryLabels = new List<System.Reflection.Emit.Label>(matcher.Labels);
         matcher.Labels.Clear();
 
-        var loadDisplayClass = matcher.Instruction.Clone().WithLabels(elseEntryLabels); // ldloc.s V_7 (now the real entry point)
+        var loadDisplayClass = matcher.Instruction.Clone().WithLabels(elseEntryLabels); // ldloc.s (now the real entry point)
         var loadRewardItem = matcher.InstructionAt(1).Clone(); // ldloc.s reward
 
-        var newInstructions = new List<CodeInstruction>
-        {
-                    loadDisplayClass, // push V_7
-                    new CodeInstruction(OpCodes.Ldflda, optionField), // push &V_7.option
-                    loadRewardItem, // push reward
-                    new CodeInstruction(OpCodes.Ldarg_0), // push this
+        matcher.Insert([
+                    loadDisplayClass,
+                    new CodeInstruction(OpCodes.Ldflda, optionField),
+                    loadRewardItem,
+                    new CodeInstruction(OpCodes.Ldarg_0), // this
                     new CodeInstruction(OpCodes.Call, customLinkedRewardSetCheck),
-                    new CodeInstruction(OpCodes.Brtrue, endLabel), // handled -> skip the rest of the else-branch
-        };
-
-        matcher.Insert(newInstructions); // insert before the (now unlabeled) original else-branch code
+                    new CodeInstruction(OpCodes.Brtrue, endLabel), // reward handled -> skip the rest of the else-branch
+        ]); // insert before the (now unlabeled) original else-branch code
 
         return matcher.InstructionEnumeration();
     }
