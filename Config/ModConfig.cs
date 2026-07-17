@@ -57,10 +57,10 @@ public abstract partial class ModConfig
     [ConfigIgnore] public string? ModId { get; set; } // Injected by ModConfigRegistry
 
     private readonly string _modConfigName;
-    private bool _savingDisabled;
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
     private CancellationTokenSource? _saveDebounceToken;
-    private readonly SemaphoreSlim _saveLock = new SemaphoreSlim(1, 1);
+    private readonly SemaphoreSlim _configFileLock = new SemaphoreSlim(1, 1);
+    private readonly Lock _debounceLock = new();
 
     protected readonly List<PropertyInfo> ConfigProperties = [];
     private readonly Dictionary<string, object?> _defaultValues = new();
@@ -99,7 +99,6 @@ public abstract partial class ModConfig
     {
         ModPrefix = GetType().GetPrefix();
         ModId = null;
-        _modConfigName = GetType().FullName ?? "unknown";
         var rootNamespace = GetType().GetRootNamespace();
 
         if (string.IsNullOrEmpty(rootNamespace) && string.IsNullOrEmpty(filename))
@@ -113,6 +112,7 @@ public abstract partial class ModConfig
         }
 
         var defaultFilename = SpecialCharRegex().Replace(rootNamespace, "");
+        _modConfigName = defaultFilename;
 
         filename = filename == null ? defaultFilename : SpecialCharRegex().Replace(filename, "");
         if (!filename.Contains('.')) filename += ".cfg";
@@ -249,22 +249,31 @@ public abstract partial class ModConfig
     {
         try
         {
-            // Cancel the previous request, if any, prior to replacing it
-            _saveDebounceToken?.Cancel();
-            _saveDebounceToken?.Dispose();
+            // Cancel the previous request, if any, prior to replacing it; lock to prevent a race condition
+            // when SaveDebounced is called from multiple threads simultaneously
+            CancellationToken token;
+            lock (_debounceLock)
+            {
+                _saveDebounceToken?.Cancel();
+                _saveDebounceToken = new CancellationTokenSource();
+                token = _saveDebounceToken.Token;
+            }
 
-            _saveDebounceToken = new CancellationTokenSource();
-            var token = _saveDebounceToken.Token;
             await Task.Delay(delayMs, token);
 
-            await _saveLock.WaitAsync(token);
+            if (!await _configFileLock.WaitAsync(TimeSpan.FromSeconds(3), token))
+            {
+                BaseLibMain.Logger.Warn($"Timed out waiting for {_modConfigName} save lock in SaveDebounced; skipping save");
+                return;
+            }
+
             try
             {
-                Save();
+                SaveInternal();
             }
             finally
             {
-                _saveLock.Release();
+                _configFileLock.Release();
             }
         }
         catch (OperationCanceledException)
@@ -281,19 +290,24 @@ public abstract partial class ModConfig
     /// Immediately save the current configuration to disk. Prefer using <see cref="SaveDebounced"/> (on the instance or
     /// its static variant) instead unless you absolutely must save *now*. Indeed, using SaveDebounced(0) is likely still
     /// better than calling this directly.<br/>
-    /// Using both is not recommended and may cause issues with locking/hangs.
     /// </summary>
     public void Save()
     {
-        if (_savingDisabled)
+        if (!_configFileLock.Wait(TimeSpan.FromSeconds(3)))
         {
-            // No GUI error here, because that would've been shown already when _savingDisabled was set.
-            ModConfigLogger.Warn($"Skipping save for {_modConfigName} because the config file is currently in a corrupted, read-only state.");
+            BaseLibMain.Logger.Warn($"Timed out waiting to save config {_modConfigName}.");
             return;
         }
 
+        try { SaveInternal(); }
+        finally { _configFileLock.Release(); }
+    }
+
+    private void SaveInternal()
+    {
         Dictionary<string, string> values = [];
 
+        // Convert all the values
         try
         {
             foreach (var property in ConfigProperties)
@@ -319,19 +333,54 @@ public abstract partial class ModConfig
             return;
         }
 
+        // Serialize to JSON and write to the config file
+        // To prevent corruption on write failures, we first write to a temporary file, and if successful,
+        // replace the config file with the temporary file.
+        var tempFile = _path + ".new";
         try
         {
             new FileInfo(_path).Directory?.Create();
-            using var fileStream = File.Create(_path);
-            JsonSerializer.Serialize(fileStream, values, JsonOptions);
+
+            using (var fileStream = File.Create(tempFile))
+            {
+                JsonSerializer.Serialize(fileStream, values, JsonOptions);
+            }
+
+            File.Move(tempFile, _path, overwrite: true);
         }
         catch (Exception e)
         {
             ModConfigLogger.Error($"Failed to save config {_modConfigName}: {e.Message}");
         }
+        finally
+        {
+            try
+            {
+                File.Delete(tempFile);
+            }
+            catch  { /* ignore */ }
+        }
     }
 
     public void Load()
+    {
+        if (!_configFileLock.Wait(TimeSpan.FromSeconds(3)))
+        {
+            BaseLibMain.Logger.Warn($"Timed out waiting to load config {_modConfigName}.");
+            return;
+        }
+
+        try
+        {
+            LoadInternal();
+        }
+        finally
+        {
+            _configFileLock.Release();
+        }
+    }
+
+    private void LoadInternal()
     {
         if (!File.Exists(_path))
         {
@@ -339,11 +388,8 @@ public abstract partial class ModConfig
             return;
         }
 
-        // Missing fields or bad values (safe to overwrite the config if true)
+        // Missing fields or bad values (will overwrite the config if true)
         var hasSoftErrors = false;
-
-        // Hard errors disable saving (until the next successful load)
-        _savingDisabled = false;
 
         try
         {
@@ -377,18 +423,30 @@ public abstract partial class ModConfig
                     ModConfigLogger.Warn($"Loaded config {_modConfigName} with some missing or invalid fields.");
             }
         }
-        catch (JsonException jsonEx)
+        catch (JsonException)
         {
-            // Unlikely to happen except for people who have modified the file manually, so let's be verbose and show in GUI.
-            var locationText = jsonEx.LineNumber.HasValue
-                ? $"Line {jsonEx.LineNumber + 1}, position {jsonEx.BytePositionInLine + 1}"
-                : "unknown line";
-            ModConfigLogger.Error($"Failed to parse config file for {_modConfigName}. The JSON is likely invalid.\n" +
-                                  $"File path: {_path}\n" +
-                                  $"Error location: {locationText}");
-            ModConfigLogger.Warn("Config saving has been DISABLED for this mod to protect any manual edits.", true);
-            _savingDisabled = true;
-            return;
+            var fileInfo = new FileInfo(_path);
+
+            if (!fileInfo.Exists || fileInfo.Length == 0)
+            {
+                ModConfigLogger.Warn($"Config file {_modConfigName} was missing or empty, likely due to a previous crash. Restoring config to defaults.");
+            }
+            else
+            {
+                var brokenPath = _path + ".broken";
+                try
+                {
+                    File.Move(_path, brokenPath, overwrite: true);
+                }
+                catch { /* ignore */ }
+
+                ModConfigLogger.Error(
+                    $"Failed to parse mod configuration for {_modConfigName}; the file is corrupt.\n" +
+                    $"The broken file was backed up to: {brokenPath}\n" +
+                    $"The mod's configuration has been restored to default.");
+            }
+
+            hasSoftErrors = true;
         }
         catch (Exception e)
         {
@@ -396,11 +454,11 @@ public abstract partial class ModConfig
             return;
         }
 
-        if (hasSoftErrors && !_savingDisabled)
-        {
-            ModConfigLogger.Warn($"Saving fresh config for {_modConfigName} to correct soft errors (missing fields, invalid fields).");
-            Save();
-        }
+        if (!hasSoftErrors) return;
+
+        // If we got here via Load() we hold _configFileLock, so we can't call Save() here, or it will deadlock
+        ModConfigLogger.Warn($"Saving fresh config for {_modConfigName} to correct soft errors (missing fields, invalid fields).");
+        SaveInternal();
     }
 
     // Convert a single value and update the property. Return true on success, false on failure.

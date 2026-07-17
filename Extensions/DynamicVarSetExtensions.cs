@@ -1,4 +1,5 @@
-﻿using MegaCrit.Sts2.Core.Localization.DynamicVars;
+﻿using BaseLib.Cards.Variables;
+using MegaCrit.Sts2.Core.Localization.DynamicVars;
 using MegaCrit.Sts2.Core.Models;
 
 namespace BaseLib.Extensions;
@@ -45,4 +46,14 @@ public static class DynamicVarSetExtensions
             return maybeResult;
         }
     }
+    
+    
+    /// <summary>
+    /// Get the Scry var initialized with its default name.
+    /// </summary>
+    public static ScryVar Scry(this DynamicVarSet vard)
+    {
+        return (ScryVar)vard._vars[nameof(Scry)];
+    }
+    
 }

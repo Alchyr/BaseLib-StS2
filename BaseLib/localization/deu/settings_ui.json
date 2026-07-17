@@ -14,6 +14,9 @@
 
   "BASELIB-GENERAL_SETTINGS.title": "Allgemeine Einstellungen",
 
+  "BASELIB-SHOW_MOD_SOURCE_TOOLTIP.title": "Mod-Quelle in Tooltips anzeigen",
+  "BASELIB-SHOW_MOD_SOURCE_TOOLTIP.hover.desc": "Zeigt in einem Tooltip an, aus welchem Mod eine Karte, ein Relikt, eine Kraft oder ein Trank stammt.",
+
   "BASELIB-SFX_PLAYER_LIMIT.title": "Soundeffekt-Obergrenze",
   "BASELIB-SFX_PLAYER_LIMIT.hover.desc": "Maximale Anzahl an Soundeffekten, die gleichzeitig über BaseLib abgespielt werden können.",
 

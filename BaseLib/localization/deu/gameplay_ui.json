@@ -3,5 +3,6 @@
   "BASELIB-COMBAT_REWARD_CARD_UPGRADE.selectionScreenPrompt": "Wähle eine Karte, die du verbesserst.",
   "BASELIB-COMBAT_REWARD_RANDOM_CARD_UPGRADE": "Verbessere eine zufällige Karte.",
   "BASELIB-COMBAT_REWARD_CARD_TRANSFORM": "Transformiere {Upgrade:und verbessere |}{cards:plural:eine Karte|{} Karten}",
-  "BASELIB-COMBAT_REWARD_CARD_TRANSFORM.selectionScreenPrompt": "Wähle {Amount:plural:eine Karte,|[blue]{}[/blue] Karten,} die du [gold]Transformierst[/gold]{Upgrade: und [gold]Verbesserst[/gold]|}."
+  "BASELIB-COMBAT_REWARD_CARD_TRANSFORM.selectionScreenPrompt": "Wähle {Amount:plural:eine Karte,|[blue]{}[/blue] Karten,} die du [gold]Transformierst[/gold]{Upgrade: und [gold]Verbesserst[/gold]|}.",
+  "BASELIB-MOD_SOURCE.title": "Aus Mod"
 }

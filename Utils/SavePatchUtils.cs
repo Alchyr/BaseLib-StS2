@@ -148,6 +148,91 @@ public class SavePatchUtils
         
         SerializerDeserializerInfo<ModelId>.Serializer = (val, writer) => writer.WriteFullModelId(val);
         SerializerDeserializerInfo<ModelId>.Deserializer = reader => reader.ReadFullModelId();
+        
+        //Basic arrays
+        SerializerDeserializerInfo<int[]>.Serializer = (arr, writer) =>
+        {
+            writer.WriteInt(arr.Length);
+            foreach (var val in arr)
+            {
+                writer.WriteInt(val);
+            }
+        };
+        SerializerDeserializerInfo<int[]>.Deserializer = reader =>
+        {
+            var length = reader.ReadInt();
+            var arr = new int[length];
+            for (var i = 0; i < length; ++i)
+                arr[i] = reader.ReadInt();
+            return arr;
+        };
+        SerializerDeserializerInfo<float[]>.Serializer = (arr, writer) =>
+        {
+            writer.WriteInt(arr.Length);
+            foreach (var val in arr)
+            {
+                writer.WriteFloat(val);
+            }
+        };
+        SerializerDeserializerInfo<float[]>.Deserializer = reader =>
+        {
+            var length = reader.ReadInt();
+            var arr = new float[length];
+            for (var i = 0; i < length; ++i)
+                arr[i] = reader.ReadFloat();
+            return arr;
+        };
+        SerializerDeserializerInfo<double[]>.Serializer = (arr, writer) =>
+        {
+            writer.WriteInt(arr.Length);
+            foreach (var val in arr)
+            {
+                writer.WriteDouble(val);
+            }
+        };
+        SerializerDeserializerInfo<double[]>.Deserializer = reader =>
+        {
+            var length = reader.ReadInt();
+            var arr = new double[length];
+            for (var i = 0; i < length; ++i)
+                arr[i] = reader.ReadDouble();
+            return arr;
+        };
+        SerializerDeserializerInfo<bool[]>.Serializer = (arr, writer) =>
+        {
+            writer.WriteInt(arr.Length);
+            foreach (var val in arr)
+            {
+                writer.WriteBool(val);
+            }
+        };
+        SerializerDeserializerInfo<bool[]>.Deserializer = reader =>
+        {
+            var length = reader.ReadInt();
+            var arr = new bool[length];
+            for (var i = 0; i < length; ++i)
+                arr[i] = reader.ReadBool();
+            return arr;
+        };
+        SerializerDeserializerInfo<SerializableCard[]>.Serializer = (arr, writer) =>
+        {
+            writer.WriteInt(arr.Length);
+            foreach (var val in arr)
+            {
+                writer.Write(val);
+            }
+        };
+        SerializerDeserializerInfo<SerializableCard[]>.Deserializer = reader =>
+        {
+            var length = reader.ReadInt();
+            var arr = new SerializableCard[length];
+            for (var i = 0; i < length; ++i)
+            {
+                arr[i] = reader.Read<SerializableCard>();
+            }
+            
+            return arr;
+        };
     }
 }
 

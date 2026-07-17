@@ -28,8 +28,6 @@ class ModelLocPatch
         { ModelId.SlugifyCategory(nameof(RelicModel)), "relics" },
         { ModelId.SlugifyCategory(nameof(DynamicVar)), "static_hover_tips" } //Does not inherit AbstractModel and so currently will not function. Here for reference purposes.
     };
-    
-    //TODO - also check for ILocalizationProviders from other classes?
 
     private static readonly FieldInfo LocDictionaryField = AccessTools.Field(typeof(LocTable), "_translations");
     

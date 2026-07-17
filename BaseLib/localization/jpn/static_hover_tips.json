@@ -1,0 +1,8 @@
+{
+  "BASELIB-PERSIST.title": "持続",
+  "BASELIB-PERSIST.description": "各ターン、このカードは{Persist:cond:>1?最初の[blue]{Persist}[/blue]回|最初の1回}使用時に手札に戻る。",
+  "BASELIB-EXHAUSTIVE.title": "消耗",
+  "BASELIB-EXHAUSTIVE.description": "このカードは{Exhaustive:cond:>1?[blue]{Exhaustive}[/blue]回|1回}使用すると[gold]廃棄[/gold]される。",
+  "BASELIB-REFUND.title": "返還",
+  "BASELIB-REFUND.description": "このカードにエナジーを消費したとき、そのエナジーのうち最大[blue]{Refund}[/blue]が返還される。"
+}

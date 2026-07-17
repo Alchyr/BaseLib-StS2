@@ -1,6 +1,73 @@
 https://github.com/pawslee/il-guide
 actually a very nice introduction
 
+CUSTOM RESOURCES 
+
+NCard UpdateEnergyCostVisuals (check _pretendCardCanBePlayed)
+x PlayerCombatState.HasEnoughResourcesFor
+
+
+x CardModel FinalizeUpgradeInternal, EndOfTurnCleanup, DowngradeInternal, CostsEnergyOrStars
+x CardModel.OnPlayWrapper => EnergyCost.AfterCardPlayedCleanup; just patch AfterCardPlayedCleanup of CardEnergyCost to also clear other costs
+
+
+GetResourceCostColor (see CardCostHelper)
+virtual method overridable in custom resource
+
+
+Annoying-ish:
+x CardModel.SpendResources return value, store attached to resource info thing
+x Vakuu Whispering Earrings - calls SpendResources but doesn't care about return value. Can probably somewhat ignore?
+These resources *should* be passed to the CardPlay.
+Vakuu does *not* set this properly. Maybe can be considered a bug?
+
+
+Cost modification effects:
+x Costs have bool - IncludeCombinedModifications (if cost should be changed by stuff like mummified hand that sets all costs to 0)
+default true
+
+x CardModel SetToFreeThisCombat/SetToFreeThisTurn
+Mummified hand
+
+
+
+minor:
+chem x flash
+
+Optional:
+NetFullCombatState sync checking
+Note star cost isn't checked
+
+
+
+Hooks:
+
+x TryModifyResourceCostWithHooks (see CardCostHelper)
+
+
+FOR THE RESOURCE:
+
+x integer that is tracked
+
+ways to gain/lose (see PlayerCmd), note these are (can be) separate from "spending"
+(by default spend does same thing as lose)
+
+
+optional: NetFullCombatState.PlayerState resource amount
+
+Hooks:
+x AfterResourceSpent
+
+
+UI:
+
+
+
+
+
+
+
+
 
 TODO
 auto-scale compendium options for custom pools

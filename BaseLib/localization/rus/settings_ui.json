@@ -12,6 +12,11 @@
   "BASELIB-SHOW_MOD_CONFIG_IN_MAIN_MENU.hover.title": "Отображает кнопку «Конфигурация модов» в главном меню",
   "BASELIB-SHOW_MOD_CONFIG_IN_MAIN_MENU.hover.desc": "Доступ к конфигурации всегда остается в меню настроек игры.",
 
+  "BASELIB-GENERAL_SETTINGS.title": "Общие настройки",
+
+  "BASELIB-SHOW_MOD_SOURCE_TOOLTIP.title": "Показывать источник мода в подсказках",
+  "BASELIB-SHOW_MOD_SOURCE_TOOLTIP.hover.desc": "Добавляет подсказку, показывающую, из какого мода взяты карта, реликвия, сила или зелье.",
+
   "BASELIB-LOG_SECTION.title": "Окно логов/Консоль",
 
   "BASELIB-OPEN_LOG_WINDOW_ON_STARTUP.title": "Открывать окно логов при запуске",

@@ -21,9 +21,9 @@
         <PackageId>Alchyr.Sts2.BaseLib</PackageId>
         <Title>BaseLib-StS2</Title>
         <Description>Mod for Slay the Spire 2 providing utilities and features for other mods.</Description>
-        <Version>3.3.5</Version>
+        <Version>3.3.7</Version>
         <Authors>Alchyr</Authors>
-        <PackageReleaseNotes>Restore CardRewardSerializationPatch for main branch, small bugfixes</PackageReleaseNotes>
+        <PackageReleaseNotes>Japanese loc, fix card play destination changing patches</PackageReleaseNotes>
         <PackageTags>c#</PackageTags>
         <NoWarn>$(NoWarn);NU5128;MSB3270</NoWarn>
 

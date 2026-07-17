@@ -24,19 +24,32 @@ internal interface IBetaCompatTempPower
 public abstract class CustomTemporaryPowerModel : CustomPowerModel, ITemporaryPower, IBetaCompatTempPower, IAddDumbVariablesToPowerDescription
 {
      private const string LocTurnEndBoolVar = "UntilEndOfOtherSideTurn";
-     
+
+     /// <inheritdoc />
      public void AddDumbVariablesToPowerDescription(LocString description)
      {
          description.Add("TemporaryPowerTitle", this.InternallyAppliedPower.Title);
      }
 
     protected abstract Func<PlayerChoiceContext, Creature, decimal, Creature?, CardModel?, bool, Task> ApplyPowerFunc { get; }
+
+    /// <inheritdoc />
     public abstract PowerModel InternallyAppliedPower { get; }
+
+    /// <inheritdoc />
     public abstract AbstractModel OriginModel { get; }
     protected virtual bool UntilEndOfOtherSideTurn => false;
     protected virtual int LastForXExtraTurns => 0;
-    
-    public override PowerType Type => InternallyAppliedPower.Type;
+
+    /// <inheritdoc />
+    public override PowerType Type => InvertInternalPowerAmount ? 
+        InternallyAppliedPower.Type switch
+        {
+            PowerType.Buff => PowerType.Debuff,
+            PowerType.Debuff => PowerType.Buff,
+            _ => PowerType.None,
+        }
+        : InternallyAppliedPower.Type;
     public override PowerStackType StackType => PowerStackType.Counter;
     public override bool AllowNegative => true;
     
@@ -47,16 +60,16 @@ public abstract class CustomTemporaryPowerModel : CustomPowerModel, ITemporaryPo
     [HarmonyPatch]
     class OldTemporaryPowerInstancedPatch
     {
-        static MethodInfo? TargetMethod = AccessTools.PropertyGetter(typeof(PowerModel), "IsInstanced");
+        static MethodInfo? _targetMethod = AccessTools.PropertyGetter(typeof(PowerModel), "IsInstanced");
         
         static IEnumerable<MethodBase> TargetMethods()
         {
-            if (TargetMethod != null) yield return TargetMethod;
+            if (_targetMethod != null) yield return _targetMethod;
         }
 
         static bool Prepare()
         {
-            return TargetMethod != null;
+            return _targetMethod != null;
         }
         
         [HarmonyPrefix]
@@ -71,8 +84,8 @@ public abstract class CustomTemporaryPowerModel : CustomPowerModel, ITemporaryPo
     [HarmonyPatch]
     class NewTemporaryPowerInstancedPatch
     {
-        private static MethodInfo? GetInstanceType = AccessTools.PropertyGetter(typeof(PowerModel), "InstanceType");
-        private static Type? InstanceTypeEnum = "MegaCrit.Sts2.Core.Entities.Powers.PowerInstanceType".TryGetType();
+        private static readonly MethodInfo? GetInstanceType = AccessTools.PropertyGetter(typeof(PowerModel), "InstanceType");
+        private static readonly Type? InstanceTypeEnum = "MegaCrit.Sts2.Core.Entities.Powers.PowerInstanceType".TryGetType();
         static IEnumerable<MethodBase> TargetMethods()
         {
             if (GetInstanceType != null) yield return GetInstanceType;
@@ -104,12 +117,17 @@ public abstract class CustomTemporaryPowerModel : CustomPowerModel, ITemporaryPo
     
     // The whole IgnoreNextInstance thing ONLY exists because of the Misery card
     // Check Misery.DoHackyThingsForSpecificPowers() for usage
+    // Removed in beta.
     private bool _shouldIgnoreNextInstance;
+
+    /// <inheritdoc />
     public void IgnoreNextInstance() => _shouldIgnoreNextInstance = true;
     
     // Only used for localization purposes
+    /// <inheritdoc />
     protected override IEnumerable<DynamicVar> CanonicalVars => [new RepeatVar(0), new BoolVar(LocTurnEndBoolVar, false)];
 
+    /// <inheritdoc />
     public override async Task BeforeApplied(Creature target, decimal amount, Creature? applier, CardModel? cardSource)
     {
         var powerSource = this;
@@ -131,7 +149,8 @@ public abstract class CustomTemporaryPowerModel : CustomPowerModel, ITemporaryPo
         }
     }
 
-    
+
+    /// <inheritdoc />
     public override async Task AfterPowerAmountChanged(PlayerChoiceContext context, PowerModel power, decimal amount, Creature? applier, CardModel? cardSource)
     {
         var powerSource = this;
@@ -145,6 +164,7 @@ public abstract class CustomTemporaryPowerModel : CustomPowerModel, ITemporaryPo
             await ApplyPowerFunc(context, powerSource.Owner, InvertInternalPowerAmount ? -amount : amount, applier, cardSource, true);
     }
 
+    /// <inheritdoc />
     public override async Task AfterSideTurnEnd(PlayerChoiceContext choiceContext, CombatSide side, IEnumerable<Creature> participants)
     {
         if (participants.Contains(Owner) == UntilEndOfOtherSideTurn)
@@ -166,50 +186,4 @@ public abstract class CustomTemporaryPowerModel : CustomPowerModel, ITemporaryPo
         await ApplyPowerFunc(choiceContext, Owner, InvertInternalPowerAmount ? Amount : -Amount, Owner, null, true);
         await PowerCmd.Remove(this);
     }
-
-    
-    /*[HarmonyPatch]
-    class OldAfterTurnEndPatch
-    {
-        static MethodInfo? TargetMethod = AccessTools.PropertyGetter(typeof(PowerModel), "AfterTurnEnd");
-        
-        static IEnumerable<MethodBase> TargetMethods()
-        {
-            if (TargetMethod != null) yield return TargetMethod;
-        }
-
-        static bool Prepare()
-        {
-            return TargetMethod != null;
-        }
-        
-        [HarmonyPrefix]
-        static bool MaybeInstanced(PowerModel __instance, ref bool? __result)
-        {
-            if (__instance is not CustomTemporaryPowerModel tempPower) return true;
-
-            __result = tempPower.LastForXExtraTurns != 0;
-            return false;
-        }
-    }
-    
-    public async Task AfterTurnEndOld(PlayerChoiceContext choiceContext, CombatSide side)
-    {
-        if (InternallyAppliedPower is CustomTemporaryPowerModel)
-        {
-            await PowerCmd.Remove(this);
-            return;
-        }
-        if ((!UntilEndOfOtherSideTurn && side != Owner.Side) || (UntilEndOfOtherSideTurn && side == Owner.Side))
-            return;
-        if (DynamicVars.Repeat.BaseValue > 0)
-        {
-            DynamicVars.Repeat.UpgradeValueBy(-1);
-            return;
-        }
-
-        Flash();
-        await ApplyPowerFunc(choiceContext, Owner, InvertInternalPowerAmount ? Amount : -Amount, Owner, null, true);
-        await PowerCmd.Remove(this);
-    }*/
 }
