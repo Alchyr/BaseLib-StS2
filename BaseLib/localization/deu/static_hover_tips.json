@@ -1,8 +1,14 @@
 {
   "BASELIB-PERSIST.title": "Beständig",
-  "BASELIB-PERSIST.description": "Diese Karte kehrt {Persist:cond:>1?[blue]{Persist}[/blue]-mal|einmal} pro Zug nach dem Ausspielen auf deine Hand zurück.",
+  "BASELIB-PERSIST.description": "Diese Karte kehrt [blue]X[/blue]-mal pro Zug nach dem Ausspielen auf deine Hand zurück.",
+  "BASELIB-PERSIST.smartDescription": "Diese Karte kehrt {Persist:cond:>1?[blue]{Persist}[/blue]-mal|einmal} pro Zug nach dem Ausspielen auf deine Hand zurück.",
   "BASELIB-EXHAUSTIVE.title": "Erschöpfend",
-  "BASELIB-EXHAUSTIVE.description": "Diese Karte wird nach {Exhaustive:cond:>1?[blue]{Exhaustive}[/blue] |einer }{Exhaustive:plural:Verwendung|Verwendungen} [gold]Erschöpft[/gold].",
+  "BASELIB-EXHAUSTIVE.description": "Diese Karte wird nach [blue]X[/blue] Verwendungen [gold]Erschöpft[/gold].",
+  "BASELIB-EXHAUSTIVE.smartDescription": "Diese Karte wird nach {Exhaustive:cond:>1?[blue]{Exhaustive}[/blue] |einer }{Exhaustive:plural:Verwendung|Verwendungen} [gold]Erschöpft[/gold].",
   "BASELIB-REFUND.title": "Erstattung",
-  "BASELIB-REFUND.description": "Wird Energie für diese Karte ausgegeben, werden bis zu [blue]{Refund}[/blue] dieser Energie zurückerstattet."
+  "BASELIB-REFUND.description": "Wird Energie für diese Karte ausgegeben, werden bis zu [blue]X[/blue] dieser Energie zurückerstattet.",
+  "BASELIB-REFUND.smartDescription": "Wird Energie für diese Karte ausgegeben, werden bis zu [blue]{Refund}[/blue] dieser Energie zurückerstattet.",
+  "BASELIB-SCRY.title": "Spähen",
+  "BASELIB-SCRY.description": "Sieh dir die obersten [blue]X[/blue] Karten deines [gold]Nachziehstapels[/gold] an. Du kannst beliebig viele davon abwerfen.",
+  "BASELIB-SCRY.smartDescription": "Sieh dir die {Scry:plural:oberste Karte|obersten [blue]{Scry:diff()}[/blue] Karten} deines [gold]Nachziehstapels[/gold] an. Du kannst {Scry:plural:sie|beliebig viele davon} abwerfen."
 }
