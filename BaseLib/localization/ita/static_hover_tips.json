@@ -1,0 +1,5 @@
+{
+  "BASELIB-SCRY.title": "Scruta",
+  "BASELIB-SCRY.description": "Guarda le prime [blue]X[/blue] carte del tuo [gold]mazzo di pesca[/gold]. Puoi scartarne quante ne vuoi.",
+  "BASELIB-SCRY.smartDescription": "Guarda {Scry:plural:la prima carta|le prime [blue]{Scry:diff()}[/blue] carte} del tuo [gold]mazzo di pesca[/gold]. Puoi {Scry:plural:scartarla|scartarne quante ne vuoi}."
+}
