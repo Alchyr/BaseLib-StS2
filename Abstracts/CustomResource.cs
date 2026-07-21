@@ -1,4 +1,5 @@
-﻿using System.Reflection;
+﻿using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
 using System.Reflection.Emit;
 using BaseLib.Extensions;
 using BaseLib.Hooks;
@@ -283,7 +284,7 @@ public static class CustomResources<T> where T : CustomResource, new()
             });
 
     private static SpireField<CardModel, int> LastSpend =>
-        _lastSpend ??= new SpireField<CardModel, int>(() => 0);
+        _lastSpend ??= new SpireField<CardModel, int>(() => -1);
 
     private static SpireField<CardPlay, int> RecordedSpend =>
         _recordedSpend ??= new SpireField<CardPlay, int>(() => 0);
@@ -309,14 +310,22 @@ public static class CustomResources<T> where T : CustomResource, new()
     private static async Task Spend(CardModel card)
     {
         var cost = Cost(card);
-        if (cost == null) return;
-        
-        await Resource.Get(card.Owner.PlayerCombatState!).Spend<T>(card.CombatState!, card, cost.GetAmountToSpend());
+        LastSpend[card] = -1;
+        if (cost == null)
+            return;
+
+        var spend = cost.GetAmountToSpend();
+        if (await Resource.Get(card.Owner.PlayerCombatState!)
+                .Spend<T>(card.CombatState!, card, spend, cost.IsOptional(card.Owner)))
+        {
+            LastSpend[card] = spend;
+        }
     }
 
     private static void RecordSpend(CardPlay cardPlay)
     {
         RecordedSpend[cardPlay] = LastSpend[cardPlay.Card];
+        BaseLibMain.Logger.Debug($"Recorded spend: {LastSpend[cardPlay.Card]}");
     }
     
     private static void AfterCardPlayedCleanup(CardModel card)
@@ -379,6 +388,18 @@ public static class CustomResources<T> where T : CustomResource, new()
     }
 
     /// <summary>
+    /// Attempt to retrieve the current resource info for a player's combat state.
+    /// Returns false if combat state is null.
+    /// </summary>
+    public static bool TryGet(PlayerCombatState? combatState, [NotNullWhen(true)] out T? result)
+    {
+        result = null;
+        if (combatState == null) return false;
+        result = Resource[combatState];
+        return true;
+    }
+
+    /// <summary>
     /// Sets a card's canonical cost for this resource.
     /// -1 is the default meaning no cost, and <see cref="int.MinValue"/> is used for X costs.
     /// </summary>
@@ -421,11 +442,19 @@ public static class CustomResources<T> where T : CustomResource, new()
 
     /// <summary>
     /// Retrieves the amount of this resource spent on this card play.
-    /// Default value of 0.
+    /// Default value of -1 if this resource was not spent on this play.
     /// </summary>
     public static int AmountSpent(CardPlay play)
     {
         return RecordedSpend[play];
+    }
+
+    /// <summary>
+    /// Checks if the amount of this resource spent on this card play is 0 or more (<seealso cref="AmountSpent"/>)
+    /// </summary>
+    public static bool WasSpent(CardPlay play)
+    {
+        return RecordedSpend[play] >= 0;
     }
 }
 
@@ -446,6 +475,13 @@ public interface ICustomResourceCost
     /// based on the amount spent.
     /// </summary>
     bool CostsX { get; }
+
+    /// <summary>
+    /// Whether this cost is required to play the card.
+    /// You can check if a cost was paid for in a card's use method
+    /// by calling <see cref="CustomResources{T}.WasSpent"/>.
+    /// </summary>
+    public bool IsOptional(Player? p);
 
     /// <summary>
     /// Was this card's resource cost just recently upgraded?
@@ -695,12 +731,29 @@ public class CustomResourceCost<T> : ICustomResourceCost where T : CustomResourc
     /// <inheritdoc />
     public bool HasLocalModifiers => _localModifiers.Count > 0;
 
-    public CustomResourceCost(CardModel card, int canonicalCost, bool costsX)
+    private bool? _forceOptional = null;
+    /// <inheritdoc />
+    public virtual bool IsOptional(Player? p)
+    {
+        var combatState = p?.PlayerCombatState;
+        if (combatState == null) return false; //Out of combat
+        return _forceOptional ?? CustomResources<T>.Get(combatState).IsDefaultOptional;
+    }
+
+    public CustomResourceCost(CardModel card, int canonicalCost, bool costsX = false)
     {
         _card = card;
         CostsX = costsX;
         Canonical = CostsX ? 0 : canonicalCost;
         _base = Canonical;
+    }
+
+    /// <summary>
+    /// Makes this cost always optional (or always required), ignoring the resource's default optional property.
+    /// </summary>
+    public void MakeOptional(bool optional = true)
+    {
+        _forceOptional = optional;
     }
 
     /// <inheritdoc />
@@ -753,8 +806,11 @@ public class CustomResourceCost<T> : ICustomResourceCost where T : CustomResourc
     {
         if (!CostsX)
             return Math.Max(0, GetWithModifiers(CostModifiers.All));
+        
         var playerCombatState = _card.Owner.PlayerCombatState;
-        return playerCombatState?.Energy ?? 0;
+        if (playerCombatState == null) return 0;
+        
+        return CustomResources<T>.Get(playerCombatState).Amount;
     }
 
     /// <inheritdoc />
@@ -766,6 +822,8 @@ public class CustomResourceCost<T> : ICustomResourceCost where T : CustomResourc
     /// <inheritdoc />
     public UnplayableReason ResourceCheck(PlayerCombatState combatState, CardModel card)
     {
+        if (IsOptional(combatState._player)) return UnplayableReason.None;
+        
         var resource = CustomResources<T>.Get(combatState);
         var required = GetWithModifiers(CostModifiers.All);
         return resource.CanAfford(card, required) ? UnplayableReason.None : resource.UnplayableReason;
@@ -971,6 +1029,12 @@ public abstract class CustomResource(string id)
     public virtual bool ApplySharedModification => true;
 
     /// <summary>
+    /// Whether cards that cost this resource default to having this cost be optional.
+    /// Costs can individually be made optional.
+    /// </summary>
+    public virtual bool IsDefaultOptional => false;
+
+    /// <summary>
     /// Called when the resource is initialized at the start of each combat, if preparation is necessary.
     /// Note that this occurs when the PlayerCombatState is initialized.
     /// </summary>
@@ -990,9 +1054,9 @@ public abstract class CustomResource(string id)
         {
             if (value == field) return;
         
-            int oldEnergy = field;
+            var oldAmount = field;
             field = value;
-            AmountChanged?.Invoke(oldEnergy, field);
+            AmountChanged?.Invoke(oldAmount, field);
         }
     }
 
@@ -1002,15 +1066,32 @@ public abstract class CustomResource(string id)
     /// </summary>
     /// <param name="spender">The model these resources are being spent on.</param>
     /// <param name="amount">The amount of this resource to spend.</param>
-    public virtual async Task Spend<T>(ICombatState combatState, AbstractModel? spender, int amount) where T : CustomResource
+    /// <param name="optional">Whether this cost is expected to be optional.</param>
+    /// <returns>Whether the resource was actually spent.</returns>
+    public virtual async Task<bool> Spend<T>(ICombatState combatState, AbstractModel? spender, int amount, bool optional) where T : CustomResource
     {
         if (this is not T thisT)
             throw new ArgumentException(
                 "Attempted to call Spend on a resource with a generic type that does not match the resource.");
+
+        if (amount > Amount)
+        {
+            if (!optional)
+            {
+                BaseLibMain.Logger.Warn($"Attempted to spend secondary resource {typeof(T).Name} with insufficient amount;" +
+                                        $" Current: {Amount} | Required: {amount} ");
+                amount = Amount;
+            }
+            else
+            {
+                return false;
+            }
+        }
         
         ModifyAmount(-amount);
-
         await BaseLibHooks.AfterSpendCustomResource(combatState, thisT, spender, amount);
+        
+        return true;
     }
 
     /// <summary>
@@ -1066,7 +1147,7 @@ public abstract class BasicCustomResource(string resourceId, int setEachTurn = -
 
 public class BasicCostVisualsHandler(CustomResource resource) : ICustomCostVisualsHandler
 {
-    
+    //Color: White normal, green modified, red can't afford, gray can't afford optional
 }
 
 public class BasicResourceVisualsHandler(CustomResource resource) : ICustomResourceVisualsHandler
