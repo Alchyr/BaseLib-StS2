@@ -1,3 +1,4 @@
+using BaseLib.Abstracts;
 using BaseLib.Utils;
 using Godot;
 using HarmonyLib;
@@ -114,6 +115,8 @@ internal static class CharacterSelectStartingRelicsPatch
         Control? focusOrigin)
     {
         Clear(screen, restoreControllerFocus: true);
+
+        if (character is not ICustomModel) return;
 
         var relics = character.StartingRelics;
         if (relics.Count <= 1)
