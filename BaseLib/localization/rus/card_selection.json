@@ -1,0 +1,8 @@
+{
+  "BASELIB-CHOOSE_GENERIC": "Выберите {Amount:plural(ru):карту|[blue]{}[/blue] карты|[blue]{}[/blue] карт}.",
+  "BASELIB-DRAW_PILE": "Стопка добора",
+  "BASELIB-DISCARD_PILE": "Стопка сброса",
+  "BASELIB-EXHAUST_PILE": "Стопка пепла",
+  "BASELIB-HAND": "Рука",
+  "BASELIB-DECK": "Колода"
+}

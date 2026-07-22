@@ -42,7 +42,7 @@ Note star cost isn't checked
 
 Hooks:
 
-TryModifyResourceCostWithHooks (see CardCostHelper)
+x TryModifyResourceCostWithHooks (see CardCostHelper)
 
 
 FOR THE RESOURCE:
@@ -56,7 +56,11 @@ ways to gain/lose (see PlayerCmd), note these are (can be) separate from "spendi
 optional: NetFullCombatState.PlayerState resource amount
 
 Hooks:
-AfterResourceSpent
+x AfterResourceSpent
+
+
+UI:
+
 
 
 

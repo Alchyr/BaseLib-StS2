@@ -2,6 +2,7 @@
 using MegaCrit.Sts2.Core.Entities.Multiplayer;
 using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.GameActions.Multiplayer;
+using MegaCrit.Sts2.Core.Hooks;
 using MegaCrit.Sts2.Core.Models;
 
 namespace BaseLib.Utils;
@@ -26,12 +27,12 @@ public static class HookUtils
         where THook : class
     {
         if (combatState == null) return;
-        foreach (var model in combatState.IterateHookListeners().OfType<THook>())
+        foreach (var model in Hook.IterateCombatHookListeners(combatState).OfType<THook>())
             await action(model);
     }
 
     /// <summary>
-    ///     Dispatches an action to all hook listeners of type <typeparamref name="THook" />,
+    ///     Dispatches an action to all combat hook listeners of type <typeparamref name="THook" />,
     ///     pushing and popping each listener onto the provided <see cref="PlayerChoiceContext" />.
     ///     Silently skips listeners that are not <see cref="AbstractModel" /> instances.
     ///     <para>
@@ -49,7 +50,7 @@ public static class HookUtils
         where THook : class
     {
         if (combatState == null) return;
-        foreach (var model in combatState.IterateHookListeners().OfType<THook>())
+        foreach (var model in Hook.IterateCombatHookListeners(combatState).OfType<THook>())
         {
             if (model is not AbstractModel abstractModel) continue;
             ctx.PushModel(abstractModel);
@@ -87,7 +88,7 @@ public static class HookUtils
         var combatState = player.Creature.CombatState;
         if (combatState == null) return;
         var netId = player.NetId;
-        foreach (var model in combatState.IterateHookListeners().OfType<THook>())
+        foreach (var model in Hook.IterateCombatHookListeners(combatState).OfType<THook>())
         {
             if (model is not AbstractModel abstractModel) continue;
             var hookCtx = new HookPlayerChoiceContext(abstractModel, netId, combatState, GameActionType.Combat);
@@ -111,7 +112,7 @@ public static class HookUtils
         Func<THook, TResult, TResult> action)
         where THook : class
     {
-        return combatState.IterateHookListeners().OfType<THook>()
+        return Hook.IterateCombatHookListeners(combatState).OfType<THook>()
             .Aggregate(initial, (current, model) => action(model, current));
     }
 
@@ -125,7 +126,7 @@ public static class HookUtils
     public static bool All<THook>(ICombatState combatState, Func<THook, bool> predicate)
         where THook : class
     {
-        return combatState.IterateHookListeners().OfType<THook>().All(predicate);
+        return Hook.IterateCombatHookListeners(combatState).OfType<THook>().All(predicate);
     }
 
     /// <summary>
@@ -144,7 +145,7 @@ public static class HookUtils
         out IEnumerable<THook> nonMatches)
         where THook : class
     {
-        var list = combatState.IterateHookListeners().OfType<THook>().Where(m => !predicate(m)).ToList();
+        var list = Hook.IterateCombatHookListeners(combatState).OfType<THook>().Where(m => !predicate(m)).ToList();
         nonMatches = list;
         return list.Count == 0;
     }
@@ -159,7 +160,7 @@ public static class HookUtils
     public static bool Any<THook>(ICombatState combatState, Func<THook, bool> predicate)
         where THook : class
     {
-        return combatState.IterateHookListeners().OfType<THook>().Any(predicate);
+        return Hook.IterateCombatHookListeners(combatState).OfType<THook>().Any(predicate);
     }
 
     /// <summary>
@@ -178,7 +179,7 @@ public static class HookUtils
         out IEnumerable<THook> matches)
         where THook : class
     {
-        var list = combatState.IterateHookListeners().OfType<THook>().Where(predicate).ToList();
+        var list = Hook.IterateCombatHookListeners(combatState).OfType<THook>().Where(predicate).ToList();
         matches = list;
         return list.Count > 0;
     }
@@ -218,7 +219,7 @@ public static class HookUtils
         }
         var amount = originalAmount;
         var abstractModelList = new List<THook>();
-        foreach (var model in combatState.IterateHookListeners().OfType<THook>())
+        foreach (var model in Hook.IterateCombatHookListeners(combatState).OfType<THook>())
         {
             var previous = amount;
             amount = amountModifier.Invoke(model, amount);
@@ -251,7 +252,7 @@ public static class HookUtils
         where THook : class
     {
         var modifierSet = new HashSet<THook>(modifiers);
-        foreach (var iterateHookListener in cs.IterateHookListeners().OfType<THook>())
+        foreach (var iterateHookListener in Hook.IterateCombatHookListeners(cs).OfType<THook>())
         {
             if (!modifierSet.Contains(iterateHookListener)) continue;
             await action(iterateHookListener);
@@ -289,7 +290,7 @@ public static class HookUtils
         out IEnumerable<THook> modifiers)
         where THook : class
     {
-        var list = combatState.IterateHookListeners().OfType<THook>()
+        var list = Hook.IterateCombatHookListeners(combatState).OfType<THook>()
             .Where(model => amountModifier.Invoke(model, value)).ToList();
         modifiers = list;
         return value;

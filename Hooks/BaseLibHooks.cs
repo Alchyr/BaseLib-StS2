@@ -105,8 +105,27 @@ public static class BaseLibHooks
         return HookUtils.AfterModifying(player.Creature.CombatState!, modifiers, a => a.AfterModifyingScryAmount(ctx, player, originalAmount, modifiedAmount));
     }
 
-    public static void AfterSpendCustomResource<T>(ICombatState combatState, AbstractModel? spender, int amount) where T : CustomResource
+    public static async Task AfterSpendCustomResource<T>(ICombatState combatState, T resource, AbstractModel? spender, int amount) where T : CustomResource
     {
-        HookUtils.Dispatch<IAfterSpendResource<T>>(combatState, m => m.AfterSpendResource(combatState, spender, amount));
+        await HookUtils.Dispatch<IAfterSpendResource<T>>(combatState, m => m.AfterSpendResource(combatState, resource, spender, amount));
+    }
+    
+    /// <summary>
+    /// See <see cref="IModifyResourceCostInCombat{T}.ModifyResourceCostInCombat" />.
+    /// </summary>
+    public static decimal ModifyResourceCostInCombat<T>(
+        ICombatState combatState,
+        T resource,
+        CardModel card,
+        decimal originalCost) where T : CustomResource
+    {
+        if (originalCost < 0M)
+            return originalCost;
+        var modifiedCost = HookUtils.Modify<IModifyResourceCostInCombat<T>, decimal>(
+            combatState,
+            originalCost,
+            (modifier, amt) => modifier.ModifyResourceCostInCombat(card, resource, amt),
+            out _);
+        return modifiedCost;
     }
 }

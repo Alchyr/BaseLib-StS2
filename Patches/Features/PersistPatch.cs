@@ -15,7 +15,8 @@ public static class PersistPatch
     static MethodInfo? TargetMethod = 
         AccessTools.DeclaredMethod(typeof(CardModel), "GetResultPileTypeForCardPlay")
         ?? AccessTools.DeclaredMethod(typeof(CardModel), "GetResultPileType")
-        ?? AccessTools.DeclaredMethod(typeof(CardModel), "GetResultPileTypeAndPositionForCardPlay");
+        ?? AccessTools.DeclaredMethod(typeof(CardModel), "GetResultPileTypeAndPositionForCardPlay")
+        ?? AccessTools.DeclaredMethod(typeof(CardModel), "GetResultLocationForCardPlay");
         
     static IEnumerable<MethodBase> TargetMethods()
     {
@@ -24,7 +25,9 @@ public static class PersistPatch
 
     static bool Prepare()
     {
-        return TargetMethod != null;
+        if (TargetMethod != null) return true;
+        BaseLibMain.Logger.Info("No valid target found, skipping PersistPatch");
+        return false;
     }
     
     [HarmonyTranspiler]

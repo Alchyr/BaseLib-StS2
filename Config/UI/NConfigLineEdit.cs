@@ -63,6 +63,7 @@ public partial class NConfigLineEdit : NMegaLineEdit, ISelectionReticle
 
     public override void _Ready()
     {
+       base._Ready();
        SetFromProperty();
        if (_config != null) _config.OnConfigReloaded += SetFromProperty;
 

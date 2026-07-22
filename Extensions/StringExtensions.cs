@@ -74,6 +74,11 @@ public static class StringExtensions
         return hash;
     }
     
+    /// <summary>
+    /// extension method for attempting to retrieve a basegame type by name, mainly used for beta/main branch compatibility.
+    /// </summary>
+    /// <param name="typeName"></param>
+    /// <returns></returns>
     public static Type? TryGetType(this string typeName)
     {
         try

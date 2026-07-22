@@ -2,6 +2,7 @@ using BaseLib.Patches.Saves;
 using BaseLib.Utils;
 using Godot;
 using HarmonyLib;
+using MegaCrit.Sts2.Core.Multiplayer.Serialization;
 using MegaCrit.Sts2.Core.Saves.Runs;
 
 namespace BaseLib.Patches.Utils;
@@ -57,17 +58,30 @@ static class SavedSpireFieldPatch
             }
         }
     }
-    
+
+    /// <summary>
+    /// Used to add names for fake saved properties.
+    /// </summary>
+    private static Type? _targetType;
+    private static bool _beta = false;
     private static void InjectNameIntoBaseGameCache(string name)
     {
+        if (_targetType == null)
+        {
+            _targetType =
+                AccessTools.TypeByName("MegaCrit.Sts2.Core.Saves.Runs.SavedPropertiesTypeCache");
+            if (_targetType == null)
+            {
+                _targetType = typeof(ModelIdSerializationCache);
+                _beta = true;
+            }
+        }
         var propertyToId = AccessTools.StaticFieldRefAccess<Dictionary<string, int>>(
-            typeof(SavedPropertiesTypeCache),
-            "_propertyNameToNetIdMap"
-        );
+            _targetType, "_propertyNameToNetIdMap");
         var idToProperty = AccessTools.StaticFieldRefAccess<List<string>>(
-            typeof(SavedPropertiesTypeCache),
-            "_netIdToPropertyNameMap"
-        );
+            _targetType, "_netIdToPropertyNameMap");
+        var bitSizeProperty = AccessTools.PropertySetter(
+            _targetType, _beta ? "PropertyIdBitSize" : "NetIdBitSize");
 
         if (!propertyToId.ContainsKey(name))
         {
@@ -78,9 +92,7 @@ static class SavedSpireFieldPatch
 
             int newBitSize = Mathf.CeilToInt(Math.Log2(idToProperty.Count));
 
-            AccessTools
-                .Property(typeof(SavedPropertiesTypeCache), "NetIdBitSize")
-                .SetValue(null, newBitSize);
+            bitSizeProperty.Invoke(null, [newBitSize]);
         }
         else
         {

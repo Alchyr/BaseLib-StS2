@@ -1,10 +1,17 @@
 {
   "BASELIB-PERSIST.title": "Persist",
-  "BASELIB-PERSIST.description": "This card returns to your hand the first {Persist:cond:>1?[blue]{Persist}[/blue] |}{Persist:plural:time|times} it is played each turn.",
+  "BASELIB-PERSIST.description": "This card returns to your hand the first [blue]X[/blue] times it is played each turn.",
+  "BASELIB-PERSIST.smartDescription": "This card returns to your hand the first {Persist:cond:>1?[blue]{Persist}[/blue] |}{Persist:plural:time|times} it is played each turn.",
   "BASELIB-EXHAUSTIVE.title": "Exhaustive",
-  "BASELIB-EXHAUSTIVE.description": "This card [gold]Exhausts[/gold] after {Exhaustive:cond:>1?[blue]{Exhaustive}[/blue] |}{Exhaustive:plural:use|uses}.",
+  "BASELIB-EXHAUSTIVE.description": "This card [gold]Exhausts[/gold] after [blue]X[/blue] uses.",
+  "BASELIB-EXHAUSTIVE.smartDescription": "This card [gold]Exhausts[/gold] after {Exhaustive:cond:>1?[blue]{Exhaustive}[/blue] |}{Exhaustive:plural:use|uses}.",
   "BASELIB-REFUND.title": "Refund",
   "BASELIB-REFUND.description": "When energy is spent on this card, up to [blue]{Refund}[/blue] of that energy is refunded.",
   "BASELIB-TEMP_HP.title": "Temporary HP",
-  "BASELIB-TEMP_HP.description": "Absorbs damage before HP is lost, even damage that ignores [gold]Block[/gold]. Disappears at the end of combat."
+  "BASELIB-TEMP_HP.description": "Absorbs damage before HP is lost, even damage that ignores [gold]Block[/gold]. Disappears at the end of combat.",
+  "BASELIB-REFUND.description": "When energy is spent on this card, up to [blue]X[/blue] of that energy is refunded.",
+  "BASELIB-REFUND.smartDescription": "When energy is spent on this card, up to [blue]{Refund}[/blue] of that energy is refunded.",
+  "BASELIB-SCRY.title": "Scry",
+  "BASELIB-SCRY.description": "Look at the top [blue]X[/blue] cards of your [gold]Draw Pile[/gold]. You may discard any of them.",
+  "BASELIB-SCRY.smartDescription": "Look at the top {Scry:plural:card|[blue]{Scry:diff()}[/blue] cards} of your [gold]Draw Pile[/gold]. You may discard {Scry:plural:it|any of them}."
 }

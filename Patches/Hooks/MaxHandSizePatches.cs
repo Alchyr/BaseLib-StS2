@@ -175,7 +175,9 @@ static class CardConsoleCmd_Process_MaxHandSizePatch
 static class CardPileCmd_Draw_MaxHandSizePatch
 {
     static MethodInfo TargetMethod() => AccessTools.AsyncMoveNext(
-        AccessTools.Method(typeof(CardPileCmd), nameof(CardPileCmd.Draw),
+        AccessTools.Method(typeof(CardPileCmd), "DrawInternal", //BETA COMPAT
+            [typeof(PlayerChoiceContext), typeof(decimal), typeof(Player), typeof(bool)])
+        ?? AccessTools.Method(typeof(CardPileCmd), "Draw",
             [typeof(PlayerChoiceContext), typeof(decimal), typeof(Player), typeof(bool)]));
 
     [HarmonyTranspiler]

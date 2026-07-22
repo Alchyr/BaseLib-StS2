@@ -15,11 +15,13 @@ using SmartFormat.Core.Extensions;
 
 namespace BaseLib.Patches;
 
-//Simplest patch that occurs after mod initialization, before anything else is done.
-//See OneTimeInitialization.ExecuteEssential
+//Patch that occurs after mod initialization, before anything else is done.
+//See OneTimeInitialization.ExecuteEssential for ordering
 
 //TODO - If no mods that modify gameplay and use baselib as a dependency are enabled, exclude basemod models from database?
 //This would allow features like vitality to be merged.
+//This seems to be something added to basegame; will be left for now.
+
 
 [HarmonyPatch] 
 class PostModInitPatch
@@ -107,15 +109,8 @@ class PostModInitPatch
                 {
                     if (Activator.CreateInstance(type) is IFormatter formatter)
                     {
-                        if (LocManager._smartFormatter != null)
-                        {
-                            LocManager._smartFormatter.AddExtensions(formatter);
-                        }
-                        else
-                        {
-                            AddLaterFormatters.Add(formatter);
-                        }
-                        BaseLibMain.Logger.Info($"Added custom format specifier {type.Name}");
+                        AddLaterFormatters.Add(formatter);
+                        BaseLibMain.Logger.Info($"Instantiated custom format specifier {type.Name} to add later");
                     }
                     else
                     {
@@ -136,7 +131,7 @@ class PostModInitPatch
     private static void AddFormattersOnLocInit(LocManager __instance)
     {
         if (AddLaterFormatters.Count == 0) return;
-        BaseLibMain.Logger.Debug($"Added {AddLaterFormatters.Count} formatters after LoadLocFormatters.");
+        BaseLibMain.Logger.Info($"Added {AddLaterFormatters.Count} formatters after LoadLocFormatters.");
         LocManager._smartFormatter.AddExtensions(AddLaterFormatters.ToArray());
     }
 
@@ -184,15 +179,16 @@ class PostModInitPatch
                 CheckSpecialSpireField(field);
             }
 
-            //TODO - Remove on next beta->main merge; SavedPropertiesTypeCache already loads modded types.
+            //TODO - Remove on next beta->main merge; now already loads modded types.
             if (hasSavedProperty)
             {
-                if (SavedPropertiesTypeCache._cache.Count == 0)
+                /*if (SavedPropertiesTypeCache._cache.Count == 0)
                 {
                     BaseLibMain.Logger.Warn("Adding saved properties too early; type cache is still empty.");
-                }
+                }*/
                 
-                SavedPropertiesTypeCache.InjectTypeIntoCache(type);
+                BetaMainCompatibility.CacheSavedProperties(type);
+                //SavedPropertiesTypeCache.InjectTypeIntoCache(type);
             }
         }
         SavedSpireFieldPatch.AddFieldsSorted();

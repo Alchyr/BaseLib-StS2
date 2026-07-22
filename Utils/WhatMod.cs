@@ -95,7 +95,7 @@ public static class WhatMod
     }
 
     /// <summary>
-    /// Display name of the mod that defined <paramref name="type"/>, or null if it is base-game content.
+    /// Display name of the mod that defined type T, or null if it is base-game content.
     /// Matches the installed-mods list: the manifest name, with the id in parentheses when it differs.
     /// </summary>
     public static string? FindModName<T>()
