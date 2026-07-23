@@ -200,15 +200,11 @@ public abstract class CustomEpochModel : EpochModel, ICustomModel
         [HarmonyPatch]
         public static class CharacterEpochsUnlockPatches
         {
-            // These skips would always skip, even if the creator intended for their own way to implement them!
-            // For now, I will leave it as is because adding booleans to the CustomCharacterModel in case someone might want to use these Epochs
-            // but does not want to set them in the characters class, is unnecessary. (it isn't difficult to patch around this. The main issue
-            // is figuring out these patches are the reason for them not running which is helped by this comment here. Hello there!)
-            
             // CharUnlock is actually the beat Act1-3 epoch unlocks, not unlocking a character
             // The UnlockCharacter Epoch is patched in CustomCharacterModel as it requires access to a private property.
             [HarmonyPatch(typeof(ProgressSaveManager), "ObtainCharUnlockEpoch")]
             [HarmonyPrefix]
+            [HarmonyPriority(Priority.Last)]
             private static bool SkipCharUnlockEpochIfUnsupported(ProgressSaveManager __instance, Player localPlayer, int act)
             {
                 if (localPlayer.Character is not CustomCharacterModel ccm)
@@ -247,6 +243,7 @@ public abstract class CustomEpochModel : EpochModel, ICustomModel
 
             [HarmonyPatch(typeof(ProgressSaveManager), "CheckFifteenBossesDefeatedEpoch")]
             [HarmonyPrefix]
+            [HarmonyPriority(Priority.Last)]
             private static bool SkipBossEpochIfUnsupported(ProgressSaveManager __instance, Player localPlayer)
             {
                 if (localPlayer.Character is not CustomCharacterModel customCharacterModel)
@@ -277,6 +274,7 @@ public abstract class CustomEpochModel : EpochModel, ICustomModel
 
             [HarmonyPatch(typeof(ProgressSaveManager), "CheckFifteenElitesDefeatedEpoch")]
             [HarmonyPrefix]
+            [HarmonyPriority(Priority.Last)]
             private static bool SkipEliteEpochIfUnsupported(ProgressSaveManager __instance, Player localPlayer)
             {
                 if (localPlayer.Character is not CustomCharacterModel customCharacterModel)
@@ -308,6 +306,7 @@ public abstract class CustomEpochModel : EpochModel, ICustomModel
 
             [HarmonyPatch(typeof(ProgressSaveManager), "CheckAscensionOneCompleted")]
             [HarmonyPrefix]
+            [HarmonyPriority(Priority.Last)]
             private static bool SkipAscensionOneEpochIfUnsupported(ProgressSaveManager __instance, SerializablePlayer serializablePlayer, SerializableRun serializableRun)
             {
                 var characterModel = ModelDb.GetById<CharacterModel>(serializablePlayer.CharacterId!);
