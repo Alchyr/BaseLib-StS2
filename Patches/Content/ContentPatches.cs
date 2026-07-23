@@ -15,6 +15,7 @@ using MegaCrit.Sts2.Core.Random;
 using MegaCrit.Sts2.Core.Rooms;
 using MegaCrit.Sts2.Core.Runs;
 using MegaCrit.Sts2.Core.Saves;
+using MegaCrit.Sts2.Core.Timeline;
 using MegaCrit.Sts2.Core.Timeline.Epochs;
 using MegaCrit.Sts2.Core.Unlocks;
 
@@ -39,6 +40,8 @@ public static class CustomContentDictionary
     /// </summary>
     public static readonly List<CustomEventModel> SharedCustomEvents = [];
     public static readonly List<CustomActModel> CustomActs = [];
+    public static readonly List<CustomEpochModel> CustomEpochs = [];
+    public static readonly List<CustomStoryModel> CustomStories = [];
     
     static CustomContentDictionary()
     {
@@ -121,6 +124,19 @@ public static class CustomContentDictionary
         {
             RelicImageOverridePatch.AddOverride<YummyCookie>(cookie, (relic) => relic.IsMutable && character.Id.Equals(relic.Owner?.Character.Id));
         }
+    }
+    
+    public static void AddEpoch(CustomEpochModel epochModel)
+    {
+        if (!RegisterType(epochModel.GetType())) return;
+        CustomEpochs.Add(epochModel);
+    }
+    
+    public static void AddStory(CustomStoryModel storyModel)
+    {
+        if (!RegisterType(storyModel.GetType())) return;
+        
+        CustomStories.Add(storyModel);
     }
     
     private static bool IsValidPool(Type modelType, Type poolType)
@@ -407,4 +423,27 @@ public static class AddActContent
             if (eventModel.Acts.Any(act => act.Id.Equals(__instance.Id))) yield return eventModel;
         }
     }
+}
+
+[HarmonyPatch]
+public class EpochModelCustomEpochsPatch
+{ 
+    [HarmonyPatch(typeof(EpochModel), nameof(EpochModel.AllEpochIds), MethodType.Getter)]
+    [HarmonyPostfix] 
+    private static void InsertEpochIds(ref IReadOnlyList<string> __result)
+    {
+        __result = [.. __result, .. CustomContentDictionary.CustomEpochs.Select(x => x.Id)];
+    }
+    
+    // Not needed anymore.
+    // The reason for this is that when 'ModelIdSerializationCache' Initializes, this harmony patch isn't
+    // running yet.
+    // So instead we insert them during PostModInit directly into the _allEpochs list.
+    
+    // [HarmonyPatch(typeof(EpochModel), nameof(EpochModel.AllEpochs), MethodType.Getter)]
+    // [HarmonyPostfix] 
+    // private static void InsertEpochTypes(ref IReadOnlyList<Type> __result)
+    // { 
+    //     __result = [.. __result, .. CustomContentDictionary.CustomEpochs.Select(x => x.GetType())];
+    // }
 }

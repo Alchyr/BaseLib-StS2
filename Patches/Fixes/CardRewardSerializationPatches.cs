@@ -12,6 +12,8 @@ using MegaCrit.Sts2.Core.Saves.Runs;
 
 namespace BaseLib.Patches.Fixes;
 
+// COMMENTED OUT TEMPORARILY; AN ACTUAL FIX IS NECESSARY
+
 internal sealed class RewardExtData
 {
     [JsonPropertyName("flags")]
