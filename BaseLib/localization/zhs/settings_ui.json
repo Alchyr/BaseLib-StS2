@@ -10,6 +10,8 @@
   "BASELIB-SHOW_MOD_CONFIG_IN_MAIN_MENU.hover.title": "在主菜单显示模组配置",
   "BASELIB-SHOW_MOD_CONFIG_IN_MAIN_MENU.hover.desc": "在游戏设置中始终会有一个入口。",
   "BASELIB-GENERAL_SETTINGS.title": "通用设置",
+  "BASELIB-SHOW_MOD_SOURCE_TOOLTIP.title": "在提示框中显示模组来源",
+  "BASELIB-SHOW_MOD_SOURCE_TOOLTIP.hover.desc": "在卡牌、遗物、能力或药水的提示框中显示它来自哪个模组。",
   "BASELIB-SFX_PLAYER_LIMIT.title": "音效数量上限",
   "BASELIB-SFX_PLAYER_LIMIT.hover.desc": "通过 BaseLib 能同时播放的音效的最大数量。",
   "BASELIB-LOG_SECTION.title": "日志窗口/控制台",

@@ -98,7 +98,7 @@ public static class MultiPileCardSelect
             result = cards;
         else {
             uint choiceId = RunManager.Instance.PlayerChoiceSynchronizer.ReserveChoiceId(player);
-            await context.SignalPlayerChoiceBegun(PlayerChoiceOptions.None);
+            await context.SignalPlayerChoiceBegunCompatibility(player, PlayerChoiceOptions.None);
             if ((bool)AccessTools.Method(typeof(CardSelectCmd), nameof(CardSelectCmd.ShouldSelectLocalCard)).Invoke(null, [player])!) {
                 NPlayerHand.Instance?.CancelAllCardPlay();
                 NSimpleCardSelectScreen nSimpleCardSelectScreen = NSimpleCardSelectScreen.Create(cards, prefs);

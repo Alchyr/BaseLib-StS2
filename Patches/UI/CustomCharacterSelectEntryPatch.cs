@@ -133,29 +133,13 @@ internal static class CustomCharacterSelectEntryPatch
     private static void SelectCustomEntry(NCharacterSelectScreen screen, NCustomCharacterSelectEntryButton button)
     {
         var state = ScreenStates.Get(screen)!;
-        var customButtons = state.Buttons.Select(static customButton => customButton.Button).ToHashSet();
-
-        foreach (var vanillaButton in screen._charButtonContainer.GetChildren().OfType<NCharacterSelectButton>())
-        {
-            if (!customButtons.Contains(vanillaButton))
-            {
-                vanillaButton.Deselect();
-            }
-        }
-
-        foreach (var customButton in state.Buttons)
-        {
-            if (customButton != button)
-            {
-                customButton.Deselect();
-            }
-        }
-
-        ClearBackground(screen);
-        ClearActiveEntry(screen, clearScene: true);
 
         if (button.IsLocked)
         {
+            DeselectOtherButtons(screen, state, button);
+            ClearBackground(screen);
+            ClearActiveEntry(screen, clearScene: true);
+            CharacterSelectStartingRelicsPatch.Clear(screen, restoreControllerFocus: true);
             state.ActiveButton = button;
             ApplyLockedEntryPanel(screen, button);
             return;
@@ -182,6 +166,11 @@ internal static class CustomCharacterSelectEntryPatch
         {
             BaseLibMain.Logger.Error($"Failed to create custom character select foreground scene for {button.Entry.EntryId}: {e}");
         }
+
+        DeselectOtherButtons(screen, state, button);
+        ClearBackground(screen);
+        ClearActiveEntry(screen, clearScene: true);
+        CharacterSelectStartingRelicsPatch.Clear(screen, restoreControllerFocus: true);
 
         entryScene.Name = $"{button.Entry.EntryId}_entry_bg";
         screen._bgContainer.AddChildSafely(entryScene);
@@ -235,6 +224,30 @@ internal static class CustomCharacterSelectEntryPatch
         else
         {
             RefreshEmbarkAvailability(screen);
+        }
+    }
+
+    private static void DeselectOtherButtons(
+        NCharacterSelectScreen screen,
+        CustomCharacterSelectScreenState state,
+        NCustomCharacterSelectEntryButton selectedButton)
+    {
+        var customButtons = state.Buttons.Select(static customButton => customButton.Button).ToHashSet();
+
+        foreach (var vanillaButton in screen._charButtonContainer.GetChildren().OfType<NCharacterSelectButton>())
+        {
+            if (!customButtons.Contains(vanillaButton))
+            {
+                vanillaButton.Deselect();
+            }
+        }
+
+        foreach (var customButton in state.Buttons)
+        {
+            if (customButton != selectedButton)
+            {
+                customButton.Deselect();
+            }
         }
     }
 
@@ -357,6 +370,10 @@ internal static class CustomCharacterSelectEntryPatch
             current.FocusNeighborLeft = buttons[(i - 1 + buttons.Count) % buttons.Count].GetPath();
             current.FocusNeighborRight = buttons[(i + 1) % buttons.Count].GetPath();
         }
+
+        // Multi-relic rows bind FocusNeighborTop from the selected character button; re-apply
+        // after this rebuild so controller navigation still reaches the relic holders.
+        CharacterSelectStartingRelicsPatch.RebindFocusNeighbors(screen);
     }
 
     private static void AnimateInfoPanel(NCharacterSelectScreen screen)
@@ -377,6 +394,7 @@ internal static class CustomCharacterSelectEntryPatch
 
     private static void ApplyEntryPanel(NCharacterSelectScreen screen, CustomCharacterSelectEntry entry)
     {
+        CharacterSelectStartingRelicsPatch.Clear(screen, restoreControllerFocus: true);
         screen._selectedButton = null;
         screen._embarkButton.Disable();
         screen._name.SetTextAutoSize(entry.EntryTitle);
@@ -393,6 +411,7 @@ internal static class CustomCharacterSelectEntryPatch
 
     private static void ApplyLockedEntryPanel(NCharacterSelectScreen screen, NCustomCharacterSelectEntryButton button)
     {
+        CharacterSelectStartingRelicsPatch.Clear(screen, restoreControllerFocus: true);
         if (button.LockSourceCharacter != null)
         {
             ApplyLockedCharacterPanel(
@@ -437,13 +456,23 @@ internal static class CustomCharacterSelectEntryPatch
         {
             screen._hp.SetTextAutoSize($"{character.StartingHp}/{character.StartingHp}");
             screen._gold.SetTextAutoSize($"{character.StartingGold}");
-            var relic = character.StartingRelics[0];
-            screen._relicTitle.Text = relic.Title.GetFormattedText();
-            screen._relicDescription.Text = relic.DynamicDescription.GetFormattedText();
-            screen._relicIcon.Texture = relic.Icon;
-            screen._relicIconOutline.Texture = relic.IconOutline;
-            screen._relicIcon.SelfModulate = Colors.White;
-            screen._relicIconOutline.SelfModulate = StsColors.halfTransparentBlack;
+            if (character.StartingRelics.Count > 0)
+            {
+                var relic = character.StartingRelics[0];
+                screen._relicTitle.Text = relic.Title.GetFormattedText();
+                screen._relicDescription.Text = relic.DynamicDescription.GetFormattedText();
+                screen._relicIcon.Texture = relic.Icon;
+                screen._relicIconOutline.Texture = relic.IconOutline;
+                screen._relicIcon.SelfModulate = Colors.White;
+                screen._relicIconOutline.SelfModulate = StsColors.halfTransparentBlack;
+            }
+            else
+            {
+                screen._relicIcon.SelfModulate = StsColors.transparentBlack;
+                screen._relicIconOutline.SelfModulate = StsColors.transparentBlack;
+                screen._relicTitle.Text = string.Empty;
+                screen._relicDescription.Text = string.Empty;
+            }
         }
         else
         {
@@ -462,6 +491,15 @@ internal static class CustomCharacterSelectEntryPatch
             screen._ascensionPanel.AnimIn();
         }
 
+        if (entry.ShowVanillaInfoPanelWhenResolved)
+        {
+            var state = ScreenStates.Get(screen);
+            CharacterSelectStartingRelicsPatch.ApplyForCharacter(screen, character, state?.ActiveButton?.Button);
+        }
+        else
+        {
+            CharacterSelectStartingRelicsPatch.Clear(screen, restoreControllerFocus: true);
+        }
         ApplyInfoPanelVisibility(screen, entry.ShowVanillaInfoPanelWhenResolved);
     }
 
@@ -470,13 +508,14 @@ internal static class CustomCharacterSelectEntryPatch
         CharacterModel character,
         bool showInfoPanel)
     {
+        CharacterSelectStartingRelicsPatch.Clear(screen, restoreControllerFocus: true);
         screen._embarkButton.Disable();
         screen._name.SetTextAutoSize(new LocString("main_menu_ui", "CHARACTER_SELECT.locked.title").GetFormattedText());
         screen._description.Text = character.GetUnlockText().GetFormattedText();
         screen._hp.SetTextAutoSize("??/??");
         screen._gold.SetTextAutoSize("???");
 
-        if (character is not RandomCharacter)
+        if (character is not RandomCharacter && character.StartingRelics.Count > 0)
         {
             var relic = character.StartingRelics[0];
             screen._relicTitle.Text = new LocString("main_menu_ui", "CHARACTER_SELECT.lockedRelic.title").GetFormattedText();

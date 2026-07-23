@@ -1,0 +1,54 @@
+{
+  "BASELIB.mod_title": "BaseLib",
+  "BASELIB.MOD_CONFIG_SETTINGS_ROW.title": "Mod設定 (BaseLib)",
+  "BASELIB.MOD_CONFIG_SETTINGS_ROW.button": "設定を開く",
+
+  "BASELIB-UNKNOWN_MOD_NAME": "不明なMod名",
+  "BASELIB-RESTORE_DEFAULTS_BUTTON.title": "デフォルトに戻す",
+  "BASELIB-RESTORE_MODCONFIG_CONFIRMATION.header": "復元の確認",
+  "BASELIB-RESTORE_MODCONFIG_CONFIRMATION.body": "このModの設定をデフォルトに戻しますか？",
+
+  "BASELIB-SHOW_MOD_CONFIG_IN_MAIN_MENU.title": "メインメニューにMod設定を表示する（再起動が必要）",
+  "BASELIB-SHOW_MOD_CONFIG_IN_MAIN_MENU.hover.title": "メインメニューにMod設定を表示する",
+  "BASELIB-SHOW_MOD_CONFIG_IN_MAIN_MENU.hover.desc": "ゲームの設定画面には常に項目が表示されます。",
+
+  "BASELIB-GENERAL_SETTINGS.title": "一般設定",
+  
+  "BASELIB-SFX_PLAYER_LIMIT.title": "効果音の上限",
+  "BASELIB-SFX_PLAYER_LIMIT.hover.desc": "BaseLib経由で同時に再生できる効果音の最大数。",
+
+  "BASELIB-LOG_SECTION.title": "ログウィンドウ/コンソール",
+
+  "BASELIB-OPEN_LOG_WINDOW_ON_STARTUP.title": "起動時にログウィンドウを開く",
+  "BASELIB-OPEN_LOG_WINDOW_ON_STARTUP.hover.desc": "メインメニューの読み込み時にBaseLibのログウィンドウを自動的に開きます。",
+
+  "BASELIB-OPEN_LOG_WINDOW_ON_ERROR.title": "エラー発生時にログウィンドウを開く",
+  "BASELIB-OPEN_LOG_WINDOW_ON_ERROR.hover.desc": "エラーが発生したときにBaseLibのログウィンドウを自動的に開きます。",
+
+  "BASELIB-LIMITED_LOG_SIZE.title": "ログの保持数",
+  "BASELIB-LIMITED_LOG_SIZE.hover.desc": "ゲーム内ログウィンドウに保持する最大行数。",
+  "BASELIB-LIMITED_LOG_SIZE.sliderFormat": "{0:0} 行",
+  
+  "BASELIB-LOG_FONT_SIZE.title": "ログのフォントサイズ",
+  "BASELIB-LOG_FONT_SIZE.hover.desc": "ログウィンドウ内でCtrl+スクロールでも設定できます。",
+  "BASELIB-LOG_FONT_SIZE.sliderFormat": "{0:0} px",
+  
+  "BASELIB-HARMONY_DUMP_SECTION.title": "Harmonyパッチダンプ",
+
+  "BASELIB-HARMONY_PATCH_DUMP_OUTPUT_PATH.title": "出力ファイルパス",
+  "BASELIB-HARMONY_PATCH_DUMP_OUTPUT_PATH.placeholder": "絶対パスまたは user://… （例: user://baselib_harmony_patch_dump.log）",
+  "BASELIB-HARMONY_PATCH_DUMP_OUTPUT_PATH.hover.desc": "パッチレポートの書き込み先。「参照」でファイルを選択するか、フルパスまたはGodotのuser://パスを入力してください。",
+
+  "BASELIB-HARMONY_PATCH_DUMP_ON_FIRST_MAIN_MENU.title": "メインメニュー初回読み込み時にダンプ",
+  "BASELIB-HARMONY_PATCH_DUMP_ON_FIRST_MAIN_MENU.hover.desc": "ゲームセッションごとに1回、メインメニューの読み込み完了後、出力パスが設定されていればレポートを書き出します。",
+
+  "BASELIB-HARMONY_DUMP_BROWSE_FOR_OUTPUT.title": "出力ファイルを選択",
+  "BASELIB-HARMONY_DUMP_BROWSE.title": "参照…",
+  "BASELIB-HARMONY_DUMP_BROWSE_FOR_OUTPUT.hover.desc": "保存ダイアログを開き、上の出力パスに反映します。",
+
+  "BASELIB-HARMONY_DUMP_WRITE_NOW.title": "今すぐダンプを書き出す",
+  "BASELIB-HARMONY_DUMP_NOW.title": "今すぐダンプ",
+  "BASELIB-HARMONY_DUMP_WRITE_NOW.hover.desc": "現在の出力パスを使ってレポートをすぐに生成します。成功またはエラーはログで確認してください。",
+
+  "BASELIB-HARMONY_DUMP_BROWSE_TITLE.title": "Harmonyパッチダンプを保存"
+}

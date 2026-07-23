@@ -1,5 +1,6 @@
 ﻿using System.Reflection;
 using BaseLib.Cards;
+using BaseLib.Utils.Patching;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Models;
@@ -22,7 +23,9 @@ public class PurgePatch
 
         static bool Prepare()
         {
-            return TargetMethod != null;
+            if (TargetMethod != null) return true;
+            BaseLibMain.Logger.Info("No valid target found, skipping old PurgePatch");
+            return false;
         }
     
         [HarmonyPrefix]
@@ -42,7 +45,8 @@ public class PurgePatch
     static class BetaPurgePatch
     {
         private static MethodInfo? TargetMethod =
-            AccessTools.DeclaredMethod(typeof(CardModel), "GetResultPileTypeAndPositionForCardPlay");
+            AccessTools.DeclaredMethod(typeof(CardModel), "GetResultPileTypeAndPositionForCardPlay")
+            ?? AccessTools.DeclaredMethod(typeof(CardModel), "GetResultLocationForCardPlay");
         
         static IEnumerable<MethodBase> TargetMethods()
         {
@@ -51,19 +55,25 @@ public class PurgePatch
 
         static bool Prepare()
         {
-            return TargetMethod != null;
+            if (TargetMethod != null) return true;
+            BaseLibMain.Logger.Info("No valid target found, skipping beta PurgePatch");
+            return false;
         }
     
-        [HarmonyPrefix]
-        static bool GoAwayForever(CardModel __instance, ref (PileType, CardPilePosition) __result)
+        [HarmonyTranspiler]
+        static List<CodeInstruction> GoAwayForever(IEnumerable<CodeInstruction> code)
         {
-            if (ShouldPurge(__instance))
-            {
-                __result = (PileType.None, CardPilePosition.Bottom);
-                return false;
-            }
+            return new InstructionPatcher(code)
+                .Match(new CallMatcher(typeof(CardModel).PropertyGetter("IsDupe")))
+                .Insert([
+                    CodeInstruction.LoadArgument(0),
+                    CodeInstruction.Call(typeof(BetaPurgePatch), nameof(BetaPurgePatch.AlterResult))
+                ]);
+        }
 
-            return true;
+        private static bool AlterResult(bool origIsDupe, CardModel card)
+        {
+            return origIsDupe || ShouldPurge(card);
         }
     }
 

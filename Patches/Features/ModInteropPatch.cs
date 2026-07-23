@@ -1,7 +1,9 @@
-﻿using System.Reflection;
+﻿using System.Collections.ObjectModel;
+using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
 using BaseLib.Extensions;
+using BaseLib.Utils;
 using BaseLib.Utils.ModInterop;
 using BaseLib.Utils.Patching;
 using HarmonyLib;
@@ -15,43 +17,14 @@ internal class ModInterop
     private static readonly BindingFlags ValidMemberFlags = BindingFlags.DeclaredOnly | BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance;
     private static readonly FieldInfo WrappedValueField = AccessTools.DeclaredField(typeof(InteropClassWrapper), nameof(InteropClassWrapper.Value));
 
-    private static readonly FieldInfo? AssemblyField = AccessTools.DeclaredField(typeof(Mod), "assembly");
-    private static readonly FieldInfo? AssembliesField = AccessTools.DeclaredField(typeof(Mod), "assemblies");
-
     private readonly Dictionary<string, List<Assembly>> _loadedIds;
     internal ModInterop()
     {
         BaseLibMain.Logger.Info("Generating interop methods and properties");
         
-        //mod.assembly OR mod.assemblies
-        _loadedIds = [];
-        ModManager.GetLoadedMods()
-            .Where(mod => mod.manifest is not null) 
-            .Do(CheckAssembly);
-    }
-
-    private void CheckAssembly(Mod mod)
-    {
-        if (AssemblyField != null)
-        {
-            var assembly = (Assembly?) AssemblyField.GetValue(mod);
-            if (assembly != null)
-            {
-                _loadedIds[mod.manifest?.id ?? ""] = [assembly];
-            }
-        }
-        else if (AssembliesField != null)
-        {
-            var assemblies = (List<Assembly>?) AssembliesField.GetValue(mod);
-            if (assemblies != null)
-            {
-                _loadedIds[mod.manifest?.id ?? ""] = [..assemblies];
-            }
-        }
-        else
-        {
-            BaseLibMain.Logger.Info("Unable to find assemblies tied to mods.");
-        }
+        _loadedIds = ModManager.GetLoadedMods()
+            .Where(mod => mod.manifest?.id != null) 
+            .ToDictionary(mod => mod.manifest?.id ?? "", WhatMod.AssembliesForMod);
     }
 
     internal void ProcessType(Harmony harmony, Type t)

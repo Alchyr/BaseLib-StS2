@@ -13,7 +13,10 @@
   "BASELIB-SHOW_MOD_CONFIG_IN_MAIN_MENU.hover.desc": "There's always an entry in the game's settings.",
 
   "BASELIB-GENERAL_SETTINGS.title": "General Settings",
-  
+
+  "BASELIB-SHOW_MOD_SOURCE_TOOLTIP.title": "Show mod source in tooltips",
+  "BASELIB-SHOW_MOD_SOURCE_TOOLTIP.hover.desc": "Adds a tooltip showing which mod a card, relic, power or potion comes from.",
+
   "BASELIB-SFX_PLAYER_LIMIT.title": "Sound Effect Limit",
   "BASELIB-SFX_PLAYER_LIMIT.hover.desc": "Maximum number of sound effects that can be played through BaseLib at the same time.",
 
@@ -32,6 +35,32 @@
   "BASELIB-LOG_FONT_SIZE.title": "Log font size",
   "BASELIB-LOG_FONT_SIZE.hover.desc": "Can also be set with Ctrl+scroll in the log window.",
   "BASELIB-LOG_FONT_SIZE.sliderFormat": "{0:0} px",
+
+  "BASELIB-WHAT_MOD_SECTION.title": "WhatMod",
+
+  "BASELIB-INCLUDE_MOD_ID.title": "Include Mod ID",
+  "BASELIB-INCLUDE_MOD_ID.hover.desc": "Displays both the mod's name and ID, instead of just its name.",
+
+  "BASELIB-SHOW_CARD_MOD_SOURCE.title": "Cards",
+  "BASELIB-SHOW_CARD_MOD_SOURCE.hover.desc": "Adds the source mod to the tooltips of cards.",
+
+  "BASELIB-SHOW_RELIC_MOD_SOURCE.title": "Relics",
+  "BASELIB-SHOW_RELIC_MOD_SOURCE.hover.desc": "Adds the source mod to the tooltips of relics.",
+
+  "BASELIB-SHOW_POTION_MOD_SOURCE.title": "Potions",
+  "BASELIB-SHOW_POTION_MOD_SOURCE.hover.desc": "Adds the source mod to the tooltips of potions.",
+
+  "BASELIB-SHOW_ANCIENT_MOD_SOURCE.title": "Ancients",
+  "BASELIB-SHOW_ANCIENT_MOD_SOURCE.hover.desc": "Adds the source mod at the bottom left of ancients.",
+
+  "BASELIB-SHOW_EVENT_MOD_SOURCE.title": "Events",
+  "BASELIB-SHOW_EVENT_MOD_SOURCE.hover.desc": "Adds the source mod at the bottom left of events.",
+
+  "BASELIB-SHOW_MONSTER_MOD_SOURCE.title": "Monsters",
+  "BASELIB-SHOW_MONSTER_MOD_SOURCE.hover.desc": "Adds the source mod to the monster's name display.",
+
+  "BASELIB-SHOW_COMBAT_ELEMENT_MOD_SOURCE.title": "Combat Elements",
+  "BASELIB-SHOW_COMBAT_ELEMENT_MOD_SOURCE.hover.desc": "Adds the source mod to the tooltips of buffs, orbs, enchantments, and afflictions.",
   
   "BASELIB-HARMONY_DUMP_SECTION.title": "Harmony patch dump",
 

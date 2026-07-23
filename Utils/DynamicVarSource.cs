@@ -21,7 +21,6 @@ public sealed class DynamicVarSource()
     public PowerModel? Power { get; init; }
     
     
-    
     public static implicit operator DynamicVarSource(CardModel card)
     {
         return new DynamicVarSource

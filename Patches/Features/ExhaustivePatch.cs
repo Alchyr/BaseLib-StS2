@@ -1,5 +1,6 @@
 ﻿using System.Reflection;
 using BaseLib.Cards.Variables;
+using BaseLib.Utils.Patching;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Models;
@@ -22,7 +23,9 @@ public static class ExhaustivePatch
 
         static bool Prepare()
         {
-            return TargetMethod != null;
+            if (TargetMethod != null) return true;
+            BaseLibMain.Logger.Info("No valid target found, skipping old ExhaustivePatch");
+            return false;
         }
     
         [HarmonyPostfix]
@@ -39,7 +42,8 @@ public static class ExhaustivePatch
     static class BetaExhaustivePatch
     {
         private static MethodInfo? TargetMethod =
-            AccessTools.DeclaredMethod(typeof(CardModel), "GetResultPileTypeAndPositionForCardPlay");
+            AccessTools.DeclaredMethod(typeof(CardModel), "GetResultPileTypeAndPositionForCardPlay")
+            ?? AccessTools.DeclaredMethod(typeof(CardModel), "GetResultLocationForCardPlay");
         
         static IEnumerable<MethodBase> TargetMethods()
         {
@@ -48,16 +52,25 @@ public static class ExhaustivePatch
 
         static bool Prepare()
         {
-            return TargetMethod != null;
+            if (TargetMethod != null) return true;
+            BaseLibMain.Logger.Info("No valid target found, skipping beta ExhaustivePatch");
+            return false;
         }
     
-        [HarmonyPostfix]
-        static void ExhaustForExhaustive(CardModel __instance, ref (PileType, CardPilePosition) __result)
+        [HarmonyTranspiler]
+        static List<CodeInstruction> ExhaustForExhaustive(IEnumerable<CodeInstruction> code)
         {
-            if (ShouldExhaustForExhaustive(__instance))
-            {
-                __result = (PileType.Exhaust, CardPilePosition.Bottom);
-            }
+            return new InstructionPatcher(code)
+                .Match(new CallMatcher(typeof(CardModel).PropertyGetter(nameof(CardModel.ExhaustOnNextPlay))))
+                .Insert([
+                    CodeInstruction.LoadArgument(0),
+                    CodeInstruction.Call(typeof(BetaExhaustivePatch), nameof(AlterResult))
+                ]);
+        }
+
+        private static bool AlterResult(bool origIsExhaustNextUse, CardModel card)
+        {
+            return origIsExhaustNextUse || ShouldExhaustForExhaustive(card);
         }
     }
 

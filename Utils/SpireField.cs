@@ -415,7 +415,7 @@ public class SavedSpireField<TKey, TVal> : SpireField<TKey, TVal>, ISavedSpireFi
             }
             else if (!SavePatchUtils.TryGetSerializerDeserializer(out serializer, out deserializer))
             {
-                BaseLibMain.Logger.Error($"Unable to register custom save for SavedSpireField {Name}; no serialization defined for" +
+                BaseLibMain.Logger.Error($"Unable to register custom save for SavedSpireField {Name}; no serialization defined for " +
                                          $"type {typeof(TVal).Name}. Set Serializer/Deserializer properties of SavedSpireField.");
                 return false;
             }

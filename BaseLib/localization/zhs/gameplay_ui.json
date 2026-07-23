@@ -3,5 +3,6 @@
   "BASELIB-COMBAT_REWARD_CARD_UPGRADE.selectionScreenPrompt": "选择一张牌来升级。",
   "BASELIB-COMBAT_REWARD_RANDOM_CARD_UPGRADE": "随机升级一张牌。",
   "BASELIB-COMBAT_REWARD_CARD_TRANSFORM": "变化{Upgrade:并升级|}{cards:plural:一张牌|{}张牌}。",
-  "BASELIB-COMBAT_REWARD_CARD_TRANSFORM.selectionScreenPrompt": "选择{Amount:plural:一张牌:[blue]{}[/blue]张牌}来[gold]变化[/gold]{Upgrade:并[gold]升级[/gold]|}"
+  "BASELIB-COMBAT_REWARD_CARD_TRANSFORM.selectionScreenPrompt": "选择{Amount:plural:一张牌:[blue]{}[/blue]张牌}来[gold]变化[/gold]{Upgrade:并[gold]升级[/gold]|}",
+  "BASELIB-MOD_SOURCE.title": "来自模组"
 }

@@ -6,8 +6,10 @@ using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Combat.History;
 using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Commands.Builders;
+using MegaCrit.Sts2.Core.Debug;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Creatures;
+using MegaCrit.Sts2.Core.Entities.Multiplayer;
 using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.GameActions.Multiplayer;
 using MegaCrit.Sts2.Core.Hooks;
@@ -25,6 +27,28 @@ namespace BaseLib.Utils;
 /// </summary>
 public static class BetaMainCompatibility
 {
+    private static Lazy<SemanticVersion> _versionInfo = new(GetVersion);
+    /// <summary>
+    /// Game version from <see cref="ReleaseInfoManager.SemVer"/>. If this fails to resolve
+    /// will return default version of 999.999.999
+    /// Intended to be used to determine if certain compatibility patches are necessary, not for 100%
+    /// accurate version info.
+    /// </summary>
+    public static SemanticVersion Version => _versionInfo.Value;
+
+    private static SemanticVersion GetVersion()
+    {
+        // Lazy simple method, just assuming version is too new if it fails
+        try
+        {
+            return ReleaseInfoManager.Instance.SemVer ?? new SemanticVersion(999, 999, 999);
+        }
+        catch (Exception _)
+        {
+            return new SemanticVersion(999, 999, 999);
+        }
+    }
+    
     /// <summary>
     /// Compatibility extension method to use instead of FromCard that works on both main and beta branch.
     /// </summary>
@@ -38,6 +62,34 @@ public static class BetaMainCompatibility
             [0, 1]),
         (typeof(AttackCommand), "FromCard",
             [typeof(CardModel)],
+            [0])
+    );
+
+    public static Task SignalPlayerChoiceBegunCompatibility(this PlayerChoiceContext context, Player player,
+        PlayerChoiceOptions options)
+    {
+        return _signalPlayerChoiceBegun.Invoke<Task>(context, player, options)!;
+    }
+    private static VariableMethod _signalPlayerChoiceBegun = new(
+        (typeof(PlayerChoiceContext), "SignalPlayerChoiceBegun",
+            [typeof(Player), typeof(PlayerChoiceOptions)],
+            [0, 1]),
+        (typeof(PlayerChoiceContext), "SignalPlayerChoiceBegun",
+            [typeof(PlayerChoiceOptions)],
+            [1])
+    );
+
+    public static void CacheSavedProperties(Type t)
+    {
+        _injectSavedPropertiesType.Invoke(null, t);
+    }
+
+    private static VariableMethod _injectSavedPropertiesType = new(
+        ("MegaCrit.Sts2.Core.Saves.Runs.SavedPropertiesTypeCache", "CachePropertiesForType",
+            [typeof(Type)],
+            [0]),
+        ("MegaCrit.Sts2.Core.Multiplayer.Serialization.ModelIdSerializationCache", "CachePropertiesForType",
+            [typeof(Type), null, null],
             [0])
     );
     
@@ -304,6 +356,7 @@ public class VariableMethod
 
     private readonly Dictionary<Type, MethodInfo> _genericCalls = [];
     private readonly int[] _paramIndicies;
+    private readonly int _requiredParamCount;
     
     public int ParamCount => _paramIndicies.Length;
     
@@ -325,6 +378,7 @@ public class VariableMethod
         {
             if (possible.Item1 == null) continue;
 
+            _requiredParamCount = possible.Item3.Length;
             _method = possible.Item1.GetMethodExt(possible.Item2, extraFilter: possible.Item5, parameterTypes: possible.Item3);
             if (_method != null)
             {
@@ -340,18 +394,24 @@ public class VariableMethod
     
     public void Invoke(object? instance, params object?[] args)
     {
-        var finalArgs = new object?[_paramIndicies.Length];
-        for (int i = 0; i < _paramIndicies.Length; ++i)
+        var finalArgs = new object?[_requiredParamCount];
+        int i = 0;
+        for (; i < _paramIndicies.Length; ++i)
             finalArgs[i] = args[_paramIndicies[i]];
+        for (; i < _requiredParamCount; ++i)
+            finalArgs[i] = null;
         
         _method!.Invoke(instance, finalArgs);
     }
     
     public T? Invoke<T>(object? instance, params object?[] args)
     {
-        var finalArgs = new object?[_paramIndicies.Length];
-        for (int i = 0; i < _paramIndicies.Length; ++i)
+        var finalArgs = new object?[_requiredParamCount];
+        int i = 0;
+        for (; i < _paramIndicies.Length; ++i)
             finalArgs[i] = args[_paramIndicies[i]];
+        for (; i < _requiredParamCount; ++i)
+            finalArgs[i] = null;
         
         return (T?) _method!.Invoke(instance, finalArgs);
     }
@@ -363,9 +423,12 @@ public class VariableMethod
             _genericCalls[typeof(TGeneric)] = method;
         }
 
-        var finalArgs = new object?[_paramIndicies.Length];
-        for (int i = 0; i < _paramIndicies.Length; ++i)
+        var finalArgs = new object?[_requiredParamCount];
+        int i = 0;
+        for (; i < _paramIndicies.Length; ++i)
             finalArgs[i] = args[_paramIndicies[i]];
+        for (; i < _requiredParamCount; ++i)
+            finalArgs[i] = null;
         
         return (TReturn?) method.Invoke(instance, finalArgs);
     }
@@ -377,9 +440,12 @@ public class VariableMethod
             _genericCalls[typeof(TGeneric)] = method;
         }
 
-        var finalArgs = new object?[_paramIndicies.Length];
-        for (int i = 0; i < _paramIndicies.Length; ++i)
+        var finalArgs = new object?[_requiredParamCount];
+        int i = 0;
+        for (; i < _paramIndicies.Length; ++i)
             finalArgs[i] = args[_paramIndicies[i]];
+        for (; i < _requiredParamCount; ++i)
+            finalArgs[i] = null;
         
         method.Invoke(instance, finalArgs);
     }
