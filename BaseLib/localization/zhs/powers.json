@@ -5,5 +5,8 @@
   "BASELIB-CUSTOM_TEMPORARY_POWER_MODEL.UP.description": "在一段时间内提升[gold]能力[/gold]。",
   "BASELIB-CUSTOM_TEMPORARY_POWER_MODEL.UP.smartDescription": "获得[blue]{Amount:abs()}[/blue]层[gold]{TemporaryPowerTitle}[/gold]，持续到你的{UntilEndOfOtherSideTurn:cond:|敌人}回合结束。{Repeat:cond:>0?\\n额外持续[blue]{Repeat:diff()}[/blue]个回合。|}",
   "BASELIB-CUSTOM_TEMPORARY_POWER_MODEL.DOWN.description": "在一段时间内降低[gold]能力[/gold]。",
-  "BASELIB-CUSTOM_TEMPORARY_POWER_MODEL.DOWN.smartDescription": "失去[blue]{Amount:abs()}[/blue]层[gold]{TemporaryPowerTitle}[/gold]，持续到你的{UntilEndOfOtherSideTurn:cond:|敌人}回合结束。{Repeat:cond:>0?\\n额外持续[blue]{Repeat:diff()}[/blue]个回合。|}"
+  "BASELIB-CUSTOM_TEMPORARY_POWER_MODEL.DOWN.smartDescription": "失去[blue]{Amount:abs()}[/blue]层[gold]{TemporaryPowerTitle}[/gold]，持续到你的{UntilEndOfOtherSideTurn:cond:|敌人}回合结束。{Repeat:cond:>0?\\n额外持续[blue]{Repeat:diff()}[/blue]个回合。|}",
+  "BASELIB-TEMP_HP_POWER.title": "临时生命",
+  "BASELIB-TEMP_HP_POWER.description": "在损失生命值之前吸收伤害，即使是无视[gold]格挡[/gold]的伤害。战斗结束时消失。",
+  "BASELIB-TEMP_HP_POWER.smartDescription": "在损失生命值之前吸收伤害，即使是无视[gold]格挡[/gold]的伤害。战斗结束时消失。"
 }

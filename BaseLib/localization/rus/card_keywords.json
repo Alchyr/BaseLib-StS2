@@ -1,4 +1,6 @@
 {
+  "BASELIB-TEMP_HP.title": "Временное здоровье",
+  "BASELIB-TEMP_HP.description": "Поглощает урон до потери здоровья, даже урон, игнорирующий [gold]блок[/gold]. Исчезает в конце боя.",
   "BASELIB-PURGE.title": "Исчищается",
   "BASELIB-PURGE.description": "Эта карта исчезает из игры и удаляется из [gold]колоды[/gold]."
 }
