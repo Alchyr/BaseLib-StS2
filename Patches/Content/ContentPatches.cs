@@ -1,4 +1,6 @@
 using System.Reflection;
+using System.Reflection.Emit;
+using System.Runtime.CompilerServices;
 using System.Text;
 using BaseLib.Abstracts;
 using BaseLib.Extensions;
@@ -10,6 +12,7 @@ using MegaCrit.Sts2.Core.Helpers;
 using MegaCrit.Sts2.Core.Modding;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Models.Acts;
+using MegaCrit.Sts2.Core.Models.Events;
 using MegaCrit.Sts2.Core.Models.Relics;
 using MegaCrit.Sts2.Core.Random;
 using MegaCrit.Sts2.Core.Rooms;
@@ -287,6 +290,157 @@ class ActModelGenerateRoomsPatch
         {
             rooms.Ancient = ancientToSpawn;
         }
+    }
+}
+
+[HarmonyPatch]
+static class AddAct1AncientsToModelPool
+{
+    [HarmonyTargetMethods]
+    public static IEnumerable<MethodBase> TargetMethods()
+    {
+        MethodInfo abstractMethod = AccessTools.DeclaredMethod(
+            typeof(ActModel),
+            nameof(ActModel.GetUnlockedAncients),
+            [typeof(UnlockState)]);
+
+        return AccessTools.AllTypes()
+            .Where(type =>
+                type != typeof(ActModel) &&
+                typeof(ActModel).IsAssignableFrom(type))
+            .Select(type => AccessTools.Method(
+                type,
+                nameof(ActModel.GetUnlockedAncients),
+                [typeof(UnlockState)]))
+            .Where(method =>
+                method is not null &&
+                !method.IsAbstract &&
+                method.GetBaseDefinition() == abstractMethod)
+            .Distinct();
+    }
+
+    [HarmonyPostfix]
+    private static IEnumerable<AncientEventModel> Postfix(
+        IEnumerable<AncientEventModel> ancients,
+        ActModel __instance)
+    {
+        if (__instance.ActNumber() != 1)
+            return ancients;
+
+        List<AncientEventModel> result = ancients.ToList();
+
+        foreach (CustomAncientModel ancient in CustomContentDictionary.CustomAncients)
+        {
+            if (ancient.IsAct1Ancient() && ancient.IsValidForAct(__instance))
+            {
+                result.Add(ancient);
+            }
+        }
+
+        return result;
+    }
+}
+
+/// <summary>
+/// In base game the check for Neow is hardcoded. This patch is needed to properly set up the run.
+/// </summary>
+[HarmonyPatch]
+public static class AddAct1Ancients_NeowChecks
+{
+    private static readonly MethodInfo IsNeowLikeMethod =
+        AccessTools.Method(
+            typeof(AddAct1Ancients_NeowChecks),
+            nameof(IsNeowLike))
+        ?? throw new MissingMethodException(
+            nameof(AddAct1Ancients_NeowChecks),
+            nameof(IsNeowLike));
+
+    /// <summary>
+    ///     BeforeEventStarted is async, so its actual body is inside the
+    ///     compiler-generated IAsyncStateMachine.MoveNext method.
+    /// </summary>
+    [HarmonyTargetMethod]
+    private static MethodBase TargetMethod()
+    {
+        MethodInfo beforeEventStarted =
+            AccessTools.Method(
+                typeof(AncientEventModel),
+                "BeforeEventStarted",
+                [typeof(bool)])
+            ?? throw new MissingMethodException(
+                typeof(AncientEventModel).FullName,
+                "BeforeEventStarted");
+
+        AsyncStateMachineAttribute stateMachineAttribute =
+            beforeEventStarted.GetCustomAttribute<AsyncStateMachineAttribute>()
+            ?? throw new InvalidOperationException(
+                "BeforeEventStarted does not have an AsyncStateMachineAttribute.");
+
+        return AccessTools.Method(
+                   stateMachineAttribute.StateMachineType,
+                   nameof(IAsyncStateMachine.MoveNext))
+               ?? throw new MissingMethodException(
+                   stateMachineAttribute.StateMachineType.FullName,
+                   nameof(IAsyncStateMachine.MoveNext));
+    }
+
+    [HarmonyTranspiler]
+    private static IEnumerable<CodeInstruction> Transpiler(
+        IEnumerable<CodeInstruction> instructions)
+    {
+        int replacements = 0;
+
+        foreach (CodeInstruction instruction in instructions)
+        {
+            // Original:
+            // ancientEventModel is Neow
+            //
+            // IL:
+            // isinst Neow
+            //
+            // Replacement:
+            // IsNeowLike(ancientEventModel)
+            if (instruction.opcode == OpCodes.Isinst &&
+                instruction.operand is Type checkedType &&
+                checkedType == typeof(Neow))
+            {
+                // Mutating the existing instruction preserves its
+                // labels and exception-block metadata.
+                instruction.opcode = OpCodes.Call;
+                instruction.operand = IsNeowLikeMethod;
+
+                replacements++;
+            }
+
+            yield return instruction;
+        }
+
+        // The supplied game method currently contains exactly two checks:
+        //
+        // 1. SetCurrentHpInternal(0)
+        // 2. TopBar.Hp.LerpAtNeow()
+        if (replacements != 2)
+        {
+            throw new InvalidOperationException(
+                $"Expected to replace 2 Neow checks in " +
+                $"{nameof(AncientEventModel)}.BeforeEventStarted, " +
+                $"but replaced {replacements}. The game method may have changed.");
+        }
+    }
+
+    /// <summary>
+    ///     Behaves like an extended `is Neow` instruction.
+    ///     Returning the original object or null preserves the stack behavior
+    ///     of `isinst Neow`, which also returns an object reference or null.
+    /// </summary>
+    private static object? IsNeowLike(object? ancient)
+    {
+        return ancient is Neow
+               ||  CustomContentDictionary.CustomAncients.Any(customAncient =>
+                   customAncient.IsAct1Ancient()
+                   && customAncient.GetType().IsInstanceOfType(ancient))
+            ? ancient
+            : null;
     }
 }
 

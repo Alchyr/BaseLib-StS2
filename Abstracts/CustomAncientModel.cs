@@ -23,7 +23,9 @@ public abstract class CustomAncientModel : AncientEventModel, ICustomModel, ILoc
     public virtual List<(string, string)>? Localization => null;
 
     /// <summary>
-    /// Suggested to check act.ActNumber == 2 or 3.
+    /// Suggested to check act.ActNumber == 1 or 2 or 3.
+    ///
+    /// If you want the Ancient to spawn in Act 1, additionally override IsAct1Ancient and return true.
     ///
     /// If you are overriding ShouldForceSpawn, you should override this and return false.
     /// </summary>
@@ -38,6 +40,12 @@ public abstract class CustomAncientModel : AncientEventModel, ICustomModel, ILoc
     /// <param name="rngChosenAncient">The ancient that will have been chosen by the games rng.</param>
     /// <returns></returns>
     public virtual bool ShouldForceSpawn(ActModel act, AncientEventModel? rngChosenAncient) => false;
+    
+    /// <summary>
+    /// Return true if this should be an Act 1 Ancient.
+    /// </summary>
+    /// <returns></returns>
+    public virtual bool IsAct1Ancient() => false;
     
     /// <summary>
     /// Set up a new OptionPools with 1, 2, or 3 pools using MakePool for each pool.
