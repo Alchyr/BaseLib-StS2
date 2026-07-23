@@ -11,4 +11,8 @@
   "BASELIB-SCRY.title": "Scry",
   "BASELIB-SCRY.description": "Look at the top [blue]X[/blue] cards of your [gold]Draw Pile[/gold]. You may discard any of them.",
   "BASELIB-SCRY.smartDescription": "Look at the top {Scry:plural:card|[blue]{Scry:diff()}[/blue] cards} of your [gold]Draw Pile[/gold]. You may discard {Scry:plural:it|any of them}."
+  "BASELIB-BUNDLED_REWARDS.title": "Bundled Rewards",
+  "BASELIB-BUNDLED_REWARDS.description": "You can only select [gold]All[/gold] or [gold]No[/gold] rewards from this set.",
+  "BASELIB-EXCLUSIVE_REWARDS.title": "Exclusive Rewards",
+  "BASELIB-EXCLUSIVE_REWARDS.description": "You can only select [blue]1[/blue] reward from this set."
 }
