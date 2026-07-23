@@ -131,7 +131,7 @@ class PostModInitPatch
     private static void AddFormattersOnLocInit(LocManager __instance)
     {
         if (AddLaterFormatters.Count == 0) return;
-        BaseLibMain.Logger.Debug($"Added {AddLaterFormatters.Count} formatters after LoadLocFormatters.");
+        BaseLibMain.Logger.Info($"Added {AddLaterFormatters.Count} formatters after LoadLocFormatters.");
         LocManager._smartFormatter.AddExtensions(AddLaterFormatters.ToArray());
     }
 

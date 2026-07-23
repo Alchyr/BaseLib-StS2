@@ -6,6 +6,7 @@ using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Combat.History;
 using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Commands.Builders;
+using MegaCrit.Sts2.Core.Debug;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Creatures;
 using MegaCrit.Sts2.Core.Entities.Multiplayer;
@@ -26,6 +27,28 @@ namespace BaseLib.Utils;
 /// </summary>
 public static class BetaMainCompatibility
 {
+    private static Lazy<SemanticVersion> _versionInfo = new(GetVersion);
+    /// <summary>
+    /// Game version from <see cref="ReleaseInfoManager.SemVer"/>. If this fails to resolve
+    /// will return default version of 999.999.999
+    /// Intended to be used to determine if certain compatibility patches are necessary, not for 100%
+    /// accurate version info.
+    /// </summary>
+    public static SemanticVersion Version => _versionInfo.Value;
+
+    private static SemanticVersion GetVersion()
+    {
+        // Lazy simple method, just assuming version is too new if it fails
+        try
+        {
+            return ReleaseInfoManager.Instance.SemVer ?? new SemanticVersion(999, 999, 999);
+        }
+        catch (Exception _)
+        {
+            return new SemanticVersion(999, 999, 999);
+        }
+    }
+    
     /// <summary>
     /// Compatibility extension method to use instead of FromCard that works on both main and beta branch.
     /// </summary>
