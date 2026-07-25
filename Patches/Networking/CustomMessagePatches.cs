@@ -1,3 +1,4 @@
+using System.Reflection;
 using BaseLib.Abstracts;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Multiplayer.Serialization;
@@ -25,16 +26,37 @@ internal static class RunManagerPatches
     }
 }
 
-[HarmonyPatch(typeof(MessageTypes), MethodType.StaticConstructor)]
+[HarmonyPatch]
 static class AdjustCustomMessageKeys
 {
+    // v0.107.1+ (re)builds the network message-type cache in MessageTypes.Initialize().
+    // Older builds did it in the type's static constructor instead. Resolve whichever this
+    // game version actually has so the wrapper-id fixup still runs after the cache is built;
+    // if neither exists, skip the patch cleanly instead of throwing "Undefined target method".
+    private static MethodBase? _target;
+
+    static bool Prepare()
+    {
+        _target ??= AccessTools.DeclaredMethod(typeof(MessageTypes), nameof(MessageTypes.Initialize))
+                    ?? (MethodBase?)typeof(MessageTypes).TypeInitializer;
+
+        if (_target is null)
+            BaseLibMain.Logger.Warn(
+                "MessageTypes.Initialize (and its static constructor) could not be found; custom " +
+                "network message wrappers will not be registered for this game version.");
+
+        return _target is not null;
+    }
+
+    static MethodBase TargetMethod() => _target!;
+
     [HarmonyPostfix]
     static void Fuckery()
     {
         BaseLibMain.Logger.Info("Adjusting keys of custom message wrappers.");
         var cache = MessageTypes._cache;
 
-        cache._idToType.Remove(typeof(CustomMessageWrapper));
+        cache!._idToType.Remove(typeof(CustomMessageWrapper));
         cache._idToType.Remove(typeof(CustomTargetedMessageWrapper));
         
         for (int index = 0; index < cache._idToType.Count; ++index)

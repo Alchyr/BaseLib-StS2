@@ -9,42 +9,48 @@ using HarmonyLib;
 using MegaCrit.Sts2.Core.Helpers;
 using MegaCrit.Sts2.Core.Localization;
 using MegaCrit.Sts2.Core.Modding;
+using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Saves.Runs;
-using SmartFormat;
 using SmartFormat.Core.Extensions;
 
 namespace BaseLib.Patches;
 
-//Simplest patch that occurs after mod initialization, before anything else is done.
-//See OneTimeInitialization.ExecuteEssential
+//Patch that occurs after mod initialization, before anything else is done.
+//See OneTimeInitialization.ExecuteEssential for ordering
 
 //TODO - If no mods that modify gameplay and use baselib as a dependency are enabled, exclude basemod models from database?
 //This would allow features like vitality to be merged.
+//This seems to be something added to basegame; will be left for now.
 
-[HarmonyPatch(typeof(LocManager), nameof(LocManager.Initialize))] 
+
+[HarmonyPatch] 
 class PostModInitPatch
 {
-    private static bool _initialized = false;
+    private static bool _earlyInit = false, _lateInit = false;
     public static bool CanModifyGameplay { get; private set; } = false;
 
+    [HarmonyPatch(typeof(LocManager), nameof(LocManager.Initialize))] 
     [HarmonyPrefix]
-    private static void PostModInit()
+    private static void EarlyPostInit()
     {
-        if (_initialized) return;
-        _initialized = true;
+        if (_earlyInit) return;
+        _earlyInit = true;
         
-        BaseLibMain.Logger.Info("Performing post-mod init patch");
+        BaseLibMain.Logger.Info("Performing early post-mod init");
+        
+        WhatMod.BuildAfterInit();
 
         foreach (var mod in ModManager.GetLoadedMods())
         {
-            if (mod.manifest?.affectsGameplay == true)
+            // Enable gameplay modification if ANY loaded gameplay-affecting mod depends on
+            // BaseLib. Both conditions must be checked together: breaking on the first
+            // gameplay-affecting mod regardless of its dependency would leave this false
+            // whenever a non-BaseLib gameplay mod happens to load first.
+            if (mod.manifest?.affectsGameplay == true &&
+                BetaMainCompatibility._ModManifest.HasDependency(mod.manifest, "BaseLib"))
             {
-                if (BetaMainCompatibility._ModManifest.HasDependency(mod.manifest, "BaseLib"))
-                {
-                    BaseLibMain.Logger.Info($"Mod {mod.manifest.id} that modifies gameplay has BaseLib dependency; gameplay modification enabled.");
-                    CanModifyGameplay = true;
-                }
-
+                BaseLibMain.Logger.Info($"Mod {mod.manifest.id} that modifies gameplay has BaseLib dependency; gameplay modification enabled.");
+                CanModifyGameplay = true;
                 break;
             }
         }
@@ -55,6 +61,7 @@ class PostModInitPatch
             CardModifier.RegisterSave();
         }
         
+        //Loads custom message types into custom message type maps
         CustomMessageWrapper.Initialize();
         CustomTargetedMessageWrapper.Initialize();
         
@@ -62,27 +69,87 @@ class PostModInitPatch
 
         AddActContent.Patch(harmony);
         
-
         ModInterop interop = new();
         
         foreach (var type in ReflectionHelper.ModTypes)
         {
             interop.ProcessType(harmony, type);
 
-            if (type.IsAssignableTo(typeof(IAutoRegisterFormatSpecifier)) && 
-                type is { IsAbstract: false, IsInterface: false })
+            if (type.IsAbstract || type.IsInterface) continue;
+            
+            if (type.IsAssignableTo(typeof(CustomResource)))
             {
                 try
                 {
-                    Smart.Default.AddExtensions((IFormatter) type.CreateInstance());
-                    BaseLibMain.Logger.Info($"Added custom format specifier {type.Name}");
+                    var resourceManager = typeof(CustomResources<>).MakeGenericType(type);
+                    var registerMethod = resourceManager.GetMethod("Register", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
+
+                    if (registerMethod == null)
+                    {
+                        BaseLibMain.Logger.Warn($"Failed to get registration method for custom resource type {type}");
+                    }
+                    else if (Activator.CreateInstance(type) is not CustomResource resource)
+                    {
+                        BaseLibMain.Logger.Warn($"Failed to initialize custom resource type {type}");
+                    }
+                    else
+                    {
+                        BaseLibMain.Logger.Info($"Registering custom resource {type.Name}");
+                        registerMethod.Invoke(null, [resource]);
+                    }
+                }
+                catch (Exception e)
+                {
+                    BaseLibMain.Logger.Error($"Exception occurred registering custom resource {type}; {e}");
+                }
+            }
+            if (type.IsAssignableTo(typeof(IAutoRegisterFormatSpecifier)))
+            {
+                try
+                {
+                    if (Activator.CreateInstance(type) is IFormatter formatter)
+                    {
+                        AddLaterFormatters.Add(formatter);
+                        BaseLibMain.Logger.Info($"Instantiated custom format specifier {type.Name} to add later");
+                    }
+                    else
+                    {
+                        BaseLibMain.Logger.Warn($"Failed to initialize IAutoRegisterFormatSpecifier type {type}");
+                    }
                 }
                 catch (Exception e)
                 {
                     BaseLibMain.Logger.Error($"Exception occurred adding format specifier {type}; {e}");
                 }
             }
+        }
+    }
+    
+    private static readonly List<IFormatter> AddLaterFormatters = [];
+    [HarmonyPatch(typeof(LocManager), nameof(LocManager.LoadLocFormatters))]
+    [HarmonyPostfix]
+    private static void AddFormattersOnLocInit(LocManager __instance)
+    {
+        if (AddLaterFormatters.Count == 0) return;
+        BaseLibMain.Logger.Info($"Added {AddLaterFormatters.Count} formatters after LoadLocFormatters.");
+        LocManager._smartFormatter.AddExtensions(AddLaterFormatters.ToArray());
+    }
 
+
+    /// <summary>
+    /// After SavedPropertiesTypeCache is initialized.
+    /// </summary>
+    [HarmonyPatch(typeof(ModelDb), nameof(ModelDb.InitIds))]
+    [HarmonyPrefix]
+    private static void LatePostInit()
+    {
+        if (_lateInit) return;
+        _lateInit = true;
+        
+        BaseLibMain.Logger.Info("Performing late post-mod init");
+        
+        foreach (var type in ReflectionHelper.ModTypes)
+        {
             bool hasSavedProperty = false;
             foreach (var prop in type.GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
             {
@@ -112,12 +179,18 @@ class PostModInitPatch
                 CheckSpecialSpireField(field);
             }
 
+            //TODO - Remove on next beta->main merge; now already loads modded types.
             if (hasSavedProperty)
             {
-                SavedPropertiesTypeCache.InjectTypeIntoCache(type);
+                /*if (SavedPropertiesTypeCache._cache.Count == 0)
+                {
+                    BaseLibMain.Logger.Warn("Adding saved properties too early; type cache is still empty.");
+                }*/
+                
+                BetaMainCompatibility.CacheSavedProperties(type);
+                //SavedPropertiesTypeCache.InjectTypeIntoCache(type);
             }
         }
-
         SavedSpireFieldPatch.AddFieldsSorted();
     }
 
@@ -135,5 +208,29 @@ class PostModInitPatch
             return;
 
         field.GetValue(null); //Trigger field initialization
+    }
+    
+    /// <summary>
+    /// Registers custom scene paths.
+    /// Called through a patch because virtual properties like CustomVisualPath
+    /// may depend on fields set in derived constructors that haven't run yet when
+    /// the base constructor occurs.
+    /// </summary>
+    [HarmonyPatch(typeof(ModelDb), nameof(ModelDb.Preload))]
+    class RegisterSceneConversions
+    {
+        [HarmonyPostfix]
+        private static void EnsureScenePathsRegistered()
+        {
+            foreach (var type in ReflectionHelper.ModTypes)
+            {
+                if (type is not { IsAbstract: false, IsInterface: false }
+                    || !type.IsAssignableTo(typeof(AbstractModel))
+                    || !type.IsAssignableTo(typeof(ISceneConversions))) continue;
+                
+                var model = ModelDb.GetById<AbstractModel>(ModelDb.GetId(type));
+                (model as ISceneConversions)?.RegisterSceneConversions();
+            }
+        }
     }
 }

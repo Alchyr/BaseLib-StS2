@@ -1,8 +1,7 @@
 using System.Numerics;
 using System.Reflection;
-using System.Security.Cryptography;
-using System.Text;
 using BaseLib.Abstracts;
+using BaseLib.Commands;
 using BaseLib.Extensions;
 using BaseLib.Patches.Localization;
 using HarmonyLib;
@@ -17,7 +16,7 @@ namespace BaseLib.Patches.Content;
 /// Marks a field as intended to contain a new generated enum value.
 /// Certain types of enums have additional functionality. Currently: CardKeyword, PileType
 /// </summary>
-/// <param name="name">This is relevant only if the field is intended to be a keyword. If not supplied, field name will be used.</param>
+/// <param name="name">This is currently relevant only if the field is intended to be a keyword. If not supplied, field name will be used.</param>
 [AttributeUsage(AttributeTargets.Field, Inherited = false, AllowMultiple = false)]
 public sealed class CustomEnumAttribute(string? name = null) : Attribute
 {
@@ -330,6 +329,11 @@ class GenEnumValues
                 if (pileType == null) throw new Exception($"Failed to be set up custom PileType in {t.FullName}");
 
                 CustomPiles.RegisterCustomPile((PileType) pileType, () => (CustomPile) constructor.Invoke(null));
+                var dummyPile = (CustomPile)constructor.Invoke(null);
+                if (dummyPile is { IconPath: { } iconPath, Name: { } locName })
+                {
+                    MultiPileCardSelect.RegisterPileIndicator((PileType)pileType, iconPath, locName);
+                }
             }
 
             // CustomReward Registration

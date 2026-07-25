@@ -23,7 +23,7 @@ public class TooltipSource
     {
         if (t.IsAssignableTo(typeof(PowerModel)))
         {
-            return new((card)=>BetaMainCompatibility._HoverTipFactory.FromPower(ModelDb.GetById<PowerModel>(ModelDb.GetId(t))));
+            return new((card)=>HoverTipFactory.FromPower(ModelDb.GetById<PowerModel>(ModelDb.GetId(t))));
         }
         if (t.IsAssignableTo(typeof(CardModel)))
         {

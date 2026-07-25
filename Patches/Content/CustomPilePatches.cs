@@ -235,8 +235,11 @@ public class TheBigPatchToCardPileCmdAdd
     public static void Patch(Harmony harmony)
     {
         BaseLibMain.Logger.Info("Performing CustomPile patch");
-        harmony.PatchAsyncMoveNext(AccessTools.Method(typeof(CardPileCmd), nameof(CardPileCmd.Add), 
-            [typeof(IEnumerable<CardModel>), typeof(CardPile), typeof(CardPilePosition), typeof(AbstractModel), typeof(bool)]),
+        harmony.PatchAsyncMoveNext(
+            AccessTools.Method(typeof(CardPileCmd), nameof(CardPileCmd.Add), 
+                [typeof(IEnumerable<CardModel>), typeof(CardPile), typeof(CardPilePosition), typeof(AbstractModel), typeof(bool), typeof(bool)])
+            ?? AccessTools.Method(typeof(CardPileCmd), nameof(CardPileCmd.Add), 
+                    [typeof(IEnumerable<CardModel>), typeof(CardPile), typeof(CardPilePosition), typeof(AbstractModel), typeof(bool)]),
             out stateMachineType,
             transpiler: AccessTools.Method(typeof(TheBigPatchToCardPileCmdAdd), nameof(BigPatch)));
     }
@@ -253,6 +256,11 @@ public class TheBigPatchToCardPileCmdAdd
         MethodInfo pileTypeGetter = AccessTools.PropertyGetter(typeof(CardPile), "Type");
         
         return new InstructionPatcher(instructions)
+            /*
+          cardNode = NCard.FindOnTable(card);
+          bool flag1 = cardNode == null && targetPile.Type.IsCombatPile() && (isFullHandAdd || oldPile != null || targetPile.Type == PileType.Hand);
+          For piles that should be visible like the hand.
+             */
             .Match(new InstructionMatcher() //patch createCardNode
                 .ldfld(fullHandAdd)
                 .brtrue_s()
@@ -326,7 +334,7 @@ public class TheBigPatchToCardPileCmdAdd
                 new CodeInstruction(OpCodes.Brtrue_S, updateVisualsLabel)
             ])
             .Match(new InstructionMatcher() //get local index of tween
-                .callvirt(typeof(Node), nameof(Node.CreateTween))
+                .call_any(typeof(Node), nameof(Node.CreateTween))
                 .ldc_i4_1()
                 .callvirt(typeof(Tween), nameof(Tween.SetParallel))
                 .stloc_any()

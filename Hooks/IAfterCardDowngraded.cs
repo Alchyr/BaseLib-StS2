@@ -1,4 +1,3 @@
-using BaseLib.Utils;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Runs;
@@ -26,9 +25,9 @@ public interface IAfterCardDowngraded
         [HarmonyPostfix]
         private static void Patch(CardModel __instance)
         {
-            var combatState = BetaMainCompatibility.CardModel_.WrappedCombatState(__instance);
+            var combatState = __instance.CombatState;
             var runState = __instance.Owner?.RunState ?? (combatState == null ? NullRunState.Instance : combatState.RunState);
-            foreach (var item in BetaMainCompatibility.RunState.IterateHookListeners.Invoke<IEnumerable<AbstractModel>>(runState, combatState?.WrappedState) ?? [])
+            foreach (var item in runState.IterateHookListeners(combatState))
             {
                 (item as IAfterCardDowngraded)?.AfterCardDowngraded(__instance);
             }

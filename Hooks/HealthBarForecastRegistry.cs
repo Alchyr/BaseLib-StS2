@@ -13,7 +13,9 @@ namespace BaseLib.Hooks;
 ///     <see cref="RegisterForeign" /> accepts objects with public instance properties:
 ///     <c>Amount</c> (<see cref="int" />), <c>Color</c> (<see cref="Godot.Color" />), <c>Direction</c> (enum or string
 ///     containing FromLeft/FromRight); optional <c>Order</c> (<see cref="int" />), <c>OverlayMaterial</c>
-///     (<see cref="Godot.Material" />), <c>OverlaySelfModulate</c> (<see cref="Godot.Color" />?).
+///     (<see cref="Godot.Material" />), <c>OverlaySelfModulate</c> (<see cref="Godot.Color" />?),
+///     <c>LeftOriginLayout</c> (enum or string containing Chained/OverlapFromOrigin),
+///     <c>LeftExclusiveZGroup</c> (<see cref="int" />), and <c>AffectsHpLabel</c> (<see cref="bool" />).
 /// </remarks>
 public static class HealthBarForecastRegistry
 {
@@ -232,7 +234,10 @@ public static class HealthBarForecastRegistry
             direction,
             accessors.ReadOrder(segment),
             accessors.ReadOverlayMaterial(segment),
-            accessors.ReadOverlaySelfModulate(segment));
+            accessors.ReadOverlaySelfModulate(segment),
+            ParseLeftOriginLayout(accessors.ReadLeftOriginLayout(segment)),
+            accessors.ReadLeftExclusiveZGroup(segment),
+            accessors.ReadAffectsHpLabel(segment));
         return true;
     }
 
@@ -264,6 +269,25 @@ public static class HealthBarForecastRegistry
 
     }
 
+    private static HealthBarForecastLeftOriginLayout ParseLeftOriginLayout(object? layoutValue)
+    {
+        switch (layoutValue)
+        {
+            case null:
+                return HealthBarForecastLeftOriginLayout.Chained;
+            case HealthBarForecastLeftOriginLayout typedLayout:
+                return typedLayout;
+        }
+
+        var layoutName = layoutValue.ToString();
+        if (string.IsNullOrWhiteSpace(layoutName))
+            return HealthBarForecastLeftOriginLayout.Chained;
+
+        return layoutName.Contains("OverlapFromOrigin", StringComparison.OrdinalIgnoreCase)
+            ? HealthBarForecastLeftOriginLayout.OverlapFromOrigin
+            : HealthBarForecastLeftOriginLayout.Chained;
+    }
+
     private static ForeignSegmentAccessors? CreateForeignSegmentAccessors(Type type)
     {
         var amount = type.GetProperty("Amount", BindingFlags.Instance | BindingFlags.Public);
@@ -272,6 +296,9 @@ public static class HealthBarForecastRegistry
         var order = type.GetProperty("Order", BindingFlags.Instance | BindingFlags.Public);
         var overlayMaterial = type.GetProperty("OverlayMaterial", BindingFlags.Instance | BindingFlags.Public);
         var overlaySelfModulate = type.GetProperty("OverlaySelfModulate", BindingFlags.Instance | BindingFlags.Public);
+        var leftOriginLayout = type.GetProperty("LeftOriginLayout", BindingFlags.Instance | BindingFlags.Public);
+        var leftExclusiveZGroup = type.GetProperty("LeftExclusiveZGroup", BindingFlags.Instance | BindingFlags.Public);
+        var affectsHpLabel = type.GetProperty("AffectsHpLabel", BindingFlags.Instance | BindingFlags.Public);
 
         if (amount?.PropertyType != typeof(int) ||
             color?.PropertyType != typeof(Color) ||
@@ -295,7 +322,16 @@ public static class HealthBarForecastRegistry
                 ? segment => (int)order.GetValue(segment)!
                 : _ => 0,
             readOverlay,
-            readOverlaySelfModulate);
+            readOverlaySelfModulate,
+            leftOriginLayout == null
+                ? _ => null
+                : segment => leftOriginLayout.GetValue(segment),
+            leftExclusiveZGroup?.PropertyType == typeof(int)
+                ? segment => (int)leftExclusiveZGroup.GetValue(segment)!
+                : _ => 0,
+            affectsHpLabel?.PropertyType == typeof(bool)
+                ? segment => (bool)affectsHpLabel.GetValue(segment)!
+                : _ => true);
     }
 
     /// <summary>
@@ -320,5 +356,8 @@ public static class HealthBarForecastRegistry
         Func<object, object?> ReadDirection,
         Func<object, int> ReadOrder,
         Func<object, Material?> ReadOverlayMaterial,
-        Func<object, Color?> ReadOverlaySelfModulate);
+        Func<object, Color?> ReadOverlaySelfModulate,
+        Func<object, object?> ReadLeftOriginLayout,
+        Func<object, int> ReadLeftExclusiveZGroup,
+        Func<object, bool> ReadAffectsHpLabel);
 }

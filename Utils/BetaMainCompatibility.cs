@@ -1,15 +1,15 @@
 ﻿using System.Collections;
 using System.Reflection;
 using BaseLib.Extensions;
-using Godot;
 using HarmonyLib;
-using MegaCrit.Sts2.addons.mega_text;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Combat.History;
 using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Commands.Builders;
+using MegaCrit.Sts2.Core.Debug;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Creatures;
+using MegaCrit.Sts2.Core.Entities.Multiplayer;
 using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.GameActions.Multiplayer;
 using MegaCrit.Sts2.Core.Hooks;
@@ -22,43 +22,86 @@ using MegaCrit.Sts2.Core.ValueProps;
 
 namespace BaseLib.Utils;
 
-public class BetaMainCompatibility
+/// <summary>
+/// Utility methods to allow compatibility between main branch and beta branch.
+/// </summary>
+public static class BetaMainCompatibility
 {
-    public static class Renamed
+    private static Lazy<SemanticVersion> _versionInfo = new(GetVersion);
+    /// <summary>
+    /// Game version from <see cref="ReleaseInfoManager.SemVer"/>. If this fails to resolve
+    /// will return default version of 999.999.999
+    /// Intended to be used to determine if certain compatibility patches are necessary, not for 100%
+    /// accurate version info.
+    /// </summary>
+    public static SemanticVersion Version => _versionInfo.Value;
+
+    private static SemanticVersion GetVersion()
     {
-        [Obsolete("No longer differs between main and beta.")]
-        public static VariableReference<IEnumerable<Mod>> 
-            LoadedMods = new(typeof(ModManager), "LoadedMods", "GetLoadedMods()");
-        
-        [Obsolete("No longer differs between main and beta.")]
-        public static VariableReference<StringName>
-            FontSize = new(typeof(ThemeConstants.Label), "FontSize", "fontSize");
-        [Obsolete("No longer differs between main and beta.")]
-        public static VariableReference<StringName>
-            Font = new(typeof(ThemeConstants.Label), "Font", "font");
-        [Obsolete("No longer differs between main and beta.")]
-        public static VariableReference<StringName>
-            LineSpacing = new(typeof(ThemeConstants.Label), "LineSpacing", "lineSpacing");
-        [Obsolete("No longer differs between main and beta.")]
-        public static VariableReference<StringName>
-            OutlineSize = new(typeof(ThemeConstants.Label), "OutlineSize", "outlineSize");
-        [Obsolete("No longer differs between main and beta.")]
-        public static VariableReference<StringName>
-            FontColor = new(typeof(ThemeConstants.Label), "FontColor", "fontColor");
-        [Obsolete("No longer differs between main and beta.")]
-        public static VariableReference<StringName>
-            FontOutlineColor = new(typeof(ThemeConstants.Label), "FontOutlineColor", "fontOutlineColor");
-        [Obsolete("No longer differs between main and beta.")]
-        public static VariableReference<StringName>
-            FontShadowColor = new(typeof(ThemeConstants.Label), "FontShadowColor", "fontShadowColor");
+        // Lazy simple method, just assuming version is too new if it fails
+        try
+        {
+            return ReleaseInfoManager.Instance.SemVer ?? new SemanticVersion(999, 999, 999);
+        }
+        catch (Exception _)
+        {
+            return new SemanticVersion(999, 999, 999);
+        }
     }
+    
+    /// <summary>
+    /// Compatibility extension method to use instead of FromCard that works on both main and beta branch.
+    /// </summary>
+    public static AttackCommand FromCardCompatibility(this AttackCommand command, CardModel card, CardPlay? cardPlay)
+    {
+        return _fromCard.Invoke<AttackCommand>(command, card, cardPlay)!;
+    }
+    private static VariableMethod _fromCard = new(
+        (typeof(AttackCommand), "FromCard",
+            [typeof(CardModel), typeof(CardPlay)],
+            [0, 1]),
+        (typeof(AttackCommand), "FromCard",
+            [typeof(CardModel)],
+            [0])
+    );
+
+    public static Task SignalPlayerChoiceBegunCompatibility(this PlayerChoiceContext context, Player player,
+        PlayerChoiceOptions options)
+    {
+        return _signalPlayerChoiceBegun.Invoke<Task>(context, player, options)!;
+    }
+    private static VariableMethod _signalPlayerChoiceBegun = new(
+        (typeof(PlayerChoiceContext), "SignalPlayerChoiceBegun",
+            [typeof(Player), typeof(PlayerChoiceOptions)],
+            [0, 1]),
+        (typeof(PlayerChoiceContext), "SignalPlayerChoiceBegun",
+            [typeof(PlayerChoiceOptions)],
+            [1])
+    );
+
+    public static void CacheSavedProperties(Type t)
+    {
+        _injectSavedPropertiesType.Invoke(null, t);
+    }
+
+    private static VariableMethod _injectSavedPropertiesType = new(
+        ("MegaCrit.Sts2.Core.Saves.Runs.SavedPropertiesTypeCache", "CachePropertiesForType",
+            [typeof(Type)],
+            [0]),
+        ("MegaCrit.Sts2.Core.Multiplayer.Serialization.ModelIdSerializationCache", "CachePropertiesForType",
+            [typeof(Type), null, null],
+            [0])
+    );
+    
 
     public static class AttackCommand_
     {
+        [Obsolete("No longer differs between main and beta.")]
         public static VariableMethod TargetingAllOpponents = new((typeof(AttackCommand), "TargetingAllOpponents",
             [null],
             [0])
         );
+        [Obsolete("No longer differs between main and beta.")]
         public static VariableMethod TargetingRandomOpponents = new((typeof(AttackCommand), "TargetingRandomOpponents",
                 [null, typeof(bool)],
                 [0, 1])
@@ -67,6 +110,7 @@ public class BetaMainCompatibility
 
     public static class Hook_
     {
+        [Obsolete("No longer differs between main and beta.")]
         public static VariableMethod ModifyBlock = new((typeof(Hook), "ModifyBlock", 
                 [null, typeof(Creature), typeof(decimal), typeof(ValueProp), typeof(CardModel), typeof(CardPlay), typeof(IEnumerable<AbstractModel>)], 
                 [0, 1, 2, 3, 4, 5, 6])
@@ -75,6 +119,7 @@ public class BetaMainCompatibility
 
     public static class Creature_
     {
+        [Obsolete("No longer differs between main and beta.")]
         public static CombatStateWrapper? WrappedCombatState(Creature creature)
         {
             var state = CombatState.Get(creature);
@@ -84,6 +129,7 @@ public class BetaMainCompatibility
 
         private static MethodInfo? OldInfiniteHp = typeof(Creature).PropertyGetter("ShowsInfiniteHp");
         private static MethodInfo? NewInfiniteHp = typeof(Creature).PropertyGetter(nameof(Creature.HpDisplay));
+        [Obsolete("No longer differs between main and beta.")]
         public static bool ShowsInfiniteHp(Creature creature)
         {
             if (OldInfiniteHp != null) return (bool) (OldInfiniteHp.Invoke(creature, []) ?? throw new InvalidOperationException());
@@ -96,22 +142,26 @@ public class BetaMainCompatibility
             throw new InvalidOperationException("Could not find property for infinite hp check");
         }
 
+        [Obsolete("No longer differs between main and beta.")]
         public static VariableReference<object?> CombatState = new(typeof(Creature), "CombatState");
     }
 
     public static class CardModel_
     {
+        [Obsolete("No longer differs between main and beta.")]
         public static CombatStateWrapper? WrappedCombatState(CardModel card) 
         {
             var state = CombatState.Get(card);
             if (state == null) return null;
             return new CombatStateWrapper(state);
         }
+        [Obsolete("No longer differs between main and beta.")]
         public static VariableReference<object?> CombatState = new(typeof(CardModel), "CombatState");
     }
 
     public static class PowerCmd_
     {
+        [Obsolete("No longer differs between main and beta.")]
         public static VariableMethod Apply = new(
             (typeof(PowerCmd), "Apply", 
                 [typeof(PlayerChoiceContext), typeof(Creature), typeof(decimal), typeof(Creature), typeof(CardModel), typeof(bool)], 
@@ -119,6 +169,7 @@ public class BetaMainCompatibility
             (typeof(PowerCmd), "Apply", 
                 [typeof(Creature), typeof(decimal), typeof(Creature), typeof(CardModel), typeof(bool)], 
                 [1, 2, 3, 4, 5]));
+        [Obsolete("No longer differs between main and beta.")]
         public static VariableMethod ApplyMulti = new(
             (typeof(PowerCmd), "Apply", 
                 [typeof(PlayerChoiceContext), typeof(IEnumerable<Creature>), typeof(decimal), typeof(Creature), typeof(CardModel), typeof(bool)], 
@@ -130,6 +181,7 @@ public class BetaMainCompatibility
 
     public static class RunState
     {
+        [Obsolete("No longer differs between main and beta.")]
         public static VariableMethod IterateHookListeners = new(
             (typeof(IRunState), "IterateHookListeners", 
                 [null], 
@@ -139,6 +191,7 @@ public class BetaMainCompatibility
 
     public static class _HoverTipFactory
     {
+        [Obsolete("No longer differs between main and beta.")]
         private static VariableMethod FromPowerDef = new(
             (typeof(HoverTipFactory), "FromPower",
                 [typeof(int?)],
@@ -150,6 +203,7 @@ public class BetaMainCompatibility
                 m => m.IsGenericMethod)
             );
         
+        [Obsolete("No longer differs between main and beta.")]
         private static VariableMethod FromPowerInstanceDef = new(
             (typeof(HoverTipFactory), "FromPower",
                 [typeof(PowerModel), typeof(int?)],
@@ -161,6 +215,7 @@ public class BetaMainCompatibility
                 m => !m.IsGenericMethod)
         );
 
+        [Obsolete("No longer differs between main and beta.")]
         public static IHoverTip FromPower<T>() where T : PowerModel
         {
             if (FromPowerDef.ParamCount == 1)
@@ -173,6 +228,7 @@ public class BetaMainCompatibility
             }
         }
 
+        [Obsolete("No longer differs between main and beta.")]
         public static IHoverTip FromPower(PowerModel power, int? amount = null)
         {
             return FromPowerInstanceDef.Invoke<IHoverTip>(null, [power, amount])!;
@@ -183,6 +239,7 @@ public class BetaMainCompatibility
     {
         private static readonly FieldInfo DependencyField = typeof(ModManifest).DeclaredField("dependencies");
         
+        [Obsolete("No longer differs between main and beta.")]
         public static bool HasDependency(ModManifest modManifest, string dependencyId)
         {
             var dependencies = DependencyField.GetValue(modManifest);
@@ -299,6 +356,7 @@ public class VariableMethod
 
     private readonly Dictionary<Type, MethodInfo> _genericCalls = [];
     private readonly int[] _paramIndicies;
+    private readonly int _requiredParamCount;
     
     public int ParamCount => _paramIndicies.Length;
     
@@ -320,6 +378,7 @@ public class VariableMethod
         {
             if (possible.Item1 == null) continue;
 
+            _requiredParamCount = possible.Item3.Length;
             _method = possible.Item1.GetMethodExt(possible.Item2, extraFilter: possible.Item5, parameterTypes: possible.Item3);
             if (_method != null)
             {
@@ -335,18 +394,24 @@ public class VariableMethod
     
     public void Invoke(object? instance, params object?[] args)
     {
-        var finalArgs = new object?[_paramIndicies.Length];
-        for (int i = 0; i < _paramIndicies.Length; ++i)
+        var finalArgs = new object?[_requiredParamCount];
+        int i = 0;
+        for (; i < _paramIndicies.Length; ++i)
             finalArgs[i] = args[_paramIndicies[i]];
+        for (; i < _requiredParamCount; ++i)
+            finalArgs[i] = null;
         
         _method!.Invoke(instance, finalArgs);
     }
     
     public T? Invoke<T>(object? instance, params object?[] args)
     {
-        var finalArgs = new object?[_paramIndicies.Length];
-        for (int i = 0; i < _paramIndicies.Length; ++i)
+        var finalArgs = new object?[_requiredParamCount];
+        int i = 0;
+        for (; i < _paramIndicies.Length; ++i)
             finalArgs[i] = args[_paramIndicies[i]];
+        for (; i < _requiredParamCount; ++i)
+            finalArgs[i] = null;
         
         return (T?) _method!.Invoke(instance, finalArgs);
     }
@@ -358,9 +423,12 @@ public class VariableMethod
             _genericCalls[typeof(TGeneric)] = method;
         }
 
-        var finalArgs = new object?[_paramIndicies.Length];
-        for (int i = 0; i < _paramIndicies.Length; ++i)
+        var finalArgs = new object?[_requiredParamCount];
+        int i = 0;
+        for (; i < _paramIndicies.Length; ++i)
             finalArgs[i] = args[_paramIndicies[i]];
+        for (; i < _requiredParamCount; ++i)
+            finalArgs[i] = null;
         
         return (TReturn?) method.Invoke(instance, finalArgs);
     }
@@ -372,14 +440,18 @@ public class VariableMethod
             _genericCalls[typeof(TGeneric)] = method;
         }
 
-        var finalArgs = new object?[_paramIndicies.Length];
-        for (int i = 0; i < _paramIndicies.Length; ++i)
+        var finalArgs = new object?[_requiredParamCount];
+        int i = 0;
+        for (; i < _paramIndicies.Length; ++i)
             finalArgs[i] = args[_paramIndicies[i]];
+        for (; i < _requiredParamCount; ++i)
+            finalArgs[i] = null;
         
         method.Invoke(instance, finalArgs);
     }
 }
 
+[Obsolete("No longer differs between main and beta.")]
 public class CombatStateWrapper(object combatState)
 {
     static CombatStateWrapper()

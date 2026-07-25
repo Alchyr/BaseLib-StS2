@@ -8,8 +8,8 @@ public static class AncientDialogueUtil
 {
     private const string ArchitectKey = "THE_ARCHITECT";
     private const string AttackKey = "-attack";
-    private const string StartAttackKey = "-endattack";
-    private const string EndAttackKey = "-startattack";
+    private const string StartAttackKey = "-startattack";
+    private const string EndAttackKey = "-endattack";
     private const string VisitIndexKey = "-visit";
     
     public static string SfxPath(string dialogueLoc) =>

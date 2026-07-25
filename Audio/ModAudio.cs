@@ -4,6 +4,7 @@ using BaseLib.Utils;
 using Godot;
 using MegaCrit.Sts2.Core.Helpers;
 using MegaCrit.Sts2.Core.Nodes;
+using MegaCrit.Sts2.Core.Nodes.GodotExtensions;
 using MegaCrit.Sts2.Core.Nodes.Rooms;
 using MegaCrit.Sts2.Core.Random;
 using MegaCrit.Sts2.Core.Saves;
@@ -91,65 +92,55 @@ public static class ModAudio
 
     internal static AudioStreamPlayer? GetPlayerForSound(SoundType soundType)
     {
-        if (!_playerPools.TryGetValue(soundType, out var players))
+        while (true)
         {
-            throw new ArgumentException($"Sound type '{(int) soundType}' not found");
-        }
-        
-        //BaseLibMain.Logger.Info($"Players for sound type {soundType}: {players.MaxCount}");
-        
-        if (!players.Players.TryDequeue(out var player))
-        {
-            if (players.MaxCount >= LimitForSoundType(soundType))
+            if (!_playerPools.TryGetValue(soundType, out var players))
             {
-                BaseLibMain.Logger.Warn($"Too many sounds for sound type '{soundType}'!");
-                return null;
+                throw new ArgumentException($"Sound type '{(int)soundType}' not found");
             }
-            
-            BaseLibMain.Logger.Info($"Creating new player for {soundType} (Count: {players.MaxCount + 1})");
-            
-            player = new AudioStreamPlayer { Bus = BusForSound(soundType) };
-            player.TreeEntered += () =>
+
+            //BaseLibMain.Logger.Info($"Players for sound type {soundType}: {players.MaxCount}");
+
+            if (!players.Players.TryDequeue(out var player))
             {
-                player.Play();
-            };
-            player.Finished += () =>
-            {
-                player.GetParent()?.RemoveChildSafely(player);
-            };
-            player.TreeExited += () =>
-            {
-                player.Stream = null;
-                players.Players.Enqueue(player);
-            };
-            switch (soundType)
-            {
-                case SoundType.Music:
-                    player.TreeEntered += () =>
-                    {
-                        _activeMusic.Add(player);
-                    };
-                    player.TreeExited += () =>
-                    {
-                        _activeMusic.Remove(player);
-                    };
-                    break;
-                case SoundType.Ambience:
-                    player.TreeEntered += () =>
-                    {
-                        _activeAmbience.Add(player);
-                    };
-                    player.TreeExited += () =>
-                    {
-                        _activeAmbience.Remove(player);
-                    };
-                    break;
-                
+                if (players.MaxCount >= LimitForSoundType(soundType))
+                {
+                    BaseLibMain.Logger.Warn($"Too many sounds for sound type '{soundType}'!");
+                    return null;
+                }
+
+                BaseLibMain.Logger.Info($"Creating new player for {soundType} (Count: {players.MaxCount + 1})");
+
+                player = new AudioStreamPlayer { Bus = BusForSound(soundType) };
+                player.TreeEntered += () => { player.Play(); };
+                player.Finished += () => { player.GetParent()?.RemoveChildSafely(player); };
+                player.TreeExited += () =>
+                {
+                    player.Stream = null;
+                    players.Players.Enqueue(player);
+                };
+                switch (soundType)
+                {
+                    case SoundType.Music:
+                        player.TreeEntered += () => { _activeMusic.Add(player); };
+                        player.TreeExited += () => { _activeMusic.Remove(player); };
+                        break;
+                    case SoundType.Ambience:
+                        player.TreeEntered += () => { _activeAmbience.Add(player); };
+                        player.TreeExited += () => { _activeAmbience.Remove(player); };
+                        break;
+                }
+
+                players.MaxCount += 1;
             }
-            players.MaxCount += 1;
+            else if (!player.IsValid())
+            {
+                players.MaxCount -= 1;
+                continue;
+            }
+
+            return player;
         }
-        
-        return player;
     }
 
     /// <summary>
@@ -294,7 +285,7 @@ public class AutoModAudio(string folder)
             _sounds[path] = sound;
         }
         
-        return ModAudio.PlaySound(sound, volume, pitchVariation, basePitch);
+        return ModAudio.PlaySound(sound, volume, volumeMult, pitchVariation, basePitch);
     }
     
     /// <param name="volume">Adjustment to volume in dB</param>
@@ -309,7 +300,7 @@ public class AutoModAudio(string folder)
             _sounds[path] = sound;
         }
         
-        return ModAudio.PlaySound(sound, volume, pitchVariation, basePitch);
+        return ModAudio.PlaySound(sound, volume, volumeMult, pitchVariation, basePitch);
     }
     
     /// <param name="volume">Adjustment to volume in dB</param>
@@ -324,7 +315,7 @@ public class AutoModAudio(string folder)
             _sounds[path] = sound;
         }
         
-        return ModAudio.PlaySound(sound, volume, pitchVariation, basePitch);
+        return ModAudio.PlaySound(sound, volume, volumeMult, pitchVariation, basePitch);
     }
 }
 
@@ -353,12 +344,15 @@ public record ModSound
     public virtual AudioStream? GetOrLoadStream()
     {
         if (CachedStreams.TryGetValue(File, out var cached))
-            return cached;
-        
-        var stream = GD.Load<AudioStream>(File);
-        if (stream != null && stream.GetLength() < 15)
-            CachedStreams[File] = stream;
+        {
+            if (GodotObject.IsInstanceValid(cached))
+                return cached;
+            CachedStreams.Remove(File); 
+        }
 
+        var stream = GD.Load<AudioStream>(File);
+        if (stream != null && stream.GetLength() < 15.0)
+            CachedStreams[File] = stream;
         return stream;
     }
 

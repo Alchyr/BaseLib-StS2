@@ -1,4 +1,6 @@
-﻿using Godot;
+﻿using BaseLib.Extensions;
+using Godot;
+using MegaCrit.Sts2.addons.mega_text;
 using MegaCrit.Sts2.Core.Assets;
 using MegaCrit.Sts2.Core.Helpers;
 using MegaCrit.Sts2.Core.Nodes.Combat;
@@ -31,21 +33,21 @@ public partial class NConfigButton : NSettingsButton
         _image.SetAnchorsPreset(LayoutPreset.FullRect);
         AddChild(_image);
 
-        var label = new Label
+        var label = new MegaLabel
         {
             Name = "Label",
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
-            LabelSettings = new LabelSettings
-            {
-                Font = PreloadManager.Cache.GetAsset<FontVariation>("res://themes/kreon_bold_glyph_space_two.tres"),
-                FontSize = 28,
-                FontColor = new Color(0.91f, 0.86f, 0.74f),
-                OutlineSize = 12,
-                OutlineColor = new Color(0.29f, 0.14f, 0.14f)
-            }
+            AutoSizeEnabled = false
         };
+
         label.SetAnchorsPreset(LayoutPreset.FullRect);
+        label.AddThemeFontOverride("font", PreloadManager.Cache.GetAsset<FontVariation>("res://themes/kreon_bold_glyph_space_two.tres"));
+        label.AddThemeFontSizeOverride("font_size", 28);
+        label.AddThemeColorOverride("font_color", new Color(0.91f, 0.86f, 0.74f));
+        label.AddThemeConstantOverride("outline_size", 12);
+        label.AddThemeColorOverride("font_outline_color", new Color(0.29f, 0.14f, 0.14f));
+
         AddChild(label);
 
         var reticleScene = PreloadManager.Cache.GetScene(SceneHelper.GetScenePath("ui/selection_reticle"));

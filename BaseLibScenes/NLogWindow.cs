@@ -11,10 +11,25 @@ namespace BaseLib.BaseLibScenes;
 [GlobalClass]
 public partial class NLogWindow : Window
 {
-    private static readonly LimitedLog _log = new(256);
     private static readonly Lock _logLock = new();
     private static ImmutableList<NLogWindow> _listeners = ImmutableList<NLogWindow>.Empty;
     private static bool _openedOnErr = false;
+
+    // Hard cap on retained log lines. Must comfortably exceed the max display size
+    // (the LimitedLogSize slider tops out at 2048) so RegenText always has enough history.
+    private const int MaxBufferedLines = 8192;
+    // Trim in chunks so the front-removal cost is amortized to ~O(1) per added line.
+    private const int TrimChunk = 1024;
+
+    private static readonly List<string> _fullLog = [];
+    // Logical index of _fullLog[0] (i.e. how many lines have been dropped off the front).
+    private static int _logBaseIndex = 0;
+    // Logical total line count ever seen = _logBaseIndex + _fullLog.Count. Monotonically increasing.
+    private static int _fullLogCount = 0;
+
+    public int Limit { get; private set; } = BaseLibConfig.LimitedLogSize;
+    // Logical index of the next line this window needs to render.
+    private int _writeIndex = 0;
 
     public static bool IsOpen => _listeners.Count > 0;
 
@@ -22,10 +37,18 @@ public partial class NLogWindow : Window
     {
         lock (_logLock)
         {
-            EnsureLogLimit();
-            _log.Enqueue(msg);
+            _fullLog.Add(msg);
+            if (_fullLog.Count > MaxBufferedLines + TrimChunk)
+            {
+                int remove = _fullLog.Count - MaxBufferedLines;
+                _fullLog.RemoveRange(0, remove);
+                _logBaseIndex += remove;
+            }
+            _fullLogCount = _logBaseIndex + _fullLog.Count;
         }
 
+        // SetDirty only sets a managed bool, so it is safe to call from the background
+        // threads the engine logs (and therefore this listener) can run on.
         foreach (var window in _listeners)
         {
             window.SetDirty();
@@ -58,6 +81,8 @@ public partial class NLogWindow : Window
 
     private void SetDirty() => _needsRefresh = true;
 
+    #region setup
+
     public override void _EnterTree()
     {
         base._EnterTree();
@@ -77,7 +102,6 @@ public partial class NLogWindow : Window
         OwnWorld3D = true;
 
         base._Ready();
-        lock (_logLock) EnsureLogLimit();
 
         _scrollContainer = GetNode<ScrollContainer>("MainVBox/Scroll");
         _logLabel = GetNode<RichTextLabel>("MainVBox/Scroll/Log");
@@ -102,8 +126,8 @@ public partial class NLogWindow : Window
 
         _filterInput.TextChanged += (_) => { _settingChanged = true; UpdateFilter(); };
         _regexButton.Toggled += (_) => { _settingChanged = true; UpdateFilter(); };
-        _inverseButton.Toggled += (_) => { _settingChanged = true; Refresh(); ScrollToBottomAsync(); };
-        _logLevelDropdown.ItemSelected += (_) => { _settingChanged = true; Refresh(); ScrollToBottomAsync(); };
+        _inverseButton.Toggled += (_) => { _settingChanged = true; RegenText(); ScrollToBottomAsync(); };
+        _logLevelDropdown.ItemSelected += (_) => { _settingChanged = true; RegenText(); ScrollToBottomAsync(); };
 
         SizeChanged += OnSizeChanged;
         CloseRequested += QueueFree;
@@ -119,19 +143,6 @@ public partial class NLogWindow : Window
         UpdateFilter(); // Also calls Refresh()
 
         ProcessMode = ProcessModeEnum.Always;
-    }
-
-    public override void _Process(double delta)
-    {
-        base._Process(delta);
-
-        _timeSinceRefresh += delta;
-        if (!_needsRefresh || !Visible || Mode == ModeEnum.Minimized) return;
-        if (_timeSinceRefresh < 1d / 30d) return;
-
-        _timeSinceRefresh = 0;
-        _needsRefresh = false;
-        Refresh();
     }
 
     private void ApplyMinSizeForScale()
@@ -173,6 +184,31 @@ public partial class NLogWindow : Window
         ModConfig.SaveDebounced<BaseLibConfig>();
     }
 
+    #endregion
+
+    public override void _Process(double delta)
+    {
+        base._Process(delta);
+        
+        _timeSinceRefresh += delta;
+        if (!_needsRefresh || !Visible || Mode == ModeEnum.Minimized) return;
+        if (_timeSinceRefresh < 1d / 30d) return;
+
+        _timeSinceRefresh = 0;
+        _needsRefresh = false;
+
+        if (BaseLibConfig.LimitedLogSize > Limit)
+        {
+            Limit = BaseLibConfig.LimitedLogSize;
+            RegenText();
+        }
+        else
+        {
+            Limit = BaseLibConfig.LimitedLogSize;
+            Refresh();
+        }
+    }
+
     private void UpdateFilter()
     {
         _filterText = _filterInput?.Text ?? "";
@@ -192,15 +228,42 @@ public partial class NLogWindow : Window
             }
         }
 
-        Refresh();
+        RegenText();
 
         // Jump to the end on filter changes. If we ARE following, Refresh does this.
         if (!_isFollowingLog) ScrollToBottomAsync();
     }
 
+    public void RegenText()
+    {
+        _logLabel?.Clear();
+        int validLineCount = 0;
+
+        lock (_logLock)
+        {
+            // Default to rendering everything currently buffered. This also handles the
+            // empty-buffer case: _writeIndex == _fullLogCount, so UpdateText reads nothing.
+            _writeIndex = _logBaseIndex;
+
+            for (int i = _fullLog.Count - 1; i >= 0; i--)
+            {
+                if (!MatchesFilter(_fullLog[i])) continue;
+
+                ++validLineCount;
+                if (validLineCount >= BaseLibConfig.LimitedLogSize)
+                {
+                    _writeIndex = _logBaseIndex + i; // logical index of this line
+                    break;
+                }
+            }
+        }
+        Refresh();
+    }
+
     public void Refresh()
     {
         if (!IsNodeReady()) return;
+        
         UpdateText();
 
         if (!_settingChanged) return;
@@ -219,18 +282,34 @@ public partial class NLogWindow : Window
         if (_logLabel is null || _scrollContainer is null || _logLevelDropdown is null) return;
 
         _isFollowingLog = _isFollowingLog || IsNearBottom();
-        _logLabel.Clear();
 
         var minLevel = (LogLevel)_logLevelDropdown.Selected;
+        
+        while (_writeIndex < _fullLogCount)
+        {
+            string line;
+            lock (_logLock)
+            {
+                // If this window fell so far behind that its next line was already trimmed
+                // off the front, skip ahead to the oldest line still retained.
+                if (_writeIndex < _logBaseIndex) _writeIndex = _logBaseIndex;
+                if (_writeIndex >= _fullLogCount) break;
+                line = _fullLog[_writeIndex - _logBaseIndex];
+            }
+            if (MatchesFilter(line))
+            {
+                RenderLine(line, minLevel, _logLabel);
+            }
+            ++_writeIndex;
+        }
 
-        // Copying should be cheaper than filtering while locked; we don't want to block the game's threads, which are
-        // indirectly calling AddLog via our LogListener
-        string[] snapshot;
-        lock (_logLock) snapshot = _log.ToArray();
-
-        foreach (var line in snapshot.Where(MatchesFilter))
-            LimitedLog.RenderLine(line, minLevel, _logLabel);
-
+        var limit = Math.Max(1, BaseLibConfig.LimitedLogSize);
+        var safety = 64;
+        while (_logLabel.GetParagraphCount() > limit && safety > 0)
+        {
+            _logLabel.RemoveParagraph(0);
+            --safety;
+        }
         if (_isFollowingLog) ScrollToBottomAsync();
     }
 
@@ -282,14 +361,6 @@ public partial class NLogWindow : Window
         return bottomValue - value <= 8;
     }
 
-    private static void EnsureLogLimit()
-    {
-        int configuredLimit = BaseLibConfig.LimitedLogSize;
-        if (_log.Limit == configuredLimit) return;
-
-        _log.SetLimit(configuredLimit);
-    }
-
     public override void _Input(InputEvent @event)
     {
         if (@event is not InputEventMouseButton { CtrlPressed: true } mouseEvent) return;
@@ -314,70 +385,36 @@ public partial class NLogWindow : Window
         ModConfig.SaveDebounced<BaseLibConfig>();
     }
 
-    private class LimitedLog : Queue<string>
+    private static readonly Color ErrorColor = Color.FromHtml("#ff6d6d");
+    private static readonly Color WarnColor = Color.FromHtml("#ffd866");
+    private static readonly Color DebugColor = Color.FromHtml("#7fdfff");
+
+    private static void RenderLine(string line, LogLevel minLevel, RichTextLabel? label)
     {
-        public int Limit { get; private set; }
+        if (label is null) return;
+        if (TryGetBracketLevel(line) < minLevel) return;
 
-        private static readonly Color ErrorColor = Color.FromHtml("#ff6d6d");
-        private static readonly Color WarnColor = Color.FromHtml("#ffd866");
-        private static readonly Color DebugColor = Color.FromHtml("#7fdfff");
-
-        public LimitedLog(int limit) : base(limit)
-        {
-            Limit = limit;
-        }
-
-        public void SetLimit(int limit)
-        {
-            Limit = limit;
-            while (Count > Limit)
-            {
-                Dequeue();
-            }
-        }
-
-        public new void Enqueue(string item)
-        {
-            while (Count >= Limit)
-            {
-                Dequeue();
-            }
-            base.Enqueue(item);
-        }
-
-        public static void RenderLine(string line, LogLevel minLevel, RichTextLabel? label)
-        {
-            if (label is null) return;
-            if (TryGetBracketLevel(line) < minLevel) return;
-
-            var color = GetColorForLine(line);
-            if (color is not null) label.PushColor(color.Value);
-
-            label.AddText(line);
-            //label.Newline();
-
-            if (color is not null) label.Pop();
-        }
-
-        private static LogLevel TryGetBracketLevel(string line)
-        {
-            if (!line.StartsWith('[')) return LogLevel.Info;
-
-            int closeIndex = line.IndexOf(']');
-            if (closeIndex <= 1) return LogLevel.Info;
-
-            var levelStr = line[1..closeIndex];
-            return Enum.TryParse<LogLevel>(levelStr, ignoreCase: true, out var level)
-                ? level
-                : LogLevel.Error; // Default to error to ensure it's shown
-        }
-
-        private static Color? GetColorForLine(string line) => TryGetBracketLevel(line) switch
-        {
-            LogLevel.Error => ErrorColor,
-            LogLevel.Warn  => WarnColor,
-            LogLevel.Info  => null,
-            _              => DebugColor, // VeryDebug, Load, Debug
-        };
+        label.AddText(line);
     }
+
+    private static LogLevel TryGetBracketLevel(string line)
+    {
+        if (!line.StartsWith('[')) return LogLevel.Info;
+
+        int closeIndex = line.IndexOf(']');
+        if (closeIndex <= 1) return LogLevel.Info;
+
+        var levelStr = line[1..closeIndex];
+        return Enum.TryParse<LogLevel>(levelStr, ignoreCase: true, out var level)
+            ? level
+            : LogLevel.Error; // Default to error to ensure it's shown
+    }
+
+    private static Color? GetColorForLine(string line) => TryGetBracketLevel(line) switch
+    {
+        LogLevel.Error => ErrorColor,
+        LogLevel.Warn => WarnColor,
+        LogLevel.Info => null,
+        _ => DebugColor, // VeryDebug, Load, Debug
+    };
 }

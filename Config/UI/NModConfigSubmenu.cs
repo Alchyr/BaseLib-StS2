@@ -122,7 +122,7 @@ public partial class NModConfigSubmenu : NSubmenu
     {
         var selfNodePath = new NodePath(".");
 
-        foreach (var modConfig in ModConfigRegistry.GetAll().Where(mod => mod.HasVisibleSettings()))
+        foreach (var modConfig in ModConfigRegistry.GetAll().Where(mod => mod.VisibleInModList()))
         {
             var modName = GetModTitle(modConfig);
             var modButton = new NModListButton(modName);

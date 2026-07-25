@@ -1,0 +1,7 @@
+{
+  "BASELIB-COMBAT_REWARD_CARD_UPGRADE": "{cards:plural:カード1枚|カード{}枚}をアップグレード。",
+  "BASELIB-COMBAT_REWARD_CARD_UPGRADE.selectionScreenPrompt": "{Amount:plural:アップグレードするカードを1枚|アップグレードするカードを[blue]{}[/blue]枚}選択。",
+  "BASELIB-COMBAT_REWARD_RANDOM_CARD_UPGRADE": "ランダムなカード1枚をアップグレード。",
+  "BASELIB-COMBAT_REWARD_CARD_TRANSFORM": "{cards:plural:カード1枚|カード{}枚}を変化{Upgrade:させ、アップグレードする|させる}。",
+  "BASELIB-COMBAT_REWARD_CARD_TRANSFORM.selectionScreenPrompt": "{Amount:plural:カード1枚:[blue]{}[/blue]枚のカード}を[gold]変化[/gold]{Upgrade:させ、[gold]アップグレード[/gold]する|させる}。"
+}

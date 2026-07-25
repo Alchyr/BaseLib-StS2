@@ -1,10 +1,7 @@
 using System.Reflection;
-using BaseLib.Abstracts;
-using BaseLib.Patches.Content;
 using BaseLib.Utils.NodeFactories;
 using Godot;
 using HarmonyLib;
-using MegaCrit.Sts2.Core.Models;
 
 namespace BaseLib.Patches.UI;
 
@@ -38,27 +35,5 @@ static class SceneConversionPatch
     static void Postfix(PackedScene __instance, ref Node? __result)
     {
         NodeFactory.TryAutoConvert(__instance, ref __result);
-    }
-}
-
-/// <summary>
-/// Registers custom scene paths.
-/// Called through a patch because virtual properties like CustomVisualPath
-/// may depend on fields set in derived constructors that haven't run yet when
-/// the base constructor occurs.
-/// </summary>
-[HarmonyPatch(typeof(ModelDb), nameof(ModelDb.Preload))]
-class RegisterSceneConversions
-{
-    [HarmonyPostfix]
-    private static void EnsureScenePathsRegistered()
-    {
-        foreach (var type in CustomContentDictionary.RegisteredTypes)
-        {
-            if (!type.IsAssignableTo(typeof(ISceneConversions))) continue;
-            
-            var model = ModelDb.GetById<AbstractModel>(ModelDb.GetId(type));
-            (model as ISceneConversions)?.RegisterSceneConversions();
-        }
     }
 }

@@ -15,7 +15,7 @@ class RoomIconPathPatch
         [HarmonyPrefix]
         static bool CustomPath(MapPointType mapPointType, RoomType roomType, ModelId? modelId, ref string? __result)
         {
-            if (modelId != null && ModelDb.GetById<AbstractModel>(modelId) is ICustomModel customModel)
+            if (modelId != null && ModelDb.GetByIdOrNull<AbstractModel>(modelId) is ICustomModel customModel)
             {
                 switch (customModel)
                 {
@@ -40,7 +40,7 @@ class RoomIconPathPatch
         [HarmonyPrefix]
         static bool CustomOutlinePath(MapPointType mapPointType, RoomType roomType, ModelId? modelId, ref string? __result)
         {
-            if (modelId != null && ModelDb.GetById<AbstractModel>(modelId) is ICustomModel customModel)
+            if (modelId != null && ModelDb.GetByIdOrNull<AbstractModel>(modelId) is ICustomModel customModel)
             {
                 switch (customModel)
                 {

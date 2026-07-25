@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Reflection;
 using System.Reflection.Emit;
 using BaseLib.Hooks;
@@ -176,7 +175,9 @@ static class CardConsoleCmd_Process_MaxHandSizePatch
 static class CardPileCmd_Draw_MaxHandSizePatch
 {
     static MethodInfo TargetMethod() => AccessTools.AsyncMoveNext(
-        AccessTools.Method(typeof(CardPileCmd), nameof(CardPileCmd.Draw),
+        AccessTools.Method(typeof(CardPileCmd), "DrawInternal", //BETA COMPAT
+            [typeof(PlayerChoiceContext), typeof(decimal), typeof(Player), typeof(bool)])
+        ?? AccessTools.Method(typeof(CardPileCmd), "Draw",
             [typeof(PlayerChoiceContext), typeof(decimal), typeof(Player), typeof(bool)]));
 
     [HarmonyTranspiler]
@@ -214,7 +215,10 @@ static class CardPileCmd_Add_MaxHandSizePatch
 {
     static MethodInfo TargetMethod() => AccessTools.AsyncMoveNext(
         AccessTools.Method(typeof(CardPileCmd), nameof(CardPileCmd.Add),
-            [typeof(IEnumerable<CardModel>), typeof(CardPile), typeof(CardPilePosition), typeof(AbstractModel), typeof(bool)]));
+            [typeof(IEnumerable<CardModel>), typeof(CardPile), typeof(CardPilePosition), typeof(AbstractModel), typeof(bool), typeof(bool)])
+        ?? AccessTools.Method(typeof(CardPileCmd), nameof(CardPileCmd.Add),
+            [typeof(IEnumerable<CardModel>), typeof(CardPile), typeof(CardPilePosition), typeof(AbstractModel), typeof(bool)])
+        );
 
     [HarmonyTranspiler]
     private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions, ILGenerator il, MethodBase original)

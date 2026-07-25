@@ -1,0 +1,9 @@
+{
+  "BASELIB-CUSTOM_TEMPORARY_POWER_MODEL.title": "一時的なパワー",
+  "BASELIB-CUSTOM_TEMPORARY_POWER_MODEL.description": "敵にパワーを一時的に付与する。",
+  "BASELIB-CUSTOM_TEMPORARY_POWER_MODEL.smartDescription": "敵にパワーを一時的に付与する。",
+  "BASELIB-CUSTOM_TEMPORARY_POWER_MODEL.UP.description": "一定時間、[gold]パワー[/gold]を増加させる。",
+  "BASELIB-CUSTOM_TEMPORARY_POWER_MODEL.UP.smartDescription": "[gold]{TemporaryPowerTitle}[/gold]を[blue]{Amount:abs()}[/blue]得る。{UntilEndOfOtherSideTurn:cond:あなたの|敵の}ターン終了時まで持続する。{Repeat:cond:>0?\\n追加で[blue]{Repeat:diff()}[/blue]ターン持続する。|}",
+  "BASELIB-CUSTOM_TEMPORARY_POWER_MODEL.DOWN.description": "一定時間、[gold]パワー[/gold]を減少させる。",
+  "BASELIB-CUSTOM_TEMPORARY_POWER_MODEL.DOWN.smartDescription": "[gold]{TemporaryPowerTitle}[/gold]を[blue]{Amount:abs()}[/blue]失う。{UntilEndOfOtherSideTurn:cond:あなたの|敵の}ターン終了時まで持続する。{Repeat:cond:>0?\\n追加で[blue]{Repeat:diff()}[/blue]ターン持続する。|}"
+}

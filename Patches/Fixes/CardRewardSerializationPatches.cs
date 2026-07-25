@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -96,6 +97,37 @@ internal static class RewardSerializationExt
     }
 }
 
+internal static class CardRewardSerializationCompatibility
+{
+    private static readonly PropertyInfo? CustomCardPoolProperty =
+        AccessTools.DeclaredProperty(typeof(CardCreationOptions), "CustomCardPool");
+
+    private static readonly ConstructorInfo? CustomPoolOptionsConstructor =
+        typeof(CardCreationOptions).GetConstructor(
+            BindingFlags.Instance | BindingFlags.Public,
+            null,
+            [typeof(IEnumerable<CardModel>), typeof(CardCreationSource), typeof(CardRarityOddsType)],
+            null);
+
+    internal static bool SupportsLegacyCustomCardPool => CustomCardPoolProperty != null;
+
+    internal static IEnumerable<CardModel>? GetCustomCardPool(CardCreationOptions options)
+    {
+        return CustomCardPoolProperty?.GetValue(options) as IEnumerable<CardModel>;
+    }
+
+    internal static CardCreationOptions CreateCustomPoolOptions(
+        IEnumerable<CardModel> cards,
+        CardCreationSource source,
+        CardRarityOddsType rarityOdds)
+    {
+        if (CustomPoolOptionsConstructor == null)
+            throw new NotSupportedException("This STS2 version does not support CardCreationOptions.CustomCardPool.");
+
+        return (CardCreationOptions)CustomPoolOptionsConstructor.Invoke([cards, source, rarityOdds]);
+    }
+}
+
 [HarmonyPatch(typeof(CardReward), nameof(CardReward.ToSerializable))]
 public static class CardRewardToSerializablePatch
 {
@@ -110,6 +142,7 @@ public static class CardRewardToSerializablePatch
     private static bool Prefix(CardReward __instance, ref SerializableReward __result)
     {
         var options = GetOptions(__instance);
+        var customCardPool = CardRewardSerializationCompatibility.GetCustomCardPool(options);
         var hasFlags = options.Flags != 0;
         var hasFilter = options.CardPoolFilter != null;
         var hasNoPools = options.CardPools.Count <= 0;
@@ -120,27 +153,35 @@ public static class CardRewardToSerializablePatch
         var result = new SerializableReward { RewardType = RewardType.Card };
         RewardExtData? ext = null;
 
-        if (hasNoPools && options.CustomCardPool != null)
+        if (hasNoPools)
         {
-            ext = BuildCustomPoolExt(options);
-            result.Source = options.Source;
-            result.RarityOdds = options.RarityOdds;
-            result.OptionCount = GetOptionCount(__instance);
+            if (customCardPool != null)
+            {
+                ext = BuildCustomPoolExt(options, customCardPool);
+                result.Source = options.Source;
+                result.RarityOdds = options.RarityOdds;
+            }
+            else if (!CardRewardSerializationCompatibility.SupportsLegacyCustomCardPool)
+            {
+                ext = BuildSpecificCardsExt(options, __instance.Cards);
+                result.Source = options.Source;
+                result.RarityOdds = options.RarityOdds;
+            }
         }
         else if (hasFilter && options.CardPools.Count > 0)
         {
             ext = BuildFilterSnapshotExt(options);
             result.Source = options.Source;
             result.RarityOdds = options.RarityOdds;
-            result.OptionCount = GetOptionCount(__instance);
         }
         else
         {
             result.Source = options.Source;
             result.RarityOdds = options.RarityOdds;
             result.CardPoolIds = options.CardPools.Select(p => p.Id).ToList();
-            result.OptionCount = GetOptionCount(__instance);
         }
+
+        result.OptionCount = GetOptionCount(__instance);
 
         if (hasFlags)
         {
@@ -155,12 +196,27 @@ public static class CardRewardToSerializablePatch
         return false;
     }
 
-    private static RewardExtData BuildCustomPoolExt(CardCreationOptions options)
+    private static RewardExtData BuildSpecificCardsExt(
+        CardCreationOptions options,
+        IEnumerable<CardModel> cards)
     {
         return new RewardExtData
         {
             IsCustomPool = true,
-            CustomCardIds = options.CustomCardPool!.Select(c => c.Id.ToString()).ToList(),
+            CustomCardIds = cards.Select(c => c.Id.ToString()).ToList(),
+            Source = (int)options.Source,
+            RarityOdds = (int)options.RarityOdds
+        };
+    }
+
+    private static RewardExtData BuildCustomPoolExt(
+        CardCreationOptions options,
+        IEnumerable<CardModel> customCardPool)
+    {
+        return new RewardExtData
+        {
+            IsCustomPool = true,
+            CustomCardIds = customCardPool.Select(c => c.Id.ToString()).ToList(),
             Source = (int)options.Source,
             RarityOdds = (int)options.RarityOdds
         };
@@ -195,7 +251,7 @@ public static class CombatRoomToSerializableRewardExtPatch
                     continue;
 
                 var key = RewardSerializationExt.MakeKey(netId, i);
-                __result.EncounterState ??= new Dictionary<string, string>();
+                __result.EncounterState ??= [];
                 __result.EncounterState[key] = RewardSerializationExt.ToJson(ext);
             }
     }
@@ -229,7 +285,7 @@ public static class CombatRoomFromSerializableRewardExtPatch
             if (removed > 0)
                 BaseLibMain.Logger.Warn(
                     $"Stripped {removed} RewardType.None entry(s) from ExtraRewards " +
-                    "(e.g. LinkedRewardSet) — serialization for this type is not supported.");
+                    "(e.g. LinkedRewardSet) - serialization for this type is not supported.");
         }
     }
 }
@@ -263,9 +319,16 @@ public static class RewardFromSerializableExtPatch
 
             if (cards.Count > 0)
             {
-                var options = new CardCreationOptions(cards, source, rarityOdds);
-                if (flags != 0) options.WithFlags(flags);
-                return new CardReward(options, save.OptionCount, player);
+                if (CardRewardSerializationCompatibility.SupportsLegacyCustomCardPool)
+                {
+                    var options = CardRewardSerializationCompatibility.CreateCustomPoolOptions(cards, source, rarityOdds);
+                    if (flags != 0) options.WithFlags(flags);
+                    return new CardReward(options, save.OptionCount, player);
+                }
+
+                var rerollOptions = new CardCreationOptions([player.Character.CardPool], source, rarityOdds);
+                if (flags != 0) rerollOptions.WithFlags(flags);
+                return new CardReward(cards, source, player, rerollOptions);
             }
 
             BaseLibMain.Logger.Warn(

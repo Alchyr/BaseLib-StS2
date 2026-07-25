@@ -9,6 +9,7 @@ using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.ValueProps;
 using BaseLib.Utils;
 using HarmonyLib;
+using MegaCrit.Sts2.Core.Hooks;
 
 namespace BaseLib.Extensions;
 
@@ -38,11 +39,17 @@ public static class DynamicVarExtensions
             return amount;
         }
 
-        var combatState = BetaMainCompatibility.Creature_.CombatState.Get(creature);
+        var combatState = creature.CombatState;
         if (combatState == null) return amount;
 
-        amount = BetaMainCompatibility.Hook_.ModifyBlock
-            .Invoke<decimal>(null, combatState, creature, amount, props, cardSource, cardPlay, null);
+        var enchantment = cardSource?.Enchantment;
+        if (enchantment != null)
+        {
+            amount += enchantment.EnchantBlockAdditive(amount);
+            amount *= enchantment.EnchantBlockMultiplicative(amount);
+        }
+
+        amount = Hook.ModifyBlock(combatState, creature, amount, props, cardSource, cardPlay, out var modifiers);
         amount = Math.Max(amount, 0m);
         return amount;
     }
@@ -59,13 +66,18 @@ public static class DynamicVarExtensions
 
         DynamicVarTips[var] = (locVar) =>
         {
-            LocString locString = new(locTable, key + ".title");
-            LocString locString2 = new(locTable, key + ".description");
+            LocString title = new(locTable, key + ".title");
 
-            locString.Add(locVar); //Dynamic var tip should not refer to any variables other than itself...
-            locString2.Add(locVar);
+            var descKey = LocString.Exists(locTable, key + ".smartDescription")
+                ? key + ".smartDescription"
+                : key + ".description";
 
-            return new HoverTip(locString, locString2);
+            LocString description = new(locTable, descKey);
+
+            title.Add(locVar); //Dynamic var tip should not refer to any variables other than itself...
+            description.Add(locVar);
+
+            return new HoverTip(title, description);
         };
 
         return var;

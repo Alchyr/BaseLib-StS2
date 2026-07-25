@@ -22,6 +22,22 @@ public enum HealthBarForecastDirection
 }
 
 /// <summary>
+///     How <see cref="HealthBarForecastDirection.FromLeft" /> segments share the empty-edge origin.
+/// </summary>
+public enum HealthBarForecastLeftOriginLayout
+{
+    /// <summary>
+    ///     Segments connect end-to-end from the empty edge.
+    /// </summary>
+    Chained = 0,
+
+    /// <summary>
+    ///     Each segment spans from the empty edge by its own <c>Amount</c>, capped to remaining HP.
+    /// </summary>
+    OverlapFromOrigin = 1
+}
+
+/// <summary>
 ///     One forecast overlay segment for a creature health bar.
 /// </summary>
 /// <param name="Amount">HP amount represented by this segment.</param>
@@ -43,13 +59,27 @@ public enum HealthBarForecastDirection
 ///     used
 ///     for both overlay tint and lethal HP label; when set, <see cref="Color" /> is still used for lethal label theming.
 /// </param>
+/// <param name="LeftOriginLayout">
+///     For <see cref="HealthBarForecastDirection.FromLeft" /> only:
+///     <see cref="HealthBarForecastLeftOriginLayout.Chained" /> or
+///     <see cref="HealthBarForecastLeftOriginLayout.OverlapFromOrigin" />.
+/// </param>
+/// <param name="LeftExclusiveZGroup">
+///     For <see cref="HealthBarForecastLeftOriginLayout.OverlapFromOrigin" />: larger values draw above smaller values.
+/// </param>
+/// <param name="AffectsHpLabel">
+///     Whether this segment can recolor the HP label when it reaches lethal threshold.
+/// </param>
 public readonly record struct HealthBarForecastSegment(
     int Amount,
     Color Color,
     HealthBarForecastDirection Direction,
     int Order,
     Material? OverlayMaterial,
-    Color? OverlaySelfModulate = null)
+    Color? OverlaySelfModulate = null,
+    HealthBarForecastLeftOriginLayout LeftOriginLayout = HealthBarForecastLeftOriginLayout.Chained,
+    int LeftExclusiveZGroup = 0,
+    bool AffectsHpLabel = true)
 {
     /// <summary>
     ///     Initializes a segment without overlay material or separate overlay modulate.
@@ -70,6 +100,53 @@ public readonly record struct HealthBarForecastSegment(
         int order,
         Material? overlayMaterial)
         : this(amount, color, direction, order, overlayMaterial, null)
+    {
+    }
+
+    /// <summary>
+    ///     Initializes a segment with an optional overlay modulate and default left-origin layout.
+    /// </summary>
+    public HealthBarForecastSegment(
+        int amount,
+        Color color,
+        HealthBarForecastDirection direction,
+        int order,
+        Material? overlayMaterial,
+        Color? overlaySelfModulate)
+        : this(amount, color, direction, order, overlayMaterial, overlaySelfModulate,
+            HealthBarForecastLeftOriginLayout.Chained)
+    {
+    }
+
+    /// <summary>
+    ///     Initializes a segment with a left-origin layout and default exclusive z group.
+    /// </summary>
+    public HealthBarForecastSegment(
+        int amount,
+        Color color,
+        HealthBarForecastDirection direction,
+        int order,
+        Material? overlayMaterial,
+        Color? overlaySelfModulate,
+        HealthBarForecastLeftOriginLayout leftOriginLayout)
+        : this(amount, color, direction, order, overlayMaterial, overlaySelfModulate, leftOriginLayout, 0)
+    {
+    }
+
+    /// <summary>
+    ///     Initializes a segment with explicit left-origin layout and exclusive z group.
+    /// </summary>
+    public HealthBarForecastSegment(
+        int amount,
+        Color color,
+        HealthBarForecastDirection direction,
+        int order,
+        Material? overlayMaterial,
+        Color? overlaySelfModulate,
+        HealthBarForecastLeftOriginLayout leftOriginLayout,
+        int leftExclusiveZGroup)
+        : this(amount, color, direction, order, overlayMaterial, overlaySelfModulate, leftOriginLayout,
+            leftExclusiveZGroup, true)
     {
     }
 }

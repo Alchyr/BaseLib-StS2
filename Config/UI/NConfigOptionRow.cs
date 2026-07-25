@@ -128,6 +128,8 @@ public partial class NConfigOptionRow : MarginContainer
 
         var tipSet = NHoverTipSet.CreateAndShow(this, _hoverTip);
 
+        if (tipSet == null) return;
+
         var hoverTipWidth = 360f; // Fallback
         var hoverTipHeight = tipSet._textHoverTipContainer.Size.Y;
 

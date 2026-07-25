@@ -43,7 +43,7 @@ public static class SelfApplyDebuffPatch
         await originalTask;
 
         // At this point, all the logic in the original function has been executed, including the part that sets SkipNextDurationTick to true.
-        if (BetaMainCompatibility.Creature_.WrappedCombatState(target)?.CurrentSide == CombatSide.Player 
+        if (target.CombatState?.CurrentSide == CombatSide.Player 
             && target.Side == CombatSide.Player && power is { Type: PowerType.Debuff, Applier.Side: CombatSide.Player }
             && (power is ICustomModel || power.Applier?.Monster is ICustomModel || power.Applier?.Player?.Character is ICustomModel || cardSource is ICustomModel))
         {

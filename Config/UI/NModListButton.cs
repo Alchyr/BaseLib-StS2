@@ -1,4 +1,5 @@
 ﻿using Godot;
+using MegaCrit.Sts2.addons.mega_text;
 using MegaCrit.Sts2.Core.Assets;
 using MegaCrit.Sts2.Core.ControllerInput;
 using MegaCrit.Sts2.Core.Helpers;
@@ -52,20 +53,23 @@ public partial class NModListButton : NButton
         _backgroundPanel.AddThemeStyleboxOverride("panel", _styleBox);
         AddChild(_backgroundPanel);
 
-        _label = new Label
+        _label = new MegaLabel
         {
             Text = modName,
             HorizontalAlignment = HorizontalAlignment.Left,
             VerticalAlignment = VerticalAlignment.Center,
             TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis,
-            LabelSettings = new LabelSettings {
-                FontSize = 24,
-                Font = PreloadManager.Cache.GetAsset<Font>("res://themes/kreon_regular_glyph_space_one.tres"),
-                FontColor = _textNormal,
-                ShadowSize = 2,
-                ShadowColor = new Color(0f, 0f, 0f, 0.8f)
-            }
+            AutoSizeEnabled = true,
+            MinFontSize = 14,
+            MaxFontSize = 24
         };
+
+        _label.AddThemeFontOverride("font",
+            PreloadManager.Cache.GetAsset<Font>("res://themes/kreon_regular_glyph_space_one.tres"));
+        _label.AddThemeFontSizeOverride("font_size", 24);
+        _label.AddThemeColorOverride("font_color", _textNormal);
+        _label.AddThemeConstantOverride("shadow_outline_size", 2);
+        _label.AddThemeColorOverride("font_shadow_color", new Color(0f, 0f, 0f, 0.8f));
 
         _label.SetAnchorsPreset(LayoutPreset.FullRect);
         _label.OffsetLeft = 24f;
@@ -170,7 +174,8 @@ public partial class NModListButton : NButton
         {
             _styleBox.BgColor = targetBg;
             _styleBox.BorderWidthLeft = targetBorderWidth;
-            _label.LabelSettings.FontColor = targetText;
+            _label.AddThemeColorOverride("font_color", targetText);
+
             return;
         }
 
@@ -178,7 +183,7 @@ public partial class NModListButton : NButton
         _stateTween = CreateTween().SetParallel().SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.Out);
 
         _stateTween.TweenProperty(_styleBox, "bg_color", targetBg, 0.1f);
-        _stateTween.TweenProperty(_label.LabelSettings, "font_color", targetText, 0.15f);
+        _stateTween.TweenProperty(_label, "theme_override_colors/font_color", targetText, 0.15f);
         _stateTween.TweenProperty(_styleBox, "border_width_left", targetBorderWidth, 0.2f);
     }
 

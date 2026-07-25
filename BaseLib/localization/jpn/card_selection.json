@@ -1,0 +1,8 @@
+{
+  "BASELIB-CHOOSE_GENERIC": "{Amount:plural:カードを1枚|カードを[blue]{}[/blue]枚}選択。",
+  "BASELIB-DRAW_PILE": "山札",
+  "BASELIB-DISCARD_PILE": "捨て札",
+  "BASELIB-EXHAUST_PILE": "廃棄札",
+  "BASELIB-HAND": "手札",
+  "BASELIB-DECK": "デッキ"
+}

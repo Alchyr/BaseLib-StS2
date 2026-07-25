@@ -1,8 +1,6 @@
-﻿using System.Reflection.Emit;
-using BaseLib.Extensions;
+﻿using BaseLib.Extensions;
 using BaseLib.Patches.Content;
 using BaseLib.Utils;
-using BaseLib.Utils.Patching;
 using Godot;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Achievements;
@@ -12,7 +10,6 @@ using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Models.Events;
 using MegaCrit.Sts2.Core.Nodes.GodotExtensions;
 using MegaCrit.Sts2.Core.Nodes.Rooms;
-using MegaCrit.Sts2.Core.Nodes.Screens.RelicCollection;
 using MegaCrit.Sts2.Core.Random;
 using MegaCrit.Sts2.Core.Rooms;
 using MegaCrit.Sts2.Core.Runs;
@@ -23,13 +20,20 @@ namespace BaseLib.Abstracts;
 
 public abstract class CustomActModel : ActModel, ICustomModel, ISceneConversions
 {
-    public int ActNumber { get; }
+    [Obsolete(
+        "Use basegame property Index instead of ActNumber. Note Index is 0 based, while ActNumber is 1 based.")]
+    public int ActNumber => this.ActNumber();
+    
+    /// <inheritdoc />
+    public override int Index { get; }
 
-    /// <param name="actNumber">Set to -1 to prevent your act from spawning naturally.</param>
+
+    /// <param name="actNumber">Set to -1 to prevent your act from spawning naturally. Otherwise, use 1/2/3
+    /// for the corresponding act.</param>
     /// <param name="autoAdd">If false, will not be added to CustomContentDictionary.</param>
     protected CustomActModel(int actNumber, bool autoAdd = true)
     {
-        ActNumber = actNumber;
+        Index = actNumber - 1;
         if (autoAdd)
         {
             CustomContentDictionary.AddAct(this);
@@ -64,6 +68,12 @@ public abstract class CustomActModel : ActModel, ICustomModel, ISceneConversions
         return AllAncients.ToList();
     }
 
+    /// <inheritdoc />
+    public override bool IsUnlocked(UnlockState unlockState) => true;
+
+    /// <inheritdoc />
+    public override bool IsDefault => false;
+
     /// <summary>
     /// Default override is provided that returns ancients based on act number. If you don't want the default ancients
     /// or have a non-basegame act number, override this. If making custom ancients for your specific act,
@@ -74,11 +84,11 @@ public abstract class CustomActModel : ActModel, ICustomModel, ISceneConversions
     {
         get
         {
-            return ActNumber switch
+            return Index switch
             {
-                1 => Act1Ancients,
-                2 => Act2Ancients,
-                3 => Act3Ancients,
+                0 => Act1Ancients,
+                1 => Act2Ancients,
+                2 => Act3Ancients,
                 _ => throw new Exception("Override AllAncients for acts with a non-basegame act number.")
             };
         }
@@ -101,11 +111,11 @@ public abstract class CustomActModel : ActModel, ICustomModel, ISceneConversions
     /// <summary>
     /// By default, Act 1 has 15 rooms, Act 2 has 14, and Act 3 has 13.
     /// </summary>
-    protected override int BaseNumberOfRooms => ActNumber switch
+    protected override int BaseNumberOfRooms => Index switch
     {
-        1 => 15,
-        2 => 14,
-        3 => 13,
+        0 => 15,
+        1 => 14,
+        2 => 13,
         _ => 15
     };
 
@@ -118,16 +128,16 @@ public abstract class CustomActModel : ActModel, ICustomModel, ISceneConversions
     {
         int restCount = 6;
         int unknownCount = MapPointTypeCounts.StandardRandomUnknownCount(mapRng);
-        switch (ActNumber)
+        switch (Index)
         {
-            case 1:
+            case 0:
                 restCount = mapRng.NextGaussianInt(7, 1, 6, 7);
                 break;
-            case 2:
+            case 1:
                 restCount = mapRng.NextGaussianInt(6, 1, 6, 7);
                 unknownCount--;
                 break;
-            case 3:
+            case 2:
                 restCount = mapRng.NextInt(5, 7);
                 unknownCount--;
                 break;
@@ -352,7 +362,7 @@ public class SkipModdedActAchievementPatch
     }
 }
 
-
+/*
 // For some reason this method checks for specifically 4 Acts, this Transpiler removes that
 // I'm still not entirely sure why they even do that
 [HarmonyPatch(typeof(NRelicCollectionCategory), nameof(NRelicCollectionCategory.LoadRelics))]
@@ -398,4 +408,4 @@ static class RelicCollectionTranspiler
         });
         return acts;
     }
-}
+}*/

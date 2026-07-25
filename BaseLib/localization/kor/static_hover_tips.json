@@ -1,0 +1,5 @@
+{
+  "BASELIB-SCRY.title": "예지",
+  "BASELIB-SCRY.description": "[gold]뽑을 카드 더미[/gold] 위에서 [blue]X[/blue]장의 카드를 봅니다. 원하는 만큼 버릴 수 있습니다.",
+  "BASELIB-SCRY.smartDescription": "[gold]뽑을 카드 더미[/gold] 위에서 {Scry:cond:>1?[blue]{Scry:diff()}[/blue]장의 카드|카드 1장}를 봅니다. {Scry:cond:>1?원하는 만큼 버릴 수 있습니다|그 카드를 버릴 수 있습니다}."
+}

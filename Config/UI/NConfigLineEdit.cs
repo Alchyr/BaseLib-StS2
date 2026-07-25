@@ -45,9 +45,7 @@ public partial class NConfigLineEdit : NMegaLineEdit, ISelectionReticle
         var attr = property.GetCustomAttribute<ConfigTextInputAttribute>();
         if (attr?.MaxLength > 0) MaxLength = attr.MaxLength;
 
-        var locOverrideAttr = property.GetCustomAttribute<ConfigOverrideLocalizationAttribute>();
-
-        var placeholderKey = $"{_config.ModPrefix}{locOverrideAttr?.OverridePropertyName ?? StringHelper.Slugify(property.Name)}.placeholder";
+        var placeholderKey = $"{_config.ModPrefix}{StringHelper.Slugify(property.Name)}.placeholder";
         var locPlaceholder = LocString.GetIfExists("settings_ui", placeholderKey)?.GetFormattedText();
         PlaceholderText = locPlaceholder ?? "";
 
@@ -65,6 +63,7 @@ public partial class NConfigLineEdit : NMegaLineEdit, ISelectionReticle
 
     public override void _Ready()
     {
+       base._Ready();
        SetFromProperty();
        if (_config != null) _config.OnConfigReloaded += SetFromProperty;
 

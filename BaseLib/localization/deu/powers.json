@@ -1,0 +1,9 @@
+{
+  "BASELIB-CUSTOM_TEMPORARY_POWER_MODEL.title": "Temporärer Effekt",
+  "BASELIB-CUSTOM_TEMPORARY_POWER_MODEL.description": "Wendet vorübergehend einen Effekt auf eine Kreatur an.",
+  "BASELIB-CUSTOM_TEMPORARY_POWER_MODEL.smartDescription": "Wendet vorübergehend einen Effekt auf eine Kreatur an.",
+  "BASELIB-CUSTOM_TEMPORARY_POWER_MODEL.UP.description": "Erhöht einen [gold]Effekt[/gold] für eine gewisse Zeit.",
+  "BASELIB-CUSTOM_TEMPORARY_POWER_MODEL.UP.smartDescription": "Erhalte [blue]{Amount:abs()}[/blue] [gold]{TemporaryPowerTitle}[/gold] bis zum Ende {UntilEndOfOtherSideTurn:cond:dieses Zuges|des gegnerischen Zuges}.{Repeat:cond:>0?\\nHält [blue]{Repeat:diff()}[/blue] {Repeat:plural:weiteren Zug|weitere Züge} an.|}",
+  "BASELIB-CUSTOM_TEMPORARY_POWER_MODEL.DOWN.description": "Verringert einen [gold]Effekt[/gold] für eine gewisse Zeit.",
+  "BASELIB-CUSTOM_TEMPORARY_POWER_MODEL.DOWN.smartDescription": "Verliere [blue]{Amount:abs()}[/blue] [gold]{TemporaryPowerTitle}[/gold] bis zum Ende {UntilEndOfOtherSideTurn:cond:dieses Zuges|des gegnerischen Zuges}.{Repeat:cond:>0?\\nHält [blue]{Repeat:diff()}[/blue] {Repeat:plural:weiteren Zug|weitere Züge} an.|}"
+}

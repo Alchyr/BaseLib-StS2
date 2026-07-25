@@ -1,19 +1,87 @@
 https://github.com/pawslee/il-guide
 actually a very nice introduction
 
+CUSTOM RESOURCES 
+
+NCard UpdateEnergyCostVisuals (check _pretendCardCanBePlayed)
+x PlayerCombatState.HasEnoughResourcesFor
+
+
+x CardModel FinalizeUpgradeInternal, EndOfTurnCleanup, DowngradeInternal, CostsEnergyOrStars
+x CardModel.OnPlayWrapper => EnergyCost.AfterCardPlayedCleanup; just patch AfterCardPlayedCleanup of CardEnergyCost to also clear other costs
+
+
+GetResourceCostColor (see CardCostHelper)
+virtual method overridable in custom resource
+
+
+Annoying-ish:
+x CardModel.SpendResources return value, store attached to resource info thing
+x Vakuu Whispering Earrings - calls SpendResources but doesn't care about return value. Can probably somewhat ignore?
+These resources *should* be passed to the CardPlay.
+Vakuu does *not* set this properly. Maybe can be considered a bug?
+
+
+Cost modification effects:
+x Costs have bool - IncludeCombinedModifications (if cost should be changed by stuff like mummified hand that sets all costs to 0)
+default true
+
+x CardModel SetToFreeThisCombat/SetToFreeThisTurn
+Mummified hand
+
+
+
+minor:
+chem x flash
+
+Optional:
+NetFullCombatState sync checking
+Note star cost isn't checked
+
+
+
+Hooks:
+
+x TryModifyResourceCostWithHooks (see CardCostHelper)
+
+
+FOR THE RESOURCE:
+
+x integer that is tracked
+
+ways to gain/lose (see PlayerCmd), note these are (can be) separate from "spending"
+(by default spend does same thing as lose)
+
+
+optional: NetFullCombatState.PlayerState resource amount
+
+Hooks:
+x AfterResourceSpent
+
+
+UI:
+
+
+
+
+
+
+
+
 
 TODO
-compendium options for custom pools
+auto-scale compendium options for custom pools
 pools not linked to a character are added to the misc pool thing
 does the side scroll if there are too many options?
 Is the layout dynamic or does it need to be manually modified
 
-config options for mods
+Adjust transpiler patch implementations to make them more general
+base damage/block modifier support for card model
+(maybe something for generic dynamic var modification? but that'd be a lot more complicated.)
 
+WhatMod
 
-Suggested modification:
-up to 3 rows. If 3 rows is full, shrink and increase number of elements per row (and if shrunk enough add another row)
-
+CommonActions for Damage (general)
 
 
 PlayCardAction : allow _card.SpendResources to spend custom resources, and also pass that value to a custom OnPlayWrapper if the card is a CustomCard?
@@ -41,7 +109,7 @@ Starts by checking state and jumping based on it (simpler state machine may simp
 
 Each state is a branch with 3.5 sections.
  1 When state is initially reached (comes from ending of previous state)
-    - Get awaiter of async call
+    - Call async method of state (returns task) and get awaiter from task
     - If awaiter is done, skip to section 4. Otherwise, continue to section 2
  2 Set up AsyncTaskMethodBuilder.AwaitUnsafeOnCompleted
  3 Branch destination when MoveNext is called again after done awaiting.
@@ -51,7 +119,8 @@ Each state is a branch with 3.5 sections.
     - Intermediate non-awaited code will also occur here.
     - (section 1 of next state)
 
-State is only set if it needs to wait, in which case the method returns and waits for next execution (when current awaiter ends)
+State is only set if it needs to wait, in which case the method returns and waits for next execution (when current awaiter ends).
+When initially reaching a state, the current state will be -1.
 
 
 

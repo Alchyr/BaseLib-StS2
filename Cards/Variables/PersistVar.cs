@@ -1,5 +1,4 @@
 ﻿using BaseLib.Extensions;
-using BaseLib.Utils;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Creatures;
@@ -25,7 +24,7 @@ public class PersistVar : DynamicVar
     public static int PersistCount(CardModel card, int basePersist)
     {
         int playCount = CombatManager.Instance.History.CardPlaysFinished.Count(entry =>
-            BetaMainCompatibility.CardModel_.WrappedCombatState(card)?.HappenedThisTurn(entry) == true
+            entry.HappenedThisTurn(card.CombatState)
             && entry.CardPlay.Card == card);
         return Math.Max(0, basePersist - playCount);
     }

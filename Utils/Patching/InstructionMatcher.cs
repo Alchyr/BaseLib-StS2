@@ -46,13 +46,22 @@ public class InstructionMatcher() : IMatcher
                     continue;
                 }
 
-                log.Add($"Opcode match but operand mismatch {code[i].opcode} | [{code[i].operand?.GetType() ?? null}]{code[i].operand} vs {_target[matchIndex].Operand}");
+                log.Add($"Opcode match but operand mismatch {matchTest.opcode} | [{matchTest.operand?.GetType() ?? null}]{matchTest.operand} vs {matchTarget.Operand}");
             }
 
-            if (matchIndex <= 0) continue;
+            //Match failed
             
-            log.Add($"Match ended, opcodes do not match ({code[i].opcode}, {_target[matchIndex].Opcodes})");
-            matchIndex = 0;
+            if (matchIndex <= 0) continue;
+
+            if (matchTarget.IsLazy)
+            {
+                log.Add("Ignoring mismatch; current match is lazy");
+            }
+            else
+            {
+                log.Add($"Match ended, opcodes do not match ({matchTest.opcode}, {matchTarget.Opcodes})");
+                matchIndex = 0;
+            }
         }
         return false;
     }
@@ -65,10 +74,12 @@ public class InstructionMatcher() : IMatcher
 
     private class InstructionMatch
     {
+        public OpCode[] Opcodes { get; }
         public Func<object?>? OperandFunc { get; set; } = null;
         public Predicate<object?>? OperandMatchPredicate { get; set; } = null;
         public string? StoreOperandKey { get; set; } = null;
-        private readonly object? _operand;
+
+        public bool IsLazy { get; set; } = false;
 
         public InstructionMatch(OpCode opcode, object? operand = null)
         {
@@ -76,18 +87,16 @@ public class InstructionMatcher() : IMatcher
             Operand = operand;
         }
         
-        public InstructionMatch(OpCode[] opcodes)
+        public InstructionMatch(OpCode[] opcodes, object? operand = null)
         {
             Opcodes = opcodes;
-            Operand = null;
+            Operand = operand;
         }
-
-        public OpCode[] Opcodes { get; }
 
         public object? Operand
         {
-            get => OperandFunc?.Invoke() ?? _operand;
-            private init => _operand = value;
+            get => OperandFunc?.Invoke() ?? field;
+            private init;
         }
 
         public bool OperandMatch(CodeInstruction matchTest)
@@ -139,6 +148,17 @@ public class InstructionMatcher() : IMatcher
         return this;
     }
 
+    /// <summary>
+    /// Causes previous instruction to be matched lazily, ignoring any non-matching instructions until a match is found.
+    /// </summary>
+    /// <returns></returns>
+    public InstructionMatcher LazyMatch()
+    {
+        if (_target.Count == 0)
+            throw new InvalidOperationException("Cannot use predicate for operand without adding any instructions");
+        _target[^1].IsLazy = true;
+        return this;
+    }
 
     //Building
     //https://learn.microsoft.com/en-us/dotnet/api/system.reflection.emit.opcodes.add?view=net-10.0
@@ -184,6 +204,18 @@ public class InstructionMatcher() : IMatcher
         ]));
         return this;
     }
+    public InstructionMatcher call_any(Type declaringType, string methodName, Type[]? parameters = null, Type[]? generics = null)
+    {
+        return call_any(AccessTools.Method(declaringType, methodName, parameters, generics));
+    }
+    public InstructionMatcher call_any(MethodInfo? method)
+    {
+        _target.Add(new InstructionMatch([
+            OpCodes.Call,
+            OpCodes.Callvirt
+        ], method));
+        return this;
+    }
     
     //Normal opcodes
     public InstructionMatcher opcode(OpCode opCode)
@@ -199,6 +231,65 @@ public class InstructionMatcher() : IMatcher
     public InstructionMatcher Break()
     {
         _target.Add(new(OpCodes.Break));
+        return this;
+    }
+    /// <summary>
+    /// Matches a non-address ldarg for the specified argument index.
+    /// </summary>
+    public InstructionMatcher ldargIndex(int index)
+    {
+        switch (index)
+        {
+            case 0:
+                _target.Add(new InstructionMatch([
+                    OpCodes.Ldarg_0,
+                    OpCodes.Ldarg,
+                    OpCodes.Ldarg_S
+                ])
+                {
+                    OperandMatchPredicate = op => (op == null) || (op is IConvertible convertible && convertible.ToInt32(null) == index)
+                });
+                break;
+            case 1:
+                _target.Add(new InstructionMatch([
+                    OpCodes.Ldarg_1,
+                    OpCodes.Ldarg,
+                    OpCodes.Ldarg_S
+                ])
+                {
+                    OperandMatchPredicate = op => (op == null) || (op is IConvertible convertible && convertible.ToInt32(null) == index)
+                });
+                break;
+            case 2:
+                _target.Add(new InstructionMatch([
+                    OpCodes.Ldarg_2,
+                    OpCodes.Ldarg,
+                    OpCodes.Ldarg_S
+                ])
+                {
+                    OperandMatchPredicate = op => (op == null) || (op is IConvertible convertible && convertible.ToInt32(null) == index)
+                });
+                break;
+            case 3:
+                _target.Add(new InstructionMatch([
+                    OpCodes.Ldarg_3,
+                    OpCodes.Ldarg,
+                    OpCodes.Ldarg_S
+                ])
+                {
+                    OperandMatchPredicate = op => (op == null) || (op is IConvertible convertible && convertible.ToInt32(null) == index)
+                });
+                break;
+            default:
+                _target.Add(new InstructionMatch([
+                    OpCodes.Ldarg,
+                    OpCodes.Ldarg_S
+                ])
+                {
+                    OperandMatchPredicate = op => (op is IConvertible convertible && convertible.ToInt32(null) == index)
+                });
+                break;
+        }
         return this;
     }
     public InstructionMatcher ldarg_0()

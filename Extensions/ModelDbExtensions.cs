@@ -5,17 +5,29 @@ namespace BaseLib.Extensions;
 
 public static class ModelDbExtensions
 {
-    //Will require language version set to 14 to use.
+    //Will require language version set to 14 to use as an extension method.
     extension(ModelDb)
     {
         /// <summary>
-        /// Obtains a new instance of a CardModifier. Requires language version 14+.
+        /// Obtains a specific CardModifier.
         /// </summary>
-        /// <typeparam name="T"></typeparam>
-        /// <returns></returns>
         public static T CardModifier<T>() where T : CardModifier
         {
-            return ModelDb.Get<T>();
+            return ModelDb.CardModifier<T>(false);
+        }
+        
+        /// <summary>
+        /// Obtains a specific CardModifier. By default, will return a mutable clone.
+        /// </summary>
+        public static T CardModifier<T>(bool mutableClone = true) where T : CardModifier
+        { 
+            T mod = ModelDb.Get<T>();
+            if (mutableClone)
+            {
+                return (T) mod.MutableClone();
+            }
+
+            return mod;
         }
     }
 }

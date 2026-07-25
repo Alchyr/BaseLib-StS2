@@ -1,8 +1,14 @@
 ﻿{
   "BASELIB-PERSIST.title": "回旋",
-  "BASELIB-PERSIST.description": "每回合中，这张牌在前 {Persist:cond:>1?[blue]{Persist}[/blue] |}次被打出时都会返回你的手牌。",
+  "BASELIB-PERSIST.description": "每回合中，这张牌在前 [blue]X[/blue] 次被打出时都会返回你的手牌。",
+  "BASELIB-PERSIST.smartDescription": "每回合中，这张牌在前 {Persist:cond:>1?[blue]{Persist}[/blue] |}次被打出时都会返回你的手牌。",
   "BASELIB-EXHAUSTIVE.title": "耐久",
-  "BASELIB-EXHAUSTIVE.description": "这张牌在被使用 {Exhaustive:cond:>1?[blue]{Exhaustive}[/blue] |}次后会[gold]消耗[/gold]。",
+  "BASELIB-EXHAUSTIVE.description": "这张牌在被使用 [blue]X[/blue] 次后会[gold]消耗[/gold]。",
+  "BASELIB-EXHAUSTIVE.smartDescription": "这张牌在被使用 {Exhaustive:cond:>1?[blue]{Exhaustive}[/blue] |}次后会[gold]消耗[/gold]。",
   "BASELIB-REFUND.title": "回能",
-  "BASELIB-REFUND.description": "当此牌花费能量时，返还最多 [blue]{Refund}[/blue] 点能量。"
+  "BASELIB-REFUND.description": "当此牌花费能量时，返还最多 [blue]X[/blue] 点能量。",
+  "BASELIB-REFUND.smartDescription": "当此牌花费能量时，返还最多 [blue]{Refund}[/blue] 点能量。",
+  "BASELIB-SCRY.title": "预见",
+  "BASELIB-SCRY.description": "检视你[gold]抽牌堆[/gold]顶部的 [blue]X[/blue] 张牌。你可以选择丢弃其中的任意张牌。",
+  "BASELIB-SCRY.smartDescription": "检视你[gold]抽牌堆[/gold]顶部的{Scry:cond:>1?[blue]{Scry:diff()}[/blue]张牌|一张牌}。你可以{Scry:cond:>1?选择丢弃其中的任意张牌|选择丢弃这张牌}。"
 }

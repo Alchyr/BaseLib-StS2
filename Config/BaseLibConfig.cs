@@ -9,19 +9,30 @@ internal class BaseLibConfig : SimpleModConfig
     // Should likely be at the top, as an easy and obvious opt-out
     public static bool ShowModConfigInMainMenu { get; set; } = true;
 
+    [ConfigSection("GeneralSettings")]
+
+    [ConfigSlider(1, 64)]
+    public static int SfxPlayerLimit { get; set; } = 16;
+    
     [ConfigSection("LogSection")]
     public static bool OpenLogWindowOnStartup { get; set; } = false;
     public static bool OpenLogWindowOnError { get; set; } = false;
 
-    [ConfigSlider(128, 2048, 64, Format = "{0:0} lines")]
+    [ConfigSlider(128, 2048, 64)]
     public static int LimitedLogSize { get; set; } = 256;
 
-    [ConfigSlider(8, 48, Format = "{0:0} px")]
+    [ConfigSlider(8, 48)]
     public static int LogFontSize { get; set; } = 14;
 
-    [ConfigSection("GeneralSettings")]
-    [ConfigSlider(1, 64)]
-    public static int SfxPlayerLimit { get; set; } = 16;
+    [ConfigSection("WhatModSection")]
+    public static bool IncludeModId { get; set; } = true;
+    public static bool ShowCardModSource { get; set; } = false;
+    public static bool ShowRelicModSource { get; set; } = true;
+    public static bool ShowPotionModSource { get; set; } = true;
+    public static bool ShowAncientModSource { get; set; } = true;
+    public static bool ShowEventModSource { get; set; } = true;
+    public static bool ShowMonsterModSource { get; set; } = true;
+    public static bool ShowCombatElementModSource { get; set; } = false;
 
     [ConfigSection("HarmonyDumpSection")]
     [ConfigTextInput(MaxLength = 1024)]
@@ -46,6 +57,9 @@ internal class BaseLibConfig : SimpleModConfig
             Access = FileDialog.AccessEnum.Filesystem,
             CurrentFile = "baselib_harmony_patch_dump.log",
         };
+        if (!string.IsNullOrWhiteSpace(HarmonyPatchDumpOutputPath))
+            dialog.CurrentPath = HarmonyPatchDumpOutputPath;
+
         dialog.AddFilter("*.log", "Log");
         dialog.AddFilter("*.txt", "Text");
 
@@ -56,10 +70,8 @@ internal class BaseLibConfig : SimpleModConfig
             config.ConfigReloaded();
             dialog.QueueFree();
         };
-        dialog.Canceled += dialog.QueueFree;
 
-        tree.Root.AddChild(dialog);
-        dialog.PopupCenteredRatio(0.55f);
+        NativeFileDialogChrome.Popup(dialog);
     }
 
     [ConfigButton("HarmonyDumpNow")]

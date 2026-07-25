@@ -1,6 +1,9 @@
-﻿using System.Reflection;
+﻿using System.Collections.ObjectModel;
+using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
+using BaseLib.Extensions;
+using BaseLib.Utils;
 using BaseLib.Utils.ModInterop;
 using BaseLib.Utils.Patching;
 using HarmonyLib;
@@ -14,14 +17,14 @@ internal class ModInterop
     private static readonly BindingFlags ValidMemberFlags = BindingFlags.DeclaredOnly | BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance;
     private static readonly FieldInfo WrappedValueField = AccessTools.DeclaredField(typeof(InteropClassWrapper), nameof(InteropClassWrapper.Value));
 
-    private readonly Dictionary<string, Assembly?> _loadedIds;
+    private readonly Dictionary<string, List<Assembly>> _loadedIds;
     internal ModInterop()
     {
         BaseLibMain.Logger.Info("Generating interop methods and properties");
         
         _loadedIds = ModManager.GetLoadedMods()
-            .Where(mod => mod.manifest != null && mod.assembly != null)
-            .ToDictionary(mod => mod.manifest?.id ?? "", mod => mod.assembly);
+            .Where(mod => mod.manifest?.id != null) 
+            .ToDictionary(mod => mod.manifest?.id ?? "", WhatMod.AssembliesForMod);
     }
 
     internal void ProcessType(Harmony harmony, Type t)
@@ -29,10 +32,10 @@ internal class ModInterop
         var modInterop = t.GetCustomAttribute<ModInteropAttribute>();
         if (modInterop == null) return;
 
-        if (!_loadedIds.TryGetValue(modInterop.ModId, out var assembly)) return;
-        if (assembly == null)
+        if (!_loadedIds.TryGetValue(modInterop.ModId, out var assemblies)) return;
+        if (assemblies.Count == 0)
         {
-            BaseLibMain.Logger.Error($"Cannot generate interop for mod {modInterop.ModId}, assembly not found");
+            BaseLibMain.Logger.Error($"Cannot generate interop for mod {modInterop.ModId}, no assemblies found");
             return;
         }
             
@@ -40,10 +43,10 @@ internal class ModInterop
 
         var members = t.GetMembers(ValidMemberFlags);
 
-        GenInteropMembers(members, harmony, assembly, modInterop.Type, true);
+        GenInteropMembers(members, harmony, assemblies, modInterop.Type, true);
     }
 
-    private static bool GenInteropMembers(MemberInfo[] members, Harmony harmony, Assembly assembly, string? contextTargetType, bool requireStatic)
+    private static bool GenInteropMembers(MemberInfo[] members, Harmony harmony, List<Assembly> assemblies, string? contextTargetType, bool requireStatic)
     {
         foreach (var member in members)
         {
@@ -51,17 +54,17 @@ internal class ModInterop
             {
                 case PropertyInfo property:
                     if (requireStatic && !(property.SetMethod?.IsStatic ?? true)) continue;
-                    if (!GenInteropPropertyOrField(harmony, assembly, contextTargetType, property)) return false;
+                    if (!GenInteropPropertyOrField(harmony, assemblies, contextTargetType, property)) return false;
                     break;
                 case MethodInfo method:
                     if (requireStatic && !method.IsStatic) continue;
                     if (method.IsConstructor || method.GetCustomAttribute<CompilerGeneratedAttribute>() != null) continue;
-                    if (!GenInteropMethod(harmony, assembly, contextTargetType, method)) return false;
+                    if (!GenInteropMethod(harmony, assemblies, contextTargetType, method)) return false;
                     break;
                 case TypeInfo type:
                     if (!type.IsAssignableTo(typeof(InteropClassWrapper))) continue;
 
-                    if (!GenInteropType(harmony, assembly, contextTargetType, type)) return false;
+                    if (!GenInteropType(harmony, assemblies, contextTargetType, type)) return false;
                     break;
             }
         }
@@ -69,7 +72,7 @@ internal class ModInterop
         return true;
     }
 
-    private static bool GenInteropType(Harmony harmony, Assembly targetAssembly, string? contextTargetType, TypeInfo type)
+    private static bool GenInteropType(Harmony harmony, List<Assembly> assemblies, string? contextTargetType, TypeInfo type)
     {
         var constructors = type.GetConstructors();
         if (constructors.Length < 1) throw new Exception($"{type} must have at least one public constructor");
@@ -79,8 +82,18 @@ internal class ModInterop
         
         try
         {
-            var targetType = Type.GetType($"{targetName}, {targetAssembly}") ?? 
-                             throw new Exception($"Type {targetName} not found in assembly {targetAssembly}");
+            Type? targetType = null;
+            foreach (var targetAssembly in assemblies)
+            {
+                targetType = Type.GetType($"{targetName}, {targetAssembly}");
+                if (targetType != null) break;
+            }
+
+            if (targetType == null)
+            {
+                BaseLibMain.Logger.Error($"Failed to generate interop type; Type {targetName} not found in assemblies {assemblies.AsReadable()}");
+                return false;
+            }
 
             foreach (var constructor in constructors)
             {
@@ -97,7 +110,7 @@ internal class ModInterop
             }
 
             BaseLibMain.Logger.Info($"Generated interop type {type.FullName}");
-            return GenInteropMembers(type.GetMembers(ValidMemberFlags), harmony, targetAssembly, targetName, false);
+            return GenInteropMembers(type.GetMembers(ValidMemberFlags), harmony, assemblies, targetName, false);
         }
         catch (Exception e)
         {
@@ -106,7 +119,7 @@ internal class ModInterop
         }
     }
 
-    private static bool GenInteropMethod(Harmony harmony, Assembly targetAssembly, string? contextTargetType, MethodInfo method)
+    private static bool GenInteropMethod(Harmony harmony, List<Assembly> assemblies, string? contextTargetType, MethodInfo method)
     {
         var targetAttr = method.GetCustomAttribute<InteropTargetAttribute>();
 
@@ -115,8 +128,18 @@ internal class ModInterop
 
         try
         {
-            var targetType = Type.GetType($"{type}, {targetAssembly}") ?? 
-                throw new Exception($"Type {type} not found in assembly {targetAssembly}");
+            Type? targetType = null;
+            foreach (var targetAssembly in assemblies)
+            {
+                targetType = Type.GetType($"{type}, {targetAssembly}");
+                if (targetType != null) break;
+            }
+
+            if (targetType == null)
+            {
+                BaseLibMain.Logger.Error($"Failed to generate interop type; Type {type} not found in assemblies {assemblies.AsReadable()}");
+                return false;
+            }
 
             var methodParams = method.GetParameters().Select(p => p.ParameterType).ToArray();
             var nonStaticParams = method.IsStatic ? [..methodParams.Skip(1)] : methodParams;
@@ -187,7 +210,7 @@ internal class ModInterop
         return true;
     }
 
-    private static bool GenInteropPropertyOrField(Harmony harmony, Assembly targetAssembly, string? contextTargetType, PropertyInfo property)
+    private static bool GenInteropPropertyOrField(Harmony harmony, List<Assembly> assemblies, string? contextTargetType, PropertyInfo property)
     {
         var targetAttr = property.GetCustomAttribute<InteropTargetAttribute>();
 
@@ -196,8 +219,18 @@ internal class ModInterop
 
         try
         {
-            var targetType = Type.GetType($"{type}, {targetAssembly}") ?? 
-                throw new Exception($"Type {type} not found in assembly {targetAssembly}");
+            Type? targetType = null;
+            foreach (var targetAssembly in assemblies)
+            {
+                targetType = Type.GetType($"{type}, {targetAssembly}");
+                if (targetType != null) break;
+            }
+
+            if (targetType == null)
+            {
+                BaseLibMain.Logger.Error($"Failed to generate interop type; Type {type} not found in assemblies {assemblies.AsReadable()}");
+                return false;
+            }
 
             var targetProperty = targetType.DeclaredProperty(name);
             if (targetProperty != null && targetProperty.PropertyType == property.PropertyType)

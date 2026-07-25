@@ -4,6 +4,7 @@ using Godot;
 using MegaCrit.Sts2.addons.mega_text;
 using MegaCrit.Sts2.Core.ControllerInput;
 using MegaCrit.Sts2.Core.Helpers;
+using MegaCrit.Sts2.Core.Localization;
 using MegaCrit.Sts2.Core.Nodes.Combat;
 using MegaCrit.Sts2.Core.Nodes.CommonUi;
 using MegaCrit.Sts2.Core.Nodes.GodotExtensions;
@@ -155,11 +156,24 @@ public partial class NConfigSlider : Control
         var legacyFormatAttr = property.GetCustomAttribute<SliderLabelFormatAttribute>();
 #pragma warning restore CS0618 // Type or member is obsolete
 
-        _displayFormat = sliderAttr?.Format ?? legacyFormatAttr?.Format ?? "{0}";
+        var fallbackFormat = sliderAttr?.Format ?? legacyFormatAttr?.Format ?? "{0}";
+        _displayFormat = ResolveDisplayFormat(modConfig, property, fallbackFormat);
         var min = sliderAttr?.Min ?? 0;
         var max = sliderAttr?.Max ?? 100;
         var step = sliderAttr?.Step ?? 1;
         SetRange(min, max, step);
+    }
+    
+    /// <summary>
+    /// Resolves the slider label format from localization: looks up
+    /// {MODPREFIX}PROPERTY_NAME.sliderFormat in the settings_ui table, falling back to the
+    /// attribute-supplied format when no entry exists.
+    /// </summary>
+    private static string ResolveDisplayFormat(ModConfig config, PropertyInfo property, string fallback)
+    {
+        var keyName = StringHelper.Slugify(property.Name);
+        var loc = LocString.GetIfExists("settings_ui", $"{config.ModPrefix}{keyName}.sliderFormat");
+        return loc?.GetRawText() ?? fallback;
     }
 
     private void SetFromProperty()
@@ -198,7 +212,19 @@ public partial class NConfigSlider : Control
 
     private void UpdateLabel(double value)
     {
-        _sliderLabel.Text = string.Format(_displayFormat, value);
+        string text;
+        try
+        {
+            text = string.Format(_displayFormat, value);
+        }
+        catch (FormatException)
+        {
+            ModConfig.ModConfigLogger.Warn(
+                $"Invalid slider label format '{_displayFormat}' for {_property?.Name}; falling back to plain value.");
+            _displayFormat = "{0}";
+            text = string.Format(_displayFormat, value);
+        }
+        _sliderLabel.Text = text;
 
         // Update the reticle; the label size doesn't match the text size, so calculate the correct offset manually
         var textWidth = _sliderLabel.GetMinimumSize().X;

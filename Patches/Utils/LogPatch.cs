@@ -47,7 +47,11 @@ public partial class LogListener : Godot.Logger
         var formatted = $"[{level}] {cleanMsg}";
         NLogWindow.AddLog(formatted);
 
-        if (level == "ERROR") Callable.From(NLogWindow.OpenOnErr).CallDeferred();
+        // This runs on whatever (possibly background) thread emitted the log. Only marshal
+        // to the main thread when the auto-open feature is actually enabled, so the common
+        // case never allocates a Callable or touches Godot off-thread on every error line.
+        if (level == "ERROR" && BaseLibConfig.OpenLogWindowOnError)
+            Callable.From(NLogWindow.OpenOnErr).CallDeferred();
     }
 
     public override void _LogError(string function, string file, int line, string code, string rationale, bool editorNotify, int errorType,
@@ -55,15 +59,25 @@ public partial class LogListener : Godot.Logger
     {
         var errorName = ((ErrorType)errorType).ToString();
         StringBuilder msg = new StringBuilder().Append($"[ERROR] Error occurred [{errorName}]: {rationale}\n{code}\n{file}:{line} @ {function}()\n");
-        foreach (var backtrace in scriptBacktraces)
+        // Defensive: this callback can fire on any thread; never let a hiccup formatting the
+        // backtrace throw out of the logger (which would itself be logged as another error).
+        try
         {
-            if (backtrace.IsEmpty()) continue;
-            msg.Append($"{backtrace.Format()}");
+            foreach (var backtrace in scriptBacktraces)
+            {
+                if (backtrace.IsEmpty()) continue;
+                msg.Append($"{backtrace.Format()}");
+            }
+        }
+        catch
+        {
+            // ignored
         }
 
         NLogWindow.AddLog(msg.ToString());
-        
-        Callable.From(NLogWindow.OpenOnErr).CallDeferred();
+
+        if (BaseLibConfig.OpenLogWindowOnError)
+            Callable.From(NLogWindow.OpenOnErr).CallDeferred();
     }
 }
 

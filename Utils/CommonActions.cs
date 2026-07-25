@@ -20,20 +20,6 @@ namespace BaseLib.Utils;
 public static class CommonActions
 {
     /// <summary>
-    /// Performs an attack using a card's DamageVar or CalculatedDamageVar on the card play's target.
-    /// </summary>
-    /// <param name="card"></param>
-    /// <param name="play"></param>
-    /// <param name="hitCount"></param>
-    /// <param name="vfx"></param>
-    /// <param name="sfx"></param>
-    /// <param name="tmpSfx"></param>
-    /// <returns></returns>
-    public static AttackCommand CardAttack(CardModel card, CardPlay play, int hitCount = 1, string? vfx = null, string? sfx = null, string? tmpSfx = null)
-    {
-        return CardAttack(card, play.Target, hitCount, vfx, sfx, tmpSfx);
-    }
-    /// <summary>
     /// Performs an attack using a card's DamageVar or CalculatedDamageVar on a specified target.
     /// </summary>
     /// <param name="card"></param>
@@ -44,6 +30,7 @@ public static class CommonActions
     /// <param name="tmpSfx"></param>
     /// <returns></returns>
     /// <exception cref="Exception"></exception>
+    [Obsolete("Use an overload that receives a CardPlay parameter. This is required on the beta branch.")]
     public static AttackCommand CardAttack(CardModel card, Creature? target, int hitCount = 1, string? vfx = null, string? sfx = null, string? tmpSfx = null)
     {
         if (card.DynamicVars.ContainsKey(CalculatedDamageVar.defaultName))
@@ -57,19 +44,29 @@ public static class CommonActions
         }
         throw new Exception($"Card {card.Title} does not have a damage variable supported by CommonActions.CardAttack");
     }
+    
+    /// <summary>
+    /// Performs an attack using a card's DamageVar or CalculatedDamageVar on the card play's target.
+    /// </summary>
+    public static AttackCommand CardAttack(CardModel card, CardPlay? play, int hitCount = 1, string? vfx = null, string? sfx = null, string? tmpSfx = null)
+    {
+        if (card.DynamicVars.ContainsKey(CalculatedDamageVar.defaultName))
+        {
+            return CardAttack(card, play, play?.Target, card.DynamicVars.CalculatedDamage, card.DynamicVars.CalculatedDamage.Props, hitCount, vfx, sfx, tmpSfx);
+        }
+
+        if (card.DynamicVars.ContainsKey(DamageVar.defaultName))
+        {
+            return CardAttack(card, play, play?.Target, card.DynamicVars.Damage.BaseValue, card.DynamicVars.Damage.Props, hitCount, vfx, sfx, tmpSfx);
+        }
+        throw new Exception($"Card {card.Title} does not have a damage variable supported by CommonActions.CardAttack");
+    }
 
     /// <summary>
     /// Performs an attacking using a specified amount of damage on a target.
     /// </summary>
-    /// <param name="card"></param>
-    /// <param name="target"></param>
-    /// <param name="damage"></param>
-    /// <param name="hitCount"></param>
-    /// <param name="vfx"></param>
-    /// <param name="sfx"></param>
-    /// <param name="tmpSfx"></param>
-    /// <returns></returns>
-    /// <exception cref="Exception"></exception>
+    [Obsolete("Use the variant that has a CardPlay as the second parameter instead. This will be required for the beta branch." +
+              "If no CardPlay is available, use null.")]
     public static AttackCommand CardAttack(CardModel card, Creature? target, decimal damage, int hitCount = 1, string? vfx = null, string? sfx = null, string? tmpSfx = null)
     {
         return CardAttack(card, target, damage, ValueProp.Move, hitCount, vfx, sfx, tmpSfx);
@@ -77,21 +74,23 @@ public static class CommonActions
 
     /// <summary>
     /// Performs an attacking using a specified amount of damage on a target.
+    /// Note random targeting will default to allowing the same target multiple times.
     /// </summary>
-    /// <param name="card"></param>
-    /// <param name="target"></param>
-    /// <param name="damage"></param>
-    /// <param name="hitCount"></param>
-    /// <param name="vfx"></param>
-    /// <param name="sfx"></param>
-    /// <param name="tmpSfx"></param>
-    /// <param name="valueProp"></param>
-    /// <returns></returns>
-    /// <exception cref="Exception"></exception>
-    public static AttackCommand CardAttack(CardModel card, Creature? target, decimal damage, ValueProp valueProp, int hitCount = 1, string? vfx = null, string? sfx = null, string? tmpSfx = null)
+    [Obsolete("Use the variant that has a CardPlay as the second parameter instead. This will be required for the beta branch." +
+              "If no CardPlay is available, use null.")]
+    public static AttackCommand CardAttack(CardModel card, Creature? target, decimal damage, ValueProp valueProp,
+        int hitCount = 1, string? vfx = null, string? sfx = null, string? tmpSfx = null)
     {
-        AttackCommand cmd = DamageCmd.Attack(damage).WithHitCount(hitCount).FromCard(card).WithValueProp(valueProp);
+        return CardAttack(card, null, target, damage, valueProp, hitCount, vfx, sfx, tmpSfx);
+    }
 
+    /// <summary>
+    /// Performs an attacking using a specified amount of damage on a target.
+    /// Note random targeting will default to allowing the same target multiple times.
+    /// </summary>
+    public static AttackCommand CardAttack(CardModel card, CardPlay? cardPlay, Creature? target, decimal damage, ValueProp valueProp, int hitCount = 1, string? vfx = null, string? sfx = null, string? tmpSfx = null)
+    {
+        AttackCommand cmd = DamageCmd.Attack(damage).WithHitCount(hitCount).WithValueProp(valueProp).FromCardCompatibility(card, cardPlay);
 
         if (CustomTargetType.IsCustomSingleTargetType(card.TargetType))
         {
@@ -100,9 +99,9 @@ public static class CommonActions
         }
         else if (CustomTargetType.IsCustomMultiTargetType(card.TargetType))
         {
-            var state = BetaMainCompatibility.CardModel_.WrappedCombatState(card);
+            var state = card.CombatState;
             if (state == null) return cmd;
-            var targets = state.Creatures.Where(c => CustomTargetType.CanMultiTarget(card.TargetType, c));
+            var targets = state.Creatures.Where(c => CustomTargetType.CanMultiTarget(card.TargetType, c, card.Owner));
             cmd.TargetingFiltered(targets);
         }
         else
@@ -114,14 +113,14 @@ public static class CommonActions
                     cmd.Targeting(target);
                     break;
                 case TargetType.AllEnemies:
-                    var combatStateA = BetaMainCompatibility.CardModel_.CombatState.Get(card);
+                    var combatStateA = card.CombatState;
                     if (combatStateA == null) return cmd;
-                    BetaMainCompatibility.AttackCommand_.TargetingAllOpponents.Invoke(cmd, combatStateA);
+                    cmd.TargetingAllOpponents(combatStateA);
                     break;
                 case TargetType.RandomEnemy:
-                    var combatStateB = BetaMainCompatibility.CardModel_.CombatState.Get(card);
+                    var combatStateB = card.CombatState;
                     if (combatStateB == null) return cmd;
-                    BetaMainCompatibility.AttackCommand_.TargetingRandomOpponents.Invoke(cmd, combatStateB, true);
+                    cmd.TargetingRandomOpponents(combatStateB);
                     break;
                 default:
                     throw new Exception($"Unsupported AttackCommand target type {card.TargetType} for card {card.Title}");
@@ -142,21 +141,25 @@ public static class CommonActions
     }
 
     /// <summary>
-    /// Performs an attacking using aCalculatedDamageVar on a target.
+    /// Performs an attack using a CalculatedDamageVar on a target.
     /// </summary>
-    /// <param name="card"></param>
-    /// <param name="target"></param>
-    /// <param name="calculatedDamage"></param>
-    /// <param name="hitCount"></param>
-    /// <param name="vfx"></param>
-    /// <param name="sfx"></param>
-    /// <param name="tmpSfx"></param>
-    /// <param name="valueProp"></param>
-    /// <returns></returns>
-    /// <exception cref="Exception"></exception>
-    public static AttackCommand CardAttack(CardModel card, Creature? target, CalculatedDamageVar calculatedDamage, ValueProp valueProp, int hitCount = 1, string? vfx = null, string? sfx = null, string? tmpSfx = null)
+    [Obsolete("Use the variant that has a CardPlay as the second parameter instead. This will be required for the beta branch." +
+              "If no CardPlay is available, use null.")]
+    public static AttackCommand CardAttack(CardModel card, Creature? target, CalculatedDamageVar calculatedDamage,
+        ValueProp valueProp, int hitCount = 1, string? vfx = null, string? sfx = null, string? tmpSfx = null)
     {
-        AttackCommand cmd = DamageCmd.Attack(calculatedDamage).WithHitCount(hitCount).FromCard(card).WithValueProp(valueProp);
+        return CardAttack(card, null, target, calculatedDamage, valueProp, hitCount, vfx, sfx, tmpSfx);
+    }
+
+    /// <summary>
+    /// Performs an attack using a CalculatedDamageVar on a target.
+    /// Note random targeting will default to allowing the same target multiple times.
+    /// </summary>
+    public static AttackCommand CardAttack(CardModel card, CardPlay? cardPlay, Creature? target, 
+        CalculatedDamageVar calculatedDamage, ValueProp valueProp, int hitCount = 1, 
+        string? vfx = null, string? sfx = null, string? tmpSfx = null)
+    {
+        AttackCommand cmd = DamageCmd.Attack(calculatedDamage).WithHitCount(hitCount).WithValueProp(valueProp).FromCardCompatibility(card, cardPlay);
         
         if (CustomTargetType.IsCustomSingleTargetType(card.TargetType))
         {
@@ -165,9 +168,9 @@ public static class CommonActions
         }
         else if (CustomTargetType.IsCustomMultiTargetType(card.TargetType))
         {
-            var state = BetaMainCompatibility.CardModel_.WrappedCombatState(card);
+            var state = card.CombatState;
             if (state == null) return cmd;
-            var targets = state.Creatures.Where(c =>  CustomTargetType.CanMultiTarget(card.TargetType, c));
+            var targets = state.Creatures.Where(c =>  CustomTargetType.CanMultiTarget(card.TargetType, c, card.Owner));
             cmd.TargetingFiltered(targets);
         }
         else
@@ -179,14 +182,14 @@ public static class CommonActions
                     cmd.Targeting(target);
                     break;
                 case TargetType.AllEnemies:
-                    var combatStateA = BetaMainCompatibility.CardModel_.CombatState.Get(card);
+                    var combatStateA = card.CombatState;
                     if (combatStateA == null) return cmd;
-                    BetaMainCompatibility.AttackCommand_.TargetingAllOpponents.Invoke(cmd, combatStateA);
+                    cmd.TargetingAllOpponents(combatStateA);
                     break;
                 case TargetType.RandomEnemy:
-                    var combatStateB = BetaMainCompatibility.CardModel_.CombatState.Get(card);
+                    var combatStateB = card.CombatState;
                     if (combatStateB == null) return cmd;
-                    BetaMainCompatibility.AttackCommand_.TargetingRandomOpponents.Invoke(cmd, combatStateB, true);
+                    cmd.TargetingRandomOpponents(combatStateB);
                     break;
                 default:
                     throw new Exception(
@@ -231,16 +234,11 @@ public static class CommonActions
     /// <summary>
     /// Gains Block based on the given DynamicVar (supports CalculatedBlockVar)
     /// </summary>
-    /// <param name="card"></param>
-    /// <param name="var"></param>
-    /// <param name="play"></param>
-    /// <param name="fast"></param>
-    /// <returns></returns>
     public static async Task<decimal> CardBlock(CardModel card, DynamicVar var, CardPlay? play, bool fast = false)
     {
         if (var is CalculatedBlockVar calculated)
         {
-            return await CreatureCmd.GainBlock(card.Owner.Creature, calculated.Calculate(play?.Target), calculated.Props, play, fast);
+            return await CreatureCmd.GainBlock(card.Owner.Creature, calculated.Calculate(card.Owner.Creature), calculated.Props, play, fast);
         }
         return await CreatureCmd.GainBlock(card.Owner.Creature, var.BaseValue, (var as BlockVar)?.Props ?? ValueProp.Move, play, fast);
     }
@@ -481,26 +479,29 @@ public static class CommonActions
     /// The card play instance carrying the selected target for single-target cards.
     /// May be <see langword="null"/> for untargeted cards.
     /// </param>
+    /// <param name="silent">
+    /// If <see langword="true"/>, suppresses visual effects when the power is applied.
+    /// </param>
     /// <returns>
     /// A list of all applied power instances, or an empty list if no valid targets were found.
     /// </returns>
-    public static async Task<IReadOnlyList<T>> Apply<T>(PlayerChoiceContext ctx, CardModel card, CardPlay? cardPlay) where T : PowerModel
+    public static async Task<IReadOnlyList<T>> Apply<T>(PlayerChoiceContext ctx, CardModel card, CardPlay? cardPlay, bool silent = false) where T : PowerModel
     {
         if (cardPlay?.Target != null)
         {
-            return await Apply<T>(ctx, cardPlay.Target, card) is { } result ? [result] : [];
+            return await Apply<T>(ctx, cardPlay.Target, card, silent) is { } result ? [result] : [];
         }
 
-        return await ApplyToCreatures<T>(card, ctx, card.GetTargets());
+        return await ApplyToCreatures<T>(card, ctx, card.GetTargets(), silent);
     }
     
     private static async Task<IReadOnlyList<T>> ApplyToCreatures<T>(CardModel card, PlayerChoiceContext ctx, params Creature[] targets) where T : PowerModel
     {
         return await Apply<T>(ctx, targets, card);
     }
-    private static async Task<IReadOnlyList<T>> ApplyToCreatures<T>(CardModel card, PlayerChoiceContext ctx, IEnumerable<Creature> targets) where T : PowerModel
+    private static async Task<IReadOnlyList<T>> ApplyToCreatures<T>(CardModel card, PlayerChoiceContext ctx, IEnumerable<Creature> targets, bool silent = false) where T : PowerModel
     {
-        return await Apply<T>(ctx, targets, card);
+        return await Apply<T>(ctx, targets, card, silent);
     }
 
     /// <summary>

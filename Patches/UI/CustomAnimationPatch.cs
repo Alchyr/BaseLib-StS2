@@ -37,7 +37,7 @@ static class CustomAnimationPatch
 
     static async Task WaitCustomAnim(NCreature __instance, CancellationToken cancelToken)
     {
-        if (CustomAnimation.PlayCustomAnimation(__instance, CreatureAnimator.deathTrigger, "die"))
+        if (CustomAnimation.PlayCustomAnimation(__instance, CreatureAnimator.deathTrigger, "Die", "die"))
         {
             if (__instance.Entity.Player?.Character is CustomCharacterModel character)
             {
@@ -64,16 +64,16 @@ static class CustomAnimationPatch
         
         BaseLibMain.Logger.Debug($"SetAnimationTrigger called for {trigger} on creature without spine animation");
         
-        var animName = trigger switch
+        string[] animNames = trigger switch
         {
-            CreatureAnimator.idleTrigger => "idle",
+            /*CreatureAnimator.idleTrigger => "idle",
             CreatureAnimator.attackTrigger => "attack",
-            CreatureAnimator.castTrigger => "cast",
-            CreatureAnimator.hitTrigger => "hurt",
-            CreatureAnimator.deathTrigger => "die",
-            _ => trigger.ToLowerInvariant()
+            CreatureAnimator.castTrigger => "cast",*/
+            CreatureAnimator.hitTrigger => [trigger, "Hurt", trigger.ToLowerInvariant(), "hurt"],
+            CreatureAnimator.deathTrigger => [trigger, "Die", trigger.ToLowerInvariant(), "die"],
+            _ => [trigger, trigger.ToLowerInvariant()]
         };
-        
-        return !CustomAnimation.PlayCustomAnimation(__instance, animName, trigger, trigger.ToLowerInvariant());
+
+        return !CustomAnimation.PlayCustomAnimation(__instance, animNames);
     }
 }
