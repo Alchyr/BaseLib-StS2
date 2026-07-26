@@ -20,7 +20,6 @@ public interface IPlayCustomPowerSfx
     /// <returns>Whether or not the sound played (if false, the default power apply sound plays)</returns>
     public bool PlayCustomPowerSfx(bool isBuff);
 
-    [HarmonyDebug]
     [HarmonyPatch(typeof(NCreature), nameof(NCreature.OnPowerIncreased))]
     private class IPlayCustomPowerSfxPatch
     {
