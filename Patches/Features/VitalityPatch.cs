@@ -1,17 +1,18 @@
 ﻿using System.Reflection;
 using System.Reflection.Emit;
-using BaseLib.Hooks;
 using BaseLib.Utils;
 using Godot;
 using HarmonyLib;
 using MegaCrit.Sts2.addons.mega_text;
+using MegaCrit.Sts2.Core.Assets;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Entities.Creatures;
-using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.Helpers;
 using MegaCrit.Sts2.Core.Hooks;
+using MegaCrit.Sts2.Core.Nodes;
 using MegaCrit.Sts2.Core.Nodes.Combat;
 using MegaCrit.Sts2.Core.Nodes.Multiplayer;
+using MegaCrit.Sts2.Core.Nodes.Vfx;
 using MegaCrit.Sts2.Core.Saves;
 using MegaCrit.Sts2.Core.Settings;
 
@@ -19,9 +20,10 @@ namespace BaseLib.Patches.Features;
 
 public static class VitalityPatch
 {
-    private static readonly Color VitalityHeartColor = new Color("FFC800");
-    private static readonly Color VitalityOutlineColor = new Color((255f+80f)/255f,(220f+40f)/255f,(100)/255f);
-    private static readonly Color VitalityTextOutlineColor = new Color("505000");
+
+    private static readonly Color BlockOutlineColor = new("B4E2FF");
+    private static readonly Color VitalityHeartColor = new ("FFC800");
+    private static readonly Color VitalityTextOutlineColor = StsColors.rewardLabelGoldOutline;
     
     public static class VitalityField
     {
@@ -31,41 +33,34 @@ public static class VitalityPatch
         private static readonly SpireField<Creature, int> TemporaryHp = new(() => 0);
         
         public static readonly SpireField<Creature, Action<int,int, Creature>?> VitalityChanged = new(() => null);
-        public static readonly SpireField<Creature, Action<int,int>> VitalityChanged2 = new(() => null); // this exists only for CombatStateTracker.
         public static readonly SpireField<Creature, Tween?> VitalityTween = new(() => null);
-        public static void SetVitality(Creature creature, int value)    
+        internal static void SetVitality(Creature creature, int value)    
         {
             if (value < 0)
-                throw new ArgumentException("Block must be positive", nameof (value));
+                throw new ArgumentException("Vitality must be positive ", nameof (value));
             if (TemporaryHp.Get(creature) == value)
                 return;
-            int tempHp = TemporaryHp.Get(creature);
+            var tempHp = TemporaryHp.Get(creature);
             TemporaryHp.Set(creature, value);
-            Action<int, int, Creature>? vitalityChanged = VitalityChanged.Get(creature);
-            vitalityChanged?.Invoke(tempHp, TemporaryHp.Get(creature), creature);
-            Action<int, int> vitalityChanged2 = VitalityChanged2.Get(creature);
+            var vitalityChanged = VitalityChanged.Get(creature);
             vitalityChanged?.Invoke(tempHp, TemporaryHp.Get(creature), creature);
         }
 
-        public static int GetVitality(Creature creature)
+        internal static int GetVitality(Creature creature)
         {
             return TemporaryHp.Get(creature);
         }
     }
 
-    [HarmonyPatch(typeof(Creature))]
-    [HarmonyPatch("LoseHpInternal")]
+    [HarmonyPatch(typeof(Creature), nameof(Creature.LoseHpInternal))]
     public class HpInterceptPatch
     {
-        // private static int temporaryHp;
-        
         static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
         {
             var codeMatcher = new CodeMatcher(instructions);
             MethodInfo getCurrentHpInfo = AccessTools.PropertyGetter(typeof(Creature), nameof(Creature.CurrentHp));
 
             MethodInfo tempHp = AccessTools.Method(typeof(HpInterceptPatch), nameof(TemporaryHpHandler));
-            // MethodInfo unblockedOverride = AccessTools.Method(typeof(HpInterceptPatch), nameof(UnblockedDamageOverride));
 
             codeMatcher.MatchStartForward(
                     new CodeMatch(OpCodes.Ldarg_0),
@@ -79,25 +74,13 @@ public static class VitalityPatch
                     new CodeInstruction(OpCodes.Call, tempHp),
                     new CodeInstruction(OpCodes.Stloc_2)
                 );
-            
-            /*codeMatcher.MatchStartForward(
-                    new CodeMatch(OpCodes.Ldloc_1),
-                    new CodeMatch(OpCodes.Ldarg_0),
-                    new CodeMatch(OpCodes.Call, getCurrentHpInfo),
-                    new CodeMatch(OpCodes.Sub)
-                )
-                .ThrowIfInvalid("Couldn't find getCurrentHp method for TemporaryHpConfig")
-                .InsertAfterAndAdvance(
-                    new CodeMatch(OpCodes.Ldarg_0),
-                    new CodeInstruction(OpCodes.Call, unblockedOverride)
-                );*/
-            
+
             return codeMatcher.InstructionEnumeration();
         }
 
         private static int TemporaryHpHandler(Creature c, int num)
         {
-            int tempHp = (int) VitalityField.GetVitality(c);
+            var tempHp = VitalityField.GetVitality(c);
             if (num >= tempHp)
             {
                 num -= tempHp;
@@ -108,51 +91,75 @@ public static class VitalityPatch
                 VitalityField.SetVitality(c, tempHp - num);
                 num = 0;
             }
+
+            var absorbed = tempHp - VitalityField.GetVitality(c);
+            if(absorbed > 0) PlayAbsorbFx(c, absorbed);
+            
             return num;
         }
-        
-        /* Code for making Vitality trigger HP Loss effects. 
-        private static int UnblockedDamageOverride(int unblockedDamage, Creature c)
-        {
-            if (TestModConfig.TriggerHpLoss)
-            {
-                temporaryHp -= (int) VitalityField.GetVitality(c);
-                return unblockedDamage + temporaryHp;
-            }
-            return unblockedDamage;
-        }*/
     }
     
-    [HarmonyPatch(typeof(NHealthBar))]
-    [HarmonyPatch("IsPoisonLethal")]
-    public class TemporaryHpPoisonPatch
-    {
-        static bool Postfix(bool __result, int poisonDamage, Creature ____creature)
+    [HarmonyPatch(typeof(Hook))] 
+    [HarmonyPatch(nameof(Hook.AfterCombatEnd))]
+    public class CombatEndPatch 
+    { 
+        static void Postfix(ICombatState? combatState) 
         {
-            if (!__result)
+            foreach (Creature c in combatState?.Creatures)
             {
-                return __result;
+                VitalityField.SetVitality(c, 0);
             }
-            return ____creature.CurrentHp + VitalityField.GetVitality(____creature) <= poisonDamage;
         }
-        
+    }
+    
+    // Visual Effect patching begins below.
+    // Could use either this method (overriding base-game textures to make it appear correctly)
+    // or just copying and creating a new instance for each.
+    
+    
+    // this was just directly taken from the other PR because I was lazy. Not a particularly difficult to make on my own just didn't feel the need to bother.
+    /// <summary>
+    ///     Gold floating number for absorbed damage — the only feedback on a fully absorbed hit, since vanilla
+    ///     shows no damage number and no hurt anim when the final HP loss is 0.
+    /// </summary>
+    internal static void PlayAbsorbFx(Creature target, int absorbed)
+    {
+        if (absorbed <= 0 || !CombatManager.Instance.IsInProgress)
+            return;
+        var vfx = NDamageNumVfx.Create(target, absorbed);
+        if (vfx == null)
+            return;
+        vfx.Modulate = StsColors.gold; // the _Ready tween animates modulate gold -> cream, mimicking vanilla's red -> cream
+        var label = vfx.GetNodeOrNull<MegaLabel>("Label");
+        label?.AddThemeColorOverride("font_color", StsColors.gold);
+        label?.AddThemeColorOverride("font_outline_color", StsColors.rewardLabelGoldOutline);
+        var container = target.GetVfxContainer();
+        if (container != null)
+            container.AddChildSafely(vfx);
+        else
+            NRun.Instance?.GlobalUi.AddChildSafely(vfx);
     }
     
     [HarmonyPatch(typeof(NHealthBar), "RefreshBlockUi")]
     public class TempHpOutline
     {
-        
         [HarmonyPostfix]
         public static void SelfModulateOutline(Creature ____creature, Control ____blockOutline)
         {
-            if (____creature.Block > 0 || VitalityField.GetVitality(____creature) <= 0) 
+            if (____creature.Block > 0 || VitalityField.GetVitality(____creature) <= 0)
             {
                 ____blockOutline.SelfModulate = Colors.White;
                 return;
             }
 
             ____blockOutline.Visible = true;
-            ____blockOutline.SelfModulate = VitalityOutlineColor;
+            var color = VitalityHeartColor;
+            // Altering colors to avoid touching the modulate, but making the color appear correctly. 
+            // Could use snowlie's method of rendering instead 
+            color.R8 += 255 - BlockOutlineColor.R8;
+            color.G8 += 255 - BlockOutlineColor.G8;
+            color.B8 += 255 - BlockOutlineColor.B8;
+            ____blockOutline.SelfModulate = color;
         }
     }
     
@@ -188,22 +195,8 @@ public static class VitalityPatch
 
             // Swap block icon for heart, tinted yellow
             var icon = vitalityContainer.GetNode<TextureRect>("BlockIcon");
-            icon.Texture = GD.Load<Texture2D>("res://images/atlases/ui_atlas.sprites/top_bar/top_bar_heart.tres");
+            icon.Texture = PreloadManager.Cache.GetTexture2D("BaseLib/images/ui/tempHP.png");
             icon.SelfModulate = VitalityHeartColor;
-
-            var shaderCode = @"
-            shader_type canvas_item;
-            uniform vec4 tint_color : source_color = vec4(0.6, 0.6, 0, 1.0);
-            void fragment() {
-                vec4 tex = texture(TEXTURE, UV);
-                COLOR = vec4(tint_color.rgb, tex.a);
-            }";
-            var shader = new Shader();
-            shader.Code = shaderCode;
-            var material = new ShaderMaterial();
-            material.Shader = shader;
-            material.SetShaderParameter("tint_color", VitalityHeartColor);
-            icon.Material = material;
 
             var label = vitalityContainer.GetNode<MegaLabel>("BlockLabel");
             label.AddThemeColorOverride(ThemeConstants.Label.FontOutlineColor, VitalityTextOutlineColor);
@@ -249,6 +242,8 @@ public static class VitalityPatch
         }
     }
 
+    /* Disabled Vitality Healthbar due to janky issues with other Health Bar mechanics.
+     Could potentially happen in the future but it isn't enough effort to be worth it imo.
     // Enables a Vitality "Overflow" on the bar where if it loops over it changes colors. Subject to change.
     private static readonly Color[] HbColors = 
         [Colors.Gold, Colors.Green, Colors.MediumAquamarine, Colors.MediumVioletRed];
@@ -267,7 +262,8 @@ public static class VitalityPatch
             }
             return list;
         }
-    }
+    } */
+    
     public static void AnimateInVitality(int oldVitality, int vitalityGain, Creature creature) 
     { 
         AnimateInVitality(oldVitality, vitalityGain, VitalityHealthBarPatch.CreatureHealthBar[creature]);
@@ -378,18 +374,4 @@ public static class VitalityPatch
             }
         }
     }
-    
-    [HarmonyPatch(typeof(Hook))] 
-    [HarmonyPatch(nameof(Hook.AfterCombatEnd))]
-    public class CombatEndPatch 
-    { 
-        static void Postfix(ICombatState? combatState) 
-        {
-            foreach (Creature c in combatState?.Creatures)
-            {
-                VitalityField.SetVitality(c, 0);
-            }
-        }
-    }
-
 }

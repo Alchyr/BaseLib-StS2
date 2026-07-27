@@ -4,6 +4,7 @@ using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.GameActions.Multiplayer;
 using MegaCrit.Sts2.Core.Hooks;
 using MegaCrit.Sts2.Core.Models;
+using Microsoft.CSharp.RuntimeBinder;
 
 namespace BaseLib.Utils;
 
@@ -223,6 +224,63 @@ public static class HookUtils
         {
             var previous = amount;
             amount = amountModifier.Invoke(model, amount);
+            if (!previous.Equals(amount))
+                abstractModelList.Add(model);
+        }
+        modifiers = abstractModelList;
+        return amount;
+    }
+    
+    /// <summary>
+    ///     Passes a value through all hook listeners of type <typeparamref name="THook" />,
+    ///     tracking which listeners changed it. Specifically made for multiplicative Hooks
+    ///     to mimic the behavior of Vanilla's multiplicative hooks.
+    /// </summary>
+    /// <typeparam name="THook">The hook interface to filter listeners by.</typeparam>
+    /// <typeparam name="TValue">The type of the value being modified. Must implement <see cref="IEquatable{T}" />.</typeparam>
+    /// <param name="combatState">The current combat state to iterate listeners from.</param>
+    /// <param name="originalAmount">The initial value before any modifications.</param>
+    /// <param name="previousModifiers">Modifiers </param>
+    /// <param name="multiplicativeModifier">A function that takes a listener and the current value and returns a multiplier to modify the value by. Runs after additive modifier.</param>
+    /// <param name="modifiers">
+    ///     Outputs the listeners whose call changed the value they received (per-step
+    ///     <typeparamref name="TValue" /> equality). Listeners returning their input unchanged are
+    ///     excluded; listeners whose changes later cancel out are <b>included</b>, so this set can
+    ///     be non-empty even when the returned value equals <paramref name="originalAmount" />.
+    /// </param>
+    /// <returns>
+    ///     The final modified value. When <paramref name="combatState" /> is
+    ///     <see langword="null" />, returns <paramref name="originalAmount" /> with an empty
+    ///     <paramref name="modifiers" /> set.
+    /// </returns>
+    public static TValue ModifyMultiplicative<THook, TValue>(
+        ICombatState? combatState,
+        TValue originalAmount,
+        IEnumerable<THook>? previousModifiers,
+        Func<THook, TValue, TValue> multiplicativeModifier,
+        out IEnumerable<THook> modifiers)
+        where THook : class
+        where TValue : IEquatable<TValue>
+    {
+        if (combatState == null)
+        {
+            modifiers = [];
+            return originalAmount;
+        }
+        var amount = originalAmount;
+        var abstractModelList = previousModifiers != null ? previousModifiers.ToList() : [];
+        foreach (var model in Hook.IterateCombatHookListeners(combatState).OfType<THook>())
+        {
+            var previous = amount;
+            try
+            {
+                var multiplier = multiplicativeModifier.Invoke(model, amount) as dynamic;
+                amount *= multiplier;
+            }
+            catch(RuntimeBinderException ex)
+            {
+                BaseLibMain.Logger.Error("Error with dynamic in Modify multiplicativeModifier: " + ex.Message);
+            }
             if (!previous.Equals(amount))
                 abstractModelList.Add(model);
         }

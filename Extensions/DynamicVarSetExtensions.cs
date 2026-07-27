@@ -56,4 +56,11 @@ public static class DynamicVarSetExtensions
         return (ScryVar)vard._vars[nameof(Scry)];
     }
     
+    /// <summary>
+    /// Get the Vitality var initialized with its default name.
+    /// </summary>
+    public static VitalityVar Vitality(this DynamicVarSet vard)
+    {
+        return (VitalityVar)vard._vars[nameof(Vitality)];
+    }
 }

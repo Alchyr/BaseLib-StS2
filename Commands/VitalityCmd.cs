@@ -6,27 +6,38 @@ using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Creatures;
 using MegaCrit.Sts2.Core.Entities.Players;
-using MegaCrit.Sts2.Core.Models;
 
 namespace BaseLib.Commands;
 
+/// <summary>
+/// Command utility responsible for executing the vitality mechanic process, including 
+/// hook modification, finding current values, and combatHistory entries.
+/// </summary>
 public class VitalityCmd
 {
-    public static async Task<Decimal> GainVitality(
+    /// <summary>Make this creature gain the specified amount of vitality.</summary>
+    /// <param name="creature">Creature that should gain vitality.</param>
+    /// <param name="amount">Amount of vitality they should gain.</param>
+    /// <param name="cardPlay">
+    /// The CardPlay that caused the vitality gain.
+    /// Null if it was not directly caused by a card play.
+    /// </param>
+    /// <param name="fast">If true, the wait that is performed after vitality gain is very small. Should be used in scenarios
+    /// where vitality gain happens quickly in sequence (i.e. like Afterimage for block).</param>
+    /// <returns>The amount of vitality that the creature gained after all modifications were applied.</returns>
+    public static async Task<decimal> GainVitality(
         Creature creature,
-        Decimal amount,
+        decimal amount,
         CardPlay? cardPlay,
         bool fast = false)
     {
         if (CombatManager.Instance.IsOverOrEnding)
             return 0M;
-        ICombatState combatState = creature.CombatState;
-        await BeforeVitalityGained(combatState, creature, amount, cardPlay?.Card);
-        Decimal modifiedAmount = amount;
-        IEnumerable<AbstractModel> modifiers;
-        modifiedAmount = ModifyVitality(combatState, creature, modifiedAmount, cardPlay.Card, cardPlay, out modifiers);
+        var combatState = creature.CombatState;
+        await BaseLibHooks.BeforeVitalityGained(combatState, creature, amount, cardPlay?.Card);
+        var modifiedAmount = BaseLibHooks.ModifyVitalityAmount(combatState, creature, amount, cardPlay?.Card, cardPlay, out var modifiers);
         modifiedAmount = Math.Max(modifiedAmount, 0M);
-        await AfterModifyingVitalityAmount(combatState, modifiedAmount, cardPlay?.Card, cardPlay, modifiers);
+        await BaseLibHooks.AfterModifyingVitalityAmount(combatState, modifiedAmount, cardPlay, modifiers);
         if (modifiedAmount > 0M)
         {
             SfxCmd.Play("event:/sfx/heal");
@@ -38,94 +49,23 @@ public class VitalityCmd
             else
                 await Cmd.CustomScaledWait(0.1f, 0.25f);
         }
-        await AfterVitalityGained(combatState, creature, modifiedAmount, cardPlay?.Card);
+        await BaseLibHooks.AfterVitalityGained(combatState, creature, modifiedAmount, cardPlay?.Card);
         return modifiedAmount;
     }
     
-    static decimal ModifyVitality(
-        ICombatState combatState,
-        Creature creature,
-        Decimal amount,
-        CardModel? cardSource,
-        CardPlay? cardPlay,
-        out IEnumerable<AbstractModel> modifiers)
+    /// <summary>Returns the amount vitality a specific creature has.</summary>
+    /// <param name="creature">Creature you're trying to get the vitality amount of.</param>
+    /// <returns>The amount of vitality that the creature has currently.</returns>
+    public static decimal Get(Creature creature)
     {
-        decimal num = amount;
-        List<AbstractModel> abstractModelList = new List<AbstractModel>();
-        
-        foreach (var item in combatState.IterateHookListeners())
-        {
-            if (item is IVitalityAmountModifier mod)
-            {
-                var num2 = mod.ModifyVitalityAdditive(creature, num, cardSource, cardPlay);
-                num += num2;
-                if (num2 != 0M)
-                    abstractModelList.Add(item);
-            }
-        }
-
-        foreach (var item in combatState.IterateHookListeners())
-        {
-            if (item is IVitalityAmountModifier mod)
-            {
-                var num2 = mod.ModifyVitalityMultiplicative(creature, num, cardSource, cardPlay);
-                num *= num2;
-                if (num2 != 0M)
-                    abstractModelList.Add(item);
-            }
-        }
-
-        modifiers = abstractModelList;
-        return Math.Max(0m, num);
+        return VitalityPatch.VitalityField.GetVitality(creature);
     }
     
-    static async Task BeforeVitalityGained(
-        ICombatState combatState,
-        Creature creature,
-        Decimal amount,
-        CardModel? cardSource)
+    /// <summary>Removes all vitality a specific creature has.</summary>
+    /// <param name="creature">Creature you're trying to remove the vitality from.</param>
+    public static void RemoveAll(Creature creature)
     {
-        foreach (var item in combatState.IterateHookListeners())
-        {
-            if (item is IVitalityHooks mod)
-            {
-                await mod.BeforeVitalityGained(creature, amount, cardSource);
-                item.InvokeExecutionFinished();
-            }
-        }
-    }
-    
-    static async Task AfterModifyingVitalityAmount(
-        ICombatState combatState,
-        Decimal amount,
-        CardModel? cardSource,
-        CardPlay? cardPlay,
-        IEnumerable<AbstractModel> modifiers)
-    {
-        foreach (var item in combatState.IterateHookListeners())
-        {
-            if (item is IVitalityHooks mod && modifiers.Contains(item))
-            {
-                await mod.AfterModifyingVitalityAmount(amount, cardSource, cardPlay);
-                item.InvokeExecutionFinished();
-            }
-        }
-    }
-    
-    static async Task AfterVitalityGained(
-        ICombatState combatState,
-        Creature creature,
-        Decimal amount,
-        CardModel? cardSource)
-    {
-        foreach (var item in combatState.IterateHookListeners())
-        {
-            if (item is IVitalityHooks mod)
-            {
-                await mod.AfterVitalityGained(creature, amount, cardSource);
-                item.InvokeExecutionFinished();
-            }
-        }
+        VitalityPatch.VitalityField.SetVitality(creature, 0);
     }
     
     private class VitalityGainedEntry : CombatHistoryEntry
@@ -136,10 +76,7 @@ public class VitalityCmd
 
         public CardPlay? CardPlay { get; }
 
-        public override string Description
-        {
-            get => $"{GetId(Receiver)} gained {Amount} vitality";
-        }
+        public override string Description => $"{GetId(Receiver)} gained {Amount} vitality";
 
         public VitalityGainedEntry(
             int amount,

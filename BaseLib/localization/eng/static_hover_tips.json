@@ -6,10 +6,10 @@
   "BASELIB-EXHAUSTIVE.description": "This card [gold]Exhausts[/gold] after [blue]X[/blue] uses.",
   "BASELIB-EXHAUSTIVE.smartDescription": "This card [gold]Exhausts[/gold] after {Exhaustive:cond:>1?[blue]{Exhaustive}[/blue] |}{Exhaustive:plural:use|uses}.",
   "BASELIB-REFUND.title": "Refund",
-  "BASELIB-VITALITY.title": "Vitality",
-  "BASELIB-VITALITY.description": "Until the end of combat, prevents HP loss."
   "BASELIB-REFUND.description": "When energy is spent on this card, up to [blue]X[/blue] of that energy is refunded.",
   "BASELIB-REFUND.smartDescription": "When energy is spent on this card, up to [blue]{Refund}[/blue] of that energy is refunded.",
+  "BASELIB-VITALITY.title": "Vitality",
+  "BASELIB-VITALITY.description": "Until the end of combat, prevents HP loss.",
   "BASELIB-SCRY.title": "Scry",
   "BASELIB-SCRY.description": "Look at the top [blue]X[/blue] cards of your [gold]Draw Pile[/gold]. You may discard any of them.",
   "BASELIB-SCRY.smartDescription": "Look at the top {Scry:plural:card|[blue]{Scry:diff()}[/blue] cards} of your [gold]Draw Pile[/gold]. You may discard {Scry:plural:it|any of them}."
