@@ -3,7 +3,6 @@ using System.Diagnostics.CodeAnalysis;
 using BaseLib.Abstracts;
 using BaseLib.Patches.Content;
 using BaseLib.Patches.Features;
-using BaseLib.Utils;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Creatures;
 using MegaCrit.Sts2.Core.Models;

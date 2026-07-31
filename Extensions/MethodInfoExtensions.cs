@@ -1,5 +1,4 @@
 using HarmonyLib;
-using System;
 using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.CompilerServices;

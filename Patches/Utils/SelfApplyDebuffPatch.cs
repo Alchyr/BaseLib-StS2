@@ -1,6 +1,5 @@
 using System.Reflection;
 using BaseLib.Abstracts;
-using BaseLib.Utils;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Commands;

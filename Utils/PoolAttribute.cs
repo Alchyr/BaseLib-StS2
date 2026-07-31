@@ -1,5 +1,3 @@
-using System;
-
 namespace BaseLib.Utils;
 
 [AttributeUsage(AttributeTargets.Class, Inherited = true, AllowMultiple = false)]

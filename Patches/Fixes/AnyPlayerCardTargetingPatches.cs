@@ -12,7 +12,6 @@ using MegaCrit.Sts2.Core.Nodes.GodotExtensions;
 using MegaCrit.Sts2.Core.Nodes.HoverTips;
 using MegaCrit.Sts2.Core.Nodes.Rooms;
 using MegaCrit.Sts2.Core.Nodes.Vfx;
-using BaseLib.Utils;
 using System.Reflection;
 using static BaseLib.Patches.Fixes.AnyPlayerCardTargetingHelper;
 

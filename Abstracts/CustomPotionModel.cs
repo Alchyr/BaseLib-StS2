@@ -1,6 +1,5 @@
 using HarmonyLib;
 using BaseLib.Patches.Content;
-using MegaCrit.Sts2.Core.Helpers;
 using MegaCrit.Sts2.Core.Models;
 
 namespace BaseLib.Abstracts;

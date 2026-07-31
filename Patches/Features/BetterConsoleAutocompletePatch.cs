@@ -1,6 +1,4 @@
 ﻿using System.Reflection.Emit;
-using System.Runtime.CompilerServices;
-using BaseLib.Utils.Patching;
 using Godot;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.DevConsole;

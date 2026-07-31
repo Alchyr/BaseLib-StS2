@@ -1,7 +1,4 @@
 ﻿using BaseLib.Abstracts;
-using BaseLib.BaseLibScenes;
-using BaseLib.Utils;
-using Godot;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Nodes.Cards;

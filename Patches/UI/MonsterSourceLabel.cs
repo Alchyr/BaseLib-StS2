@@ -1,8 +1,6 @@
 using BaseLib.Config;
 using BaseLib.Utils;
 using HarmonyLib;
-using MegaCrit.Sts2.addons.mega_text;
-using MegaCrit.Sts2.Core.Entities.Creatures;
 using MegaCrit.Sts2.Core.Nodes.Combat;
 
 namespace BaseLib.Patches.UI;
