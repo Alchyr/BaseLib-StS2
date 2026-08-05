@@ -135,9 +135,24 @@ public static class CommonActions
         return cmd;
     }
 
-    public static AttackCommand CardAttack(CardModel card, Creature? target, CalculatedDamageVar calculatedDamage, int hitCount = 1, string? vfx = null, string? sfx = null, string? tmpSfx = null)
+    /// <summary>
+    /// Performs an attack using a CalculatedDamageVar on a target.
+    /// </summary>
+    [Obsolete("Use the variant that has a CardPlay as the second parameter instead. This will be required for the beta branch." +
+              "If no CardPlay is available, use null.")]
+    public static AttackCommand CardAttack(CardModel card, Creature? target, 
+        CalculatedDamageVar calculatedDamage, int hitCount = 1, string? vfx = null, string? sfx = null, string? tmpSfx = null)
     {
         return CardAttack(card, target, calculatedDamage, ValueProp.Move, hitCount, vfx, sfx, tmpSfx);
+    }
+    
+    /// <summary>
+    /// Performs an attack using a CalculatedDamageVar on a target.
+    /// </summary>
+    public static AttackCommand CardAttack(CardModel card, CardPlay? cardPlay, Creature? target, 
+        CalculatedDamageVar calculatedDamage, int hitCount = 1, string? vfx = null, string? sfx = null, string? tmpSfx = null)
+    {
+        return CardAttack(card, cardPlay, target, calculatedDamage, ValueProp.Move, hitCount, vfx, sfx, tmpSfx);
     }
 
     /// <summary>

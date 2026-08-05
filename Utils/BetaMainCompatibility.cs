@@ -17,6 +17,7 @@ using MegaCrit.Sts2.Core.HoverTips;
 using MegaCrit.Sts2.Core.Modding;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Models.Singleton;
+using MegaCrit.Sts2.Core.Nodes.CommonUi;
 using MegaCrit.Sts2.Core.Runs;
 using MegaCrit.Sts2.Core.ValueProps;
 
@@ -38,15 +39,20 @@ public static class BetaMainCompatibility
 
     private static SemanticVersion GetVersion()
     {
+        SemanticVersion version;
         // Lazy simple method, just assuming version is too new if it fails
         try
         {
-            return ReleaseInfoManager.Instance.SemVer ?? new SemanticVersion(999, 999, 999);
+            version = ReleaseInfoManager.Instance.SemVer ?? new SemanticVersion(999, 999, 999);
         }
-        catch (Exception _)
+        catch (Exception)
         {
-            return new SemanticVersion(999, 999, 999);
+            version = new SemanticVersion(999, 999, 999);
+            BaseLibMain.Logger.Warn("Exception occurred attempting to retrieve semantic version with naive method");
         }
+        BaseLibMain.Logger.Info($"Naive game version: {version}");
+        
+        return version;
     }
     
     /// <summary>
@@ -64,6 +70,19 @@ public static class BetaMainCompatibility
             [typeof(CardModel)],
             [0])
     );
+
+    /// <summary>
+    /// Compatibility from 109 -> 110, new control method added to NControllerManager
+    /// Equivalent to old IsUsingController, now replaced with IsUsingDirectionalNavigation which also includes keyboard
+    /// </summary>
+    public static bool IsUsingButtonInputsCompatibility(this NControllerManager controllerManager)
+    {
+        return _isUsingButtonInput.Get(controllerManager);
+    }
+
+    private static VariableReference<bool> _isUsingButtonInput = new(
+        (typeof(NControllerManager), "IsUsingController"),
+        (typeof(NControllerManager), "IsUsingDirectionalNavigation"));
 
     public static Task SignalPlayerChoiceBegunCompatibility(this PlayerChoiceContext context, Player player,
         PlayerChoiceOptions options)

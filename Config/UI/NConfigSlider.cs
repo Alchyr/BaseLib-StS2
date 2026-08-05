@@ -241,7 +241,7 @@ public partial class NConfigSlider : Control
 
     private void OnFocus()
     {
-        if (NControllerManager.Instance?.IsUsingController != true) return;
+        if (NControllerManager.Instance?.IsUsingButtonInputsCompatibility() != true) return;
         _selectionReticle.OnSelect();
     }
 

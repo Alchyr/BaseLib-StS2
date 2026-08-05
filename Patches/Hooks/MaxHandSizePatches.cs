@@ -1,7 +1,6 @@
 using System.Reflection;
 using System.Reflection.Emit;
 using BaseLib.Hooks;
-using BaseLib.Utils;
 using BaseLib.Utils.Patching;
 using Godot;
 using HarmonyLib;
@@ -66,13 +65,12 @@ public static class MaxHandSizePatch
     public static int GetMaxHandSize(Player player, int baseLimit)
     {
         var runState = player.RunState ?? NullRunState.Instance;
-        var combatState = BetaMainCompatibility.Creature_.CombatState.Get(player.Creature);
+        var combatState = player.Creature.CombatState;
 
         var amount = baseLimit;
         var list = new List<IMaxHandSizeModifier>();
 
-        foreach (var modifier in BetaMainCompatibility.RunState.IterateHookListeners.Invoke<IEnumerable<AbstractModel>>(runState, combatState)
-                                 ?? throw new InvalidOperationException("Failed to invoke IterateHookListeners properly"))
+        foreach (var modifier in runState.IterateHookListeners(combatState))
         {
             if (modifier is IMaxHandSizeModifier maxHandSizeModifier)
             {
@@ -225,11 +223,34 @@ static class CardPileCmd_Add_MaxHandSizePatch
     {
         var code = instructions.ToList();
 
+        List<CodeInstruction> loadPlayer = null;
+        
         new InstructionPatcher(code)
-            .Match(new InstructionMatcher()
+            .TryMatch(new InstructionMatcher()
                 .ldarg_0()
                 .ldfld(null).PredicateMatch(op => op is FieldInfo field && field.FieldType == typeof(Player)))
-            .CopyMatch(out var loadPlayer);
+            ?.CopyMatch(out loadPlayer);
+        if (loadPlayer == null)
+        {
+            if (new InstructionPatcher(code)
+                    .TryMatch(new InstructionMatcher()
+                        .call_any(typeof(CardModel).PropertyGetter(nameof(CardModel.Owner)))
+                        .stloc_any())
+                    ?.Step(-1).GetIndexOperand(out var playerLocIndex) != null)
+            {
+                loadPlayer =
+                [
+                    CodeInstruction.LoadLocal(playerLocIndex)
+                ];
+            }
+        }
+
+        if (loadPlayer == null)
+        {
+            BaseLibMain.Logger.Warn("Failed to find player reference in CardPileCmd.Add, skipping Add MaxHandSizePatch");
+            foreach (var codeInstruction in code) yield return codeInstruction;
+            yield break;
+        }
 
         foreach (var ins in code)
         {
@@ -288,7 +309,7 @@ static class CardOnPlay_MaxHandSizePatch
 
 /// <summary>
 /// Patches <c>void NPlayerHand.StartCardPlay(NHandCardHolder holder, bool startedViaShortcut)</c>.
-/// Let the shortcuts return releaseCard(Arrow Down) input action intead of null when the index is out of bounds.
+/// Let the shortcuts return down input action instead of null when the index is out of bounds.
 /// </summary>
 [HarmonyPatch(typeof(NPlayerHand), nameof(NPlayerHand.StartCardPlay))]
 static class NPlayerHandStartCardPlayShortcutSafePatch
@@ -296,7 +317,7 @@ static class NPlayerHandStartCardPlayShortcutSafePatch
     static StringName GetShortcutOrDefault(NPlayerHand hand, int idx)
     {
         var arr = hand._selectCardShortcuts;
-        return idx >= 0 && idx < arr.Length ? arr[idx] : MegaInput.releaseCard;
+        return idx >= 0 && idx < arr.Length ? arr[idx] : MegaInput.down;
     }
 
     static readonly FieldInfo _selectCardShortcutsField = AccessTools.Field(typeof(NPlayerHand), "_selectCardShortcuts");

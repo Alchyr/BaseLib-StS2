@@ -139,19 +139,6 @@ public abstract class CustomCharacterModel : CharacterModel, ICustomModel, ILoca
     /// use this method to set up a controller that will use animations of your choice for each animation.
     /// Any omitted animation parameters will default to the idle animation.
     /// </summary>
-    /// <param name="controller"></param>
-    /// <param name="idleName"></param>
-    /// <param name="deadName"></param>
-    /// <param name="deadLoop"></param>
-    /// <param name="hitName"></param>
-    /// <param name="hitLoop"></param>
-    /// <param name="attackName"></param>
-    /// <param name="attackLoop"></param>
-    /// <param name="castName"></param>
-    /// <param name="castLoop"></param>
-    /// <param name="relaxedName"></param>
-    /// <param name="relaxedLoop"></param>
-    /// <returns></returns>
     public static CreatureAnimator SetupAnimationState(MegaSprite controller, string idleName, 
         string? deadName = null, bool deadLoop = false,
         string? hitName = null, bool hitLoop = false,

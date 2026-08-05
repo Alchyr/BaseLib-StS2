@@ -7,6 +7,7 @@ using BaseLib.Utils.Patching;
 using Godot;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Commands;
+using MegaCrit.Sts2.Core.Debug;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.Models;
@@ -198,50 +199,46 @@ class SpecialPileInCombat
                 CodeInstruction.Call(typeof(CustomPiles), "AddCustomPiles")
             ]);
     }
-    /*{
-        return new Locator(instructions)
-           .AddMatcher(new InstructionMatcher()
-               .ldarg_0()
-               .ldc_i4_5()
-               .newarr(typeof(CardPile))
-           )
-           .MatchAllInOrder()
-           .Step(-2)
-           .IncrementIntPush(out var newSize) //increase array size by 1
-           .ClearMatchers()
-           .AddMatcher(new InstructionMatcher()
-                .ldc_i4_4()
-                .ldarg_0()
-                .call(AccessTools.PropertyGetter(typeof(PlayerCombatState), "PlayPile"))
-                .stelem_ref()
-                .stfld(typeof(PlayerCombatState), "_piles")
-           )
-           .MatchAllInOrder()
-           .Step(-1)
-           .Insert([
-               new CodeInstruction(OpCodes.Dup),
-               newSize,
-               CodeInstruction.LoadArgument(0),
-               new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(CustomPiles), "Get")),
-               new CodeInstruction(OpCodes.Stelem_Ref)
-            ]);
-    }*/
 }
 
 public class TheBigPatchToCardPileCmdAdd
 {
+    private static readonly SemanticVersion ChangeVersion = new(0, 109, 999);
+    
     private static Type? stateMachineType;
 
     public static void Patch(Harmony harmony)
     {
-        BaseLibMain.Logger.Info("Performing CustomPile patch");
-        harmony.PatchAsyncMoveNext(
-            AccessTools.Method(typeof(CardPileCmd), nameof(CardPileCmd.Add), 
-                [typeof(IEnumerable<CardModel>), typeof(CardPile), typeof(CardPilePosition), typeof(AbstractModel), typeof(bool), typeof(bool)])
-            ?? AccessTools.Method(typeof(CardPileCmd), nameof(CardPileCmd.Add), 
-                    [typeof(IEnumerable<CardModel>), typeof(CardPile), typeof(CardPilePosition), typeof(AbstractModel), typeof(bool)]),
-            out stateMachineType,
-            transpiler: AccessTools.Method(typeof(TheBigPatchToCardPileCmdAdd), nameof(BigPatch)));
+        BaseLibMain.Logger.Info("Performing CustomPile Add patch");
+
+        if (BetaMainCompatibility.Version.LessThanOrEqual(ChangeVersion))
+        {
+            harmony.PatchAsyncMoveNext(
+                AccessTools.Method(typeof(CardPileCmd), nameof(CardPileCmd.Add),
+                [
+                    typeof(IEnumerable<CardModel>), typeof(CardPile), typeof(CardPilePosition), typeof(AbstractModel),
+                    typeof(bool), typeof(bool)
+                ])
+                ?? AccessTools.Method(typeof(CardPileCmd), nameof(CardPileCmd.Add),
+                [
+                    typeof(IEnumerable<CardModel>), typeof(CardPile), typeof(CardPilePosition), typeof(AbstractModel),
+                    typeof(bool)
+                ]),
+                out stateMachineType,
+                transpiler: AccessTools.Method(typeof(TheBigPatchToCardPileCmdAdd), nameof(BigPatch)));
+        }
+        else
+        {
+            var targetMethod = AccessTools.Method(typeof(CardPileCmd), "GetTweenForCardsChangingPiles",
+                [
+                    typeof(IEnumerable<CardPileAddResult>)
+                ]);
+            if (targetMethod == null)
+            {
+                BaseLibMain.Logger.Warn($"Unable to find target method for patching visual transitions for game version {BetaMainCompatibility.Version}");
+                return;
+            }
+        }
     }
 
     static List<CodeInstruction> BigPatch(IEnumerable<CodeInstruction> instructions)
@@ -255,151 +252,151 @@ public class TheBigPatchToCardPileCmdAdd
         FieldInfo card = stateMachineType.FindStateMachineField("card");
         MethodInfo pileTypeGetter = AccessTools.PropertyGetter(typeof(CardPile), "Type");
         
-        return new InstructionPatcher(instructions)
+        var patcher = new InstructionPatcher(instructions);
             /*
           cardNode = NCard.FindOnTable(card);
           bool flag1 = cardNode == null && targetPile.Type.IsCombatPile() && (isFullHandAdd || oldPile != null || targetPile.Type == PileType.Hand);
           For piles that should be visible like the hand.
-             */
-            .Match(new InstructionMatcher() //patch createCardNode
-                .ldfld(fullHandAdd)
-                .brtrue_s()
-                .ldarg_0()
-                .ldfld(oldPile)
-                .brtrue_s()
-            )
-            .Step(-1).GetOperandLabel(out var createCardNodeLabel)
-            .Step(1)
-            .Insert([ // || IsPileCustomPileWithCardsVisible(targetPile), createCardNode = true
-                CodeInstruction.LoadArgument(0),
-                new CodeInstruction(OpCodes.Ldfld, targetPile),
-                CodeInstruction.LoadArgument(0),
-                new CodeInstruction(OpCodes.Ldfld, card),
-                new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(TheBigPatchToCardPileCmdAdd), "IsPileCustomPileWhereCardShouldBeVisible")),
-                new CodeInstruction(OpCodes.Brtrue_S, createCardNodeLabel)
-            ])
-            .Match(new InstructionMatcher() //patch isChangingPileWithoutNode, checking oldPile type
-                .callvirt(pileTypeGetter) //Start match here as rest of match is very generic
-                .stloc_s() //no variable index to reduce issues with different index usage
-                .ldloc_s()
-                .ldc_i4_1()
-                .sub()
-                .switch_()
-                .br_s()
-                .ldc_i4_1()
-            )
-            .Step(-1).GetLabels(out var isChangingPileWithoutNodeLabelA) //This is jump location if oldPile is a valid type
-            .Step(-1) //This is the default branch of the switch
-            .Insert([ // || IsPileCustomPileWithCardsNotVisible(oldPile)
-                CodeInstruction.LoadArgument(0),
-                new CodeInstruction(OpCodes.Ldfld, oldPile),
-                CodeInstruction.LoadArgument(0),
-                new CodeInstruction(OpCodes.Ldfld, card),
-                new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(TheBigPatchToCardPileCmdAdd), "IsPileCustomPileWithCardNotVisible")),
-                new CodeInstruction(OpCodes.Brtrue_S, isChangingPileWithoutNodeLabelA[0])
-            ])
-            .Match(new InstructionMatcher() //Checking targetPile type for isChangingPileWithoutNode
-                .ldfld(targetPile)
-                .callvirt(pileTypeGetter)
-                .stloc_s().StoreOperand("index")
-                .ldloc_s().OperandFromStore("index")
-                .ldc_i4_1()
-                .beq_s()
-            )
-            .Step(-1).GetOperandLabel(out var isChangingPileWithoutNodeLabelB) //jump location if targetPile is a valid type
-            .Step(1)
-            .Insert([ // || targetPile
-                CodeInstruction.LoadArgument(0),
-                new CodeInstruction(OpCodes.Ldfld, targetPile),
-                CodeInstruction.LoadArgument(0),
-                new CodeInstruction(OpCodes.Ldfld, card),
-                new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(TheBigPatchToCardPileCmdAdd), "CustomPileWithoutCustomTransition")),
-                new CodeInstruction(OpCodes.Brtrue_S, isChangingPileWithoutNodeLabelB)
-            ])
-            .Match(new InstructionMatcher() //patch for cardNode?.UpdateVisuals condition
-                .ldarg_0()
-                .ldfld(newPile)
-                .callvirt(pileTypeGetter)
-                .ldc_i4_2()
-                .beq_s()
-            )
-            .Step(-1).GetOperandLabel(out var updateVisualsLabel)
-            .Step(1)
-            .Insert([ // || IsPileCustomPileWithCardsVisible(newPile)
-                CodeInstruction.LoadArgument(0),
-                new CodeInstruction(OpCodes.Ldfld, newPile),
-                CodeInstruction.LoadArgument(0),
-                new CodeInstruction(OpCodes.Ldfld, card),
-                new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(TheBigPatchToCardPileCmdAdd), "IsPileCustomPileWhereCardShouldBeVisible")),
-                new CodeInstruction(OpCodes.Brtrue_S, updateVisualsLabel)
-            ])
-            .Match(new InstructionMatcher() //get local index of tween
-                .call_any(typeof(Node), nameof(Node.CreateTween))
-                .ldc_i4_1()
-                .callvirt(typeof(Tween), nameof(Tween.SetParallel))
-                .stloc_any()
-            )
-            .Step(-1).GetIndexOperand(out var tweenIndex)
-            .Match(new InstructionMatcher() //get fields of generated DisplayClass
-                .newobj(null) //long match due to using entirely generic matches
-                .stloc_s().StoreOperand("index")
-                .ldloc_s().OperandFromStore("index")
-                .ldloc_s()
-                .stfld(null)
-                .ldloc_s().OperandFromStore("index")
-                .ldloc_s().OperandFromStore("index")
-                .ldfld(null)
-                .ldfld(null)
-            )
-            .Step(-1).GetOperand(out var cardNodeField)
-            .Step(-1).GetOperand(out var cardNodeDisplayClassField)
-            .Step(-1).GetIndexOperand(out var displayClassLocIndex)
-            .Match(new InstructionMatcher() //patch for generic goaway tween
-                .ldloc_s(displayClassLocIndex)
-                .ldfld(null)
-                .callvirt(AccessTools.PropertyGetter(typeof(CardModel), "Pile"))
-                .callvirt(AccessTools.PropertyGetter(typeof(CardPile), "Type"))
-                .stloc_s()
-                .ldloc_s()
-                .ldc_i4_1()
-                .sub()
-                .ldc_i4_2()
-                .ble_un_s()
-            )
-            .Step(-1).GetOperandLabel(out var genericGoAwayTweenLabel)
-            .Step(1)
-            .InsertCopy(-10, 2) //copy card
-            .Insert([
-                new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(TheBigPatchToCardPileCmdAdd), "CustomPileUseGenericTweenForOtherPlayers")),
-                new CodeInstruction(OpCodes.Brtrue_S, genericGoAwayTweenLabel)
-            ])
-            .Match(new InstructionMatcher()
-                .callvirt(AccessTools.Method(typeof(Tween), "TweenCallback"))
-                .pop()
-                .br()
-            )
-            .Step(-1).GetOperandLabel(out var tweenLoopEnd)
-            .Match(new InstructionMatcher()
-                .ldloc_s(displayClassLocIndex)
-                .ldfld(null).PredicateMatch(obj => obj is FieldInfo field && field.Name.Equals("card"))
-                .callvirt(AccessTools.PropertyGetter(typeof(CardModel), "Pile"))
-                .callvirt(AccessTools.PropertyGetter(typeof(CardPile), "Type"))
-                .stloc_s()
-                .ldloc_s()
-                .ldc_i4_2()
-                .sub()
-                .switch_()
-            )
-            .InsertCopy(-9, 2) //load card
-            .Insert([
-                CodeInstruction.LoadLocal(displayClassLocIndex),
-                new CodeInstruction(OpCodes.Ldfld, cardNodeDisplayClassField),
-                new CodeInstruction(OpCodes.Ldfld, cardNodeField), //three instructions to load cardnode
-                CodeInstruction.LoadLocal(displayClassLocIndex + 2), //oldpile
-                CodeInstruction.LoadLocal(tweenIndex), //tween
-                new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(TheBigPatchToCardPileCmdAdd), "CustomPileUseCustomTween")),
-                new CodeInstruction(OpCodes.Brtrue_S, tweenLoopEnd)
-            ]);
+         */
+        return patcher.Match(new InstructionMatcher() //patch createCardNode
+            .ldfld(fullHandAdd)
+            .brtrue_s()
+            .ldarg_0()
+            .ldfld(oldPile)
+            .brtrue_s()
+        )
+        .Step(-1).GetOperandLabel(out var createCardNodeLabel)
+        .Step(1)
+        .Insert([ // || IsPileCustomPileWithCardsVisible(targetPile), createCardNode = true
+            CodeInstruction.LoadArgument(0),
+            new CodeInstruction(OpCodes.Ldfld, targetPile),
+            CodeInstruction.LoadArgument(0),
+            new CodeInstruction(OpCodes.Ldfld, card),
+            new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(TheBigPatchToCardPileCmdAdd), "IsPileCustomPileWhereCardShouldBeVisible")),
+            new CodeInstruction(OpCodes.Brtrue_S, createCardNodeLabel)
+        ])
+        .Match(new InstructionMatcher() //patch isChangingPileWithoutNode, checking oldPile type
+            .callvirt(pileTypeGetter) //Start match here as rest of match is very generic
+            .stloc_s() //no variable index to reduce issues with different index usage
+            .ldloc_s()
+            .ldc_i4_1()
+            .sub()
+            .switch_()
+            .br_s()
+            .ldc_i4_1()
+        )
+        .Step(-1).GetLabels(out var isChangingPileWithoutNodeLabelA) //This is jump location if oldPile is a valid type
+        .Step(-1) //This is the default branch of the switch
+        .Insert([ // || IsPileCustomPileWithCardsNotVisible(oldPile)
+            CodeInstruction.LoadArgument(0),
+            new CodeInstruction(OpCodes.Ldfld, oldPile),
+            CodeInstruction.LoadArgument(0),
+            new CodeInstruction(OpCodes.Ldfld, card),
+            new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(TheBigPatchToCardPileCmdAdd), "IsPileCustomPileWithCardNotVisible")),
+            new CodeInstruction(OpCodes.Brtrue_S, isChangingPileWithoutNodeLabelA[0])
+        ])
+        .Match(new InstructionMatcher() //Checking targetPile type for isChangingPileWithoutNode
+            .ldfld(targetPile)
+            .callvirt(pileTypeGetter)
+            .stloc_s().StoreOperand("index")
+            .ldloc_s().OperandFromStore("index")
+            .ldc_i4_1()
+            .beq_s()
+        )
+        .Step(-1).GetOperandLabel(out var isChangingPileWithoutNodeLabelB) //jump location if targetPile is a valid type
+        .Step(1)
+        .Insert([ // || targetPile
+            CodeInstruction.LoadArgument(0),
+            new CodeInstruction(OpCodes.Ldfld, targetPile),
+            CodeInstruction.LoadArgument(0),
+            new CodeInstruction(OpCodes.Ldfld, card),
+            new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(TheBigPatchToCardPileCmdAdd), "CustomPileWithoutCustomTransition")),
+            new CodeInstruction(OpCodes.Brtrue_S, isChangingPileWithoutNodeLabelB)
+        ])
+        .Match(new InstructionMatcher() //patch for cardNode?.UpdateVisuals condition
+            .ldarg_0()
+            .ldfld(newPile)
+            .callvirt(pileTypeGetter)
+            .ldc_i4_2()
+            .beq_s()
+        )
+        .Step(-1).GetOperandLabel(out var updateVisualsLabel)
+        .Step(1)
+        .Insert([ // || IsPileCustomPileWithCardsVisible(newPile)
+            CodeInstruction.LoadArgument(0),
+            new CodeInstruction(OpCodes.Ldfld, newPile),
+            CodeInstruction.LoadArgument(0),
+            new CodeInstruction(OpCodes.Ldfld, card),
+            new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(TheBigPatchToCardPileCmdAdd), "IsPileCustomPileWhereCardShouldBeVisible")),
+            new CodeInstruction(OpCodes.Brtrue_S, updateVisualsLabel)
+        ])
+        .Match(new InstructionMatcher() //get local index of tween
+            .call_any(typeof(Node), nameof(Node.CreateTween))
+            .ldc_i4_1()
+            .callvirt(typeof(Tween), nameof(Tween.SetParallel))
+            .stloc_any()
+        )
+        .Step(-1).GetIndexOperand(out var tweenIndex)
+        .Match(new InstructionMatcher() //get fields of generated DisplayClass
+            .newobj(null) //long match due to using entirely generic matches
+            .stloc_s().StoreOperand("index")
+            .ldloc_s().OperandFromStore("index")
+            .ldloc_s()
+            .stfld(null)
+            .ldloc_s().OperandFromStore("index")
+            .ldloc_s().OperandFromStore("index")
+            .ldfld(null)
+            .ldfld(null)
+        )
+        .Step(-1).GetOperand(out var cardNodeField)
+        .Step(-1).GetOperand(out var cardNodeDisplayClassField)
+        .Step(-1).GetIndexOperand(out var displayClassLocIndex)
+        .Match(new InstructionMatcher() //patch for generic goaway tween
+            .ldloc_s(displayClassLocIndex)
+            .ldfld(null)
+            .callvirt(AccessTools.PropertyGetter(typeof(CardModel), "Pile"))
+            .callvirt(AccessTools.PropertyGetter(typeof(CardPile), "Type"))
+            .stloc_s()
+            .ldloc_s()
+            .ldc_i4_1()
+            .sub()
+            .ldc_i4_2()
+            .ble_un_s()
+        )
+        .Step(-1).GetOperandLabel(out var genericGoAwayTweenLabel)
+        .Step(1)
+        .InsertCopy(-10, 2) //copy card
+        .Insert([
+            new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(TheBigPatchToCardPileCmdAdd), "CustomPileUseGenericTweenForOtherPlayers")),
+            new CodeInstruction(OpCodes.Brtrue_S, genericGoAwayTweenLabel)
+        ])
+        .Match(new InstructionMatcher()
+            .callvirt(AccessTools.Method(typeof(Tween), "TweenCallback"))
+            .pop()
+            .br()
+        )
+        .Step(-1).GetOperandLabel(out var tweenLoopEnd)
+        .Match(new InstructionMatcher()
+            .ldloc_s(displayClassLocIndex)
+            .ldfld(null).PredicateMatch(obj => obj is FieldInfo field && field.Name.Equals("card"))
+            .callvirt(AccessTools.PropertyGetter(typeof(CardModel), "Pile"))
+            .callvirt(AccessTools.PropertyGetter(typeof(CardPile), "Type"))
+            .stloc_s()
+            .ldloc_s()
+            .ldc_i4_2()
+            .sub()
+            .switch_()
+        )
+        .InsertCopy(-9, 2) //load card
+        .Insert([
+            CodeInstruction.LoadLocal(displayClassLocIndex),
+            new CodeInstruction(OpCodes.Ldfld, cardNodeDisplayClassField),
+            new CodeInstruction(OpCodes.Ldfld, cardNodeField), //three instructions to load cardnode
+            CodeInstruction.LoadLocal(displayClassLocIndex + 2), //oldpile
+            CodeInstruction.LoadLocal(tweenIndex), //tween
+            new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(TheBigPatchToCardPileCmdAdd), "CustomPileUseCustomTween")),
+            new CodeInstruction(OpCodes.Brtrue_S, tweenLoopEnd)
+        ]);
     }
 
     public static bool IsPileCustomPileWhereCardShouldBeVisible(CardPile pile, CardModel card)

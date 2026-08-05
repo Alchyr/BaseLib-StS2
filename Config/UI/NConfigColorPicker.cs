@@ -1,4 +1,5 @@
 ﻿using System.Reflection;
+using BaseLib.Utils;
 using Godot;
 using MegaCrit.Sts2.Core.Nodes.Combat;
 using MegaCrit.Sts2.Core.Nodes.CommonUi;
@@ -132,7 +133,7 @@ public partial class NConfigColorPicker : CenterContainer, ISelectionReticle
 
     private void OnFocus()
     {
-        if (NControllerManager.Instance?.IsUsingController != true) return;
+        if (NControllerManager.Instance?.IsUsingButtonInputsCompatibility() != true) return;
         OnHover();
     }
 

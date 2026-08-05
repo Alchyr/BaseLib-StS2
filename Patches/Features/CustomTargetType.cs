@@ -424,7 +424,8 @@ internal class ControllerSingleCreatureTargetingPatch
                 targetType,
                 cardNode,
                 TargetMode.Controller,
-                () => !GodotObject.IsInstanceValid(instance) || !NControllerManager.Instance!.IsUsingController,
+                () => !GodotObject.IsInstanceValid(instance)
+                      || !NControllerManager.Instance!.IsUsingButtonInputsCompatibility(),
                 null);
 
             room.RestrictControllerNavigation(nodes.Select(n => n.Hitbox));

@@ -55,9 +55,10 @@ public abstract class CardModifier : AbstractModel, IComparable<CardModifier>
         ExtendedSaveTypes.RegisterListSaveType<ModifierSave>();
         ExtendedSaveTypes.RegisterDictionarySaveType<string, int>();
         ExtendedSaveTypes.RegisterObjectSaveType<ModifierSave>(
-            ExtendedSaveTypes.PropertyFunc<ModifierSave, ModelId>("Id"), 
-            ExtendedSaveTypes.PropertyFunc<ModifierSave, Dictionary<string, int>>("IntProperties"),
-        ExtendedSaveTypes.PropertyFunc<ModifierSave, Dictionary<string, string>>("AdditionalProperties"));
+            ExtendedSaveTypes.PropertyFunc<ModifierSave, ModelId>(nameof(ModifierSave.Id)), 
+            ExtendedSaveTypes.PropertyFunc<ModifierSave, int>(nameof(ModifierSave.Amount)),
+            ExtendedSaveTypes.PropertyFunc<ModifierSave, Dictionary<string, int>>(nameof(ModifierSave.IntProperties)),
+            ExtendedSaveTypes.PropertyFunc<ModifierSave, Dictionary<string, string>>(nameof(ModifierSave.AdditionalProperties)));
         
         
         ExtendedSaveHandlers<CardModel, SerializableCard>.RegisterSave("BaseLibCardModifiers", 
@@ -441,7 +442,6 @@ public abstract class CardModifier : AbstractModel, IComparable<CardModifier>
     /// Functions like an EnchantmentModel's EnchantDamageAdditive.
     /// Add to the amount of damage that this modifier's card does.
     /// This hook runs BEFORE all other damage modification hooks.
-    /// NOT YET FULLY FUNCTIONAL.
     /// </summary>
     /// <param name="originalDamage">The amount of damage that would be dealt.</param>
     /// <param name="props">ValueProp for damage.</param>
@@ -452,7 +452,6 @@ public abstract class CardModifier : AbstractModel, IComparable<CardModifier>
     /// Functions like an EnchantmentModel's EnchantDamageMultiplicative.
     /// Multiply the amount of damage that this modifier's card does.
     /// This hook runs BEFORE all other damage modification hooks.
-    /// NOT YET FULLY FUNCTIONAL.
     /// </summary>
     /// <param name="originalDamage">The amount of damage that would be dealt.</param>
     /// <param name="props">ValueProp for damage.</param>
@@ -467,7 +466,8 @@ public abstract class CardModifier : AbstractModel, IComparable<CardModifier>
     /// </summary>
     /// <param name="originalBlock">The original amount of block that would be gained.</param>
     /// <returns>The amount to add to the block gain.</returns>
-    public virtual decimal ModifyBaseBlockAdditive(decimal originalBlock) => 0M;
+    [Obsolete("Not currently functional.")]
+    public virtual decimal ModifyBaseBlockAdditive(decimal originalBlock, ValueProp props) => 0M;
 
     /// <summary>
     /// Functions like an EnchantmentModel's EnchantBlockMultiplicative.
@@ -477,7 +477,8 @@ public abstract class CardModifier : AbstractModel, IComparable<CardModifier>
     /// </summary>
     /// <param name="originalBlock">The original amount of block that would be gained.</param>
     /// <returns>The amount to multiply the block gain by.</returns>
-    public virtual decimal ModifyBaseBlockMultiplicative(decimal originalBlock) => 1M;
+    [Obsolete("Not currently functional.")]
+    public virtual decimal ModifyBaseBlockMultiplicative(decimal originalBlock, ValueProp props) => 1M;
     
     /// <summary>
     /// Called after the card's OnPlay method is called. Occurs before normal AfterCardPlayed hook.

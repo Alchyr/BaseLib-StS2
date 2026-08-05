@@ -14,6 +14,14 @@ public class InstructionPatcher(IEnumerable<CodeInstruction> instructions)
 
     public readonly List<string> Log = [];
     public int Index => _index;
+    /// <summary>
+    /// Retrieve current code position index in a way convenient for chaining instructions.
+    /// </summary>
+    public InstructionPatcher GetIndex(out int index)
+    {
+        index = Index;
+        return this;
+    }
 
     public static implicit operator List<CodeInstruction>(InstructionPatcher locator) => locator._code;
 
@@ -147,16 +155,33 @@ public class InstructionPatcher(IEnumerable<CodeInstruction> instructions)
     /// Should only be called after <seealso cref="Match(Action{IMatcher[]}, IMatcher[])"/> is called at least once.
     /// Avoid doing large steps into unmatched code, as this may result in issues if the code you are patching has already been modified.
     /// </summary>
-    /// <param name="amt"></param>
-    /// <returns></returns>
-    /// <exception cref="Exception"></exception>
     public InstructionPatcher Step(int amt = 1)
     {
         if (_index < 0) throw new InvalidOperationException("Attempted to Step without any match found");
 
         _index += amt;
+        _lastMatchStart = Math.Max(0, _index - 1);
 
-        Log.Add("Stepped to " + _index);
+        Log.Add($"Stepped to {_index}");
+
+        return this;
+    }
+
+    /// <summary>
+    /// Set current position in code instructions.
+    /// Avoid stepping to a specific position without first finding it using a match,
+    /// and without inserting code before stepping.
+    /// </summary>
+    public InstructionPatcher StepTo(int newIndex, int pretendMatchLength = 1)
+    {
+        if (_index < 0) throw new InvalidOperationException($"Attempted to StepTo an index less than 0 ({newIndex})");
+        if (_index > _code.Count)
+            throw new InvalidOperationException($"Attempted to StepTo an index out of bounds ({newIndex})");
+
+        _index = newIndex;
+        _lastMatchStart = Math.Max(0, _index - pretendMatchLength);
+
+        Log.Add($"Stepped to {_index}");
 
         return this;
     }

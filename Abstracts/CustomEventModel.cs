@@ -100,7 +100,18 @@ public abstract class CustomEventModel : EventModel, ICustomModel, ILocalization
                                         "recommended to directly pass declared method or provide an explicit title and description LocString.");
             name = clickMethod.Name;
         }
-        return new EventOption(this, onChosen, $"{Id.Entry}.pages.{pageKey}.options.{StringHelper.Slugify(name)}", tips);
+
+        var locKey = $"{Id.Entry}.pages.{pageKey}.options.{StringHelper.Slugify(name)}";
+        if (!LocString.Exists("events", locKey + ".title"))
+        {
+            BaseLibMain.Logger.Warn($"Missing localization key {locKey + ".title"} for event {GetType().Name}");
+        }
+        if (!LocString.Exists("events", locKey + ".description"))
+        {
+            BaseLibMain.Logger.Warn($"Missing localization key {locKey + ".description"} for event {GetType().Name}");
+        }
+        
+        return new EventOption(this, onChosen, locKey, tips);
     }
 
     /// <summary>
@@ -108,7 +119,16 @@ public abstract class CustomEventModel : EventModel, ICustomModel, ILocalization
     /// </summary>
     protected EventOption LockedOption(string locKey, string pageKey = _initialPageKey, params IHoverTip[] tips)
     {
-        return new EventOption(this, null, $"{Id.Entry}.pages.{pageKey}.options.{locKey}", tips);
+        var textKey = $"{Id.Entry}.pages.{pageKey}.options.{locKey}";
+        if (!LocString.Exists("events", textKey + ".title"))
+        {
+            BaseLibMain.Logger.Warn($"Missing localization key {textKey + ".title"} for event {GetType().Name}");
+        }
+        if (!LocString.Exists("events", textKey + ".description"))
+        {
+            BaseLibMain.Logger.Warn($"Missing localization key {textKey + ".description"} for event {GetType().Name}");
+        }
+        return new EventOption(this, null, textKey, tips);
     }
 
     /// <summary>

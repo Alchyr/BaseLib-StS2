@@ -125,7 +125,7 @@ class CreateVisuals
     }
 }
 
-[HarmonyPatch(typeof(MonsterModel), "VisualsPath", MethodType.Getter)]
+[HarmonyPatch(typeof(MonsterModel), "VisualsPath", MethodType.Getter)] //TODO - swap to an override
 class VisualsPath
 {
     [HarmonyPrefix]

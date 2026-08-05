@@ -194,28 +194,8 @@ public static class AsyncMethodCall
             throw new ArgumentException("Method to call must be static");
         }
 
-        var stateMachineType = original.DeclaringType ??
-                               throw new ArgumentException(
-                                   $"Failed to get state machine type from method '{original.FullDescription()}'");
-        
-        BaseLibMain.Logger.Info($"Patching state machine: {stateMachineType.FullName}");
-
-        AsyncMethodContext context = new()
-        {
-            Generator = generator,
-            BuilderField = stateMachineType.FindStateMachineField("t__builder"),
-            StateField = stateMachineType.FindStateMachineField("__state"),
-            StateMachineType = stateMachineType
-        };
-
-        MoveNextSection stateSections;
-        using (var codeEnumerator = code.GetEnumerator()) {
-            codeEnumerator.MoveNext();
-            stateSections = MoveNextSection.Read(context, codeEnumerator);
-        }
-        
-        if (!stateSections.AllStates.Any())
-            throw new Exception($"Failed to find any states for async method {original.Name}");
+        // Start processing
+        TryReadAsyncMethod(original, code, generator, out var context, out var stateSections);
 
         //Find target state
         StateInfo? targetState = null;
@@ -238,6 +218,8 @@ public static class AsyncMethodCall
 
         if (targetState == null)
             throw new ArgumentException($"Unable to find state for target method {targetMethod?.Name}");
+        
+        //TODO - make it possible to insert at an arbitrary point in code leading up to an async method call
         
         //Generate getters/setters for fields that match target method parameter names
         var methodCallParams = callMethod.GetParameters()
@@ -317,6 +299,38 @@ public static class AsyncMethodCall
         //instructions.LogCode();
         //instructions.CheckCode();
         return instructions;
+    }
+
+    /// <summary>
+    /// Process an async state machine into states and a context that can be used to insert another async method call.
+    /// </summary>
+    /// <exception cref="ArgumentException">If it fails to get the original method's declaring type for the state machine type.</exception>
+    /// <exception cref="Exception">If no states are found for the async method.</exception>
+    internal static void TryReadAsyncMethod(MethodBase original, IEnumerable<CodeInstruction> code, ILGenerator generator, 
+        out AsyncMethodContext context, out MoveNextSection stateSections)
+    {
+        var stateMachineType = original.DeclaringType ??
+                               throw new ArgumentException(
+                                   $"Failed to get state machine type from method '{original.FullDescription()}'");
+        
+        BaseLibMain.Logger.Info($"Reading state machine type [{stateMachineType.FullName}]");
+        
+        context = new AsyncMethodContext
+        {
+            Generator = generator,
+            BuilderField = stateMachineType.FindStateMachineField("t__builder"),
+            StateField = stateMachineType.FindStateMachineField("__state"),
+            StateMachineType = stateMachineType
+        };
+
+        using var codeEnumerator = code.GetEnumerator();
+        codeEnumerator.MoveNext();
+        stateSections = MoveNextSection.Read(context, codeEnumerator);
+
+        if (!stateSections.AllStates.Any())
+        {
+            throw new Exception($"Failed to find any states for async method {original.Name}");
+        }
     }
 
     private static StateParamInfo MakeStateParameter(MethodBase method, AsyncMethodContext context, int stringDictLocal, ParameterInfo param)

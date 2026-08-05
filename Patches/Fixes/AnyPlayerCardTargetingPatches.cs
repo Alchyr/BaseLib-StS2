@@ -335,7 +335,7 @@ internal static class NControllerCardPlaySingleTargetingAnyPlayerPatch
             targetManager.StartTargeting(
                 TargetType.AnyPlayer, cardNode, TargetMode.Controller,
                 () => !GodotObject.IsInstanceValid(instance)
-                      || !NControllerManager.Instance!.IsUsingController,
+                      || !NControllerManager.Instance!.IsUsingButtonInputsCompatibility(),
                 null);
 
             NCombatRoom.Instance!.RestrictControllerNavigation(nodes.Select(n => n.Hitbox));

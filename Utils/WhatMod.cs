@@ -24,6 +24,9 @@ public static class WhatMod
     private static readonly Dictionary<Assembly, Mod> ModByAssembly = [];
     private static readonly Dictionary<Type, Mod?> ModByType = [];
 
+    /// <summary>
+    /// Retrieve the list of assemblies associated with a specific mod.
+    /// </summary>
     public static List<Assembly> AssembliesForMod(Mod mod) => AssembliesByMod.GetValueOrDefault(mod, []);
 
     internal static void BuildAfterInit()

@@ -1,4 +1,5 @@
-﻿using Godot;
+﻿using BaseLib.Utils;
+using Godot;
 using MegaCrit.Sts2.addons.mega_text;
 using MegaCrit.Sts2.Core.Assets;
 using MegaCrit.Sts2.Core.ControllerInput;
@@ -120,7 +121,7 @@ public partial class NModListButton : NButton
     {
         if (_controllerIconRect == null) return;
 
-        var isController = NControllerManager.Instance?.IsUsingController ?? false;
+        var isController = NControllerManager.Instance?.IsUsingButtonInputsCompatibility() ?? false;
         _controllerIconRect.Visible = _isHotkeyIconVisible && isController;
 
         if (_controllerIconRect.Visible)

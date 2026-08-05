@@ -7,6 +7,9 @@ using MegaCrit.Sts2.Core.Debug;
 
 namespace BaseLib.Patches.Fixes;
 
+/// <summary>
+/// Note - sentry shutdown code changed in 0.110.0, if new reports occur may need to adjust patch
+/// </summary>
 [HarmonyPatch(typeof(SentryService), nameof(SentryService.Shutdown))]
 static class SkipSentryShutdownPatch
 {

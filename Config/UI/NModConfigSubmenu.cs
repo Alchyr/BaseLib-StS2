@@ -1,4 +1,5 @@
 ﻿using BaseLib.Extensions;
+using BaseLib.Utils;
 using Godot;
 using MegaCrit.Sts2.addons.mega_text;
 using MegaCrit.Sts2.Core.Assets;
@@ -107,7 +108,7 @@ public partial class NModConfigSubmenu : NSubmenu
         _backButton.Name = "BackButton";
         AddChild(_backButton);
 
-        _isUsingController = NControllerManager.Instance?.IsUsingController ?? false;
+        _isUsingController = NControllerManager.Instance?.IsUsingButtonInputsCompatibility() ?? false;
 
         ConnectSignals();
         GetViewport().Connect(Viewport.SignalName.SizeChanged, Callable.From(RefreshSize));
@@ -214,7 +215,7 @@ public partial class NModConfigSubmenu : NSubmenu
 
     private void InputTypeChanged()
     {
-        _isUsingController = NControllerManager.Instance?.IsUsingController ?? false;
+        _isUsingController = NControllerManager.Instance?.IsUsingButtonInputsCompatibility() ?? false;
         SetBackButtonVisible(true);
         FocusActiveModButton();
     }

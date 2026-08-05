@@ -1,4 +1,5 @@
-﻿using Godot;
+﻿using BaseLib.Utils;
+using Godot;
 using MegaCrit.Sts2.Core.Assets;
 using MegaCrit.Sts2.Core.ControllerInput;
 using MegaCrit.Sts2.Core.Helpers;
@@ -104,7 +105,7 @@ public partial class NConfigCollapsibleSection : VBoxContainer, ISelectionReticl
         GetViewport().SetInputAsHandled();
     }
 
-    private void OnFocus() { if (NControllerManager.Instance!.IsUsingController) AnimateHeader(isActive: true); }
+    private void OnFocus() { if (NControllerManager.Instance!.IsUsingButtonInputsCompatibility()) AnimateHeader(isActive: true); }
     private void OnUnfocus() => AnimateHeader(isActive: false);
     private void OnHover() => AnimateHeader(isActive: true);
     private void OnUnhover() => AnimateHeader(isActive: false);

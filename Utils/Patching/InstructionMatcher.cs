@@ -24,29 +24,23 @@ public class InstructionMatcher() : IMatcher
         {
             InstructionMatch matchTarget = _target[matchIndex];
             CodeInstruction matchTest = code[i];
-            if (matchTarget.OpcodeMatch(matchTest))
+
+            if (matchTarget.Test(matchTest, log))
             {
-                if (matchTarget.OperandMatch(matchTest))
+                if (matchTarget.StoreOperandKey != null)
                 {
-                    log.Add($"Instruction match {matchTest}");
-
-                    if (matchTarget.StoreOperandKey != null)
-                    {
-                        log.Add($"Stored operand {matchTarget.StoreOperandKey}:{matchTest.operand}");
-                        _operandDict[matchTarget.StoreOperandKey] = matchTest.operand;
-                    }
-                    
-                    ++matchIndex;
-                    if (matchIndex >= _target.Count)
-                    {
-                        matchEnd = i + 1;
-                        matchStart = matchEnd - _target.Count;
-                        return true;
-                    }
-                    continue;
+                    log.Add($"Stored operand {matchTarget.StoreOperandKey}:{matchTest.operand}");
+                    _operandDict[matchTarget.StoreOperandKey] = matchTest.operand;
                 }
-
-                log.Add($"Opcode match but operand mismatch {matchTest.opcode} | [{matchTest.operand?.GetType() ?? null}]{matchTest.operand} vs {matchTarget.Operand}");
+                    
+                ++matchIndex;
+                if (matchIndex >= _target.Count)
+                {
+                    matchEnd = i + 1;
+                    matchStart = matchEnd - _target.Count;
+                    return true;
+                }
+                continue;
             }
 
             //Match failed
@@ -76,6 +70,7 @@ public class InstructionMatcher() : IMatcher
     {
         public OpCode[] Opcodes { get; }
         public Func<object?>? OperandFunc { get; set; } = null;
+        public Predicate<CodeInstruction>? CustomMatchPredicate { get; set; } = null;
         public Predicate<object?>? OperandMatchPredicate { get; set; } = null;
         public string? StoreOperandKey { get; set; } = null;
 
@@ -93,13 +88,20 @@ public class InstructionMatcher() : IMatcher
             Operand = operand;
         }
 
+        public InstructionMatch(Predicate<CodeInstruction> customMatch)
+        {
+            CustomMatchPredicate = customMatch;
+            Opcodes = [];
+            Operand = null;
+        }
+
         public object? Operand
         {
             get => OperandFunc?.Invoke() ?? field;
             private init;
         }
 
-        public bool OperandMatch(CodeInstruction matchTest)
+        private bool OperandMatch(CodeInstruction matchTest)
         {
             return (OperandMatchPredicate?.Invoke(matchTest.operand) != false) 
                 && (Operand == null || Equals(ComparisonOperand(matchTest), Operand) || Equals(matchTest.operand, Operand));
@@ -114,7 +116,7 @@ public class InstructionMatcher() : IMatcher
             return codeInstruction.operand;
         }
 
-        public bool OpcodeMatch(CodeInstruction matchTest)
+        private bool OpcodeMatch(CodeInstruction matchTest)
         {
             return Opcodes.Length == 0 || Opcodes.Contains(matchTest.opcode);
         }
@@ -122,6 +124,28 @@ public class InstructionMatcher() : IMatcher
         public override string ToString()
         {
             return $"[{Opcodes.AsReadable()}] {(OperandMatchPredicate == null ? Operand?.ToString() : "Operand Predicate")}";
+        }
+
+        public bool Test(CodeInstruction matchTest, List<string> log)
+        {
+            if (CustomMatchPredicate?.Invoke(matchTest) == true)
+            {
+                log.Add($"Custom match {matchTest}");
+                return true;
+            }
+            
+            if (OpcodeMatch(matchTest))
+            {
+                if (OperandMatch(matchTest))
+                {
+                    log.Add($"Instruction match {matchTest}");
+                    return true;
+                }
+
+                log.Add($"Opcode match but operand mismatch {matchTest.opcode} | [{matchTest.operand?.GetType() ?? null}]{matchTest.operand} vs {Operand}");
+            }
+
+            return false;
         }
     }
 
@@ -162,6 +186,16 @@ public class InstructionMatcher() : IMatcher
 
     //Building
     //https://learn.microsoft.com/en-us/dotnet/api/system.reflection.emit.opcodes.add?view=net-10.0
+    
+    /// <summary>
+    /// Match a full code instruction using a custom check.
+    /// </summary>
+    public InstructionMatcher CustomMatch(Predicate<CodeInstruction> customMatch)
+    {
+        _target.Add(new InstructionMatch(customMatch));
+        return this;
+    }
+    
     //Special multi-possible cases
     public InstructionMatcher any()
     {

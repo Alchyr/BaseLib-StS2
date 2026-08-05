@@ -1,4 +1,5 @@
-﻿using Godot;
+﻿using BaseLib.Utils;
+using Godot;
 using MegaCrit.Sts2.Core.Assets;
 using MegaCrit.Sts2.Core.Helpers;
 using MegaCrit.Sts2.Core.Nodes.Combat;
@@ -42,7 +43,7 @@ public interface ISelectionReticle
 
         targetControl.FocusEntered += () =>
         {
-            if (NControllerManager.Instance?.IsUsingController == true)
+            if (NControllerManager.Instance?.IsUsingButtonInputsCompatibility() == true)
                 Reticle.OnSelect();
         };
 
