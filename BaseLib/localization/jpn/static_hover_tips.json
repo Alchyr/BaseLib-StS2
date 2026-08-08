@@ -9,6 +9,6 @@
   "BASELIB-REFUND.description": "このカードにエナジーを消費したとき、そのエナジーのうち最大[blue]X[/blue]が返還される。",
   "BASELIB-REFUND.smartDescription": "このカードにエナジーを消費したとき、そのエナジーのうち最大[blue]{Refund}[/blue]が返還される。",
   "BASELIB-SCRY.title": "占術",
-  "BASELIB-SCRY.description": "山札の上からカードを[blue]X[/blue]枚見て、その中から好きなだけ捨ててもよい。",
-  "BASELIB-SCRY.smartDescription": "山札の上から{Scry:plural:カードを1枚|カードを[blue]{Scry:diff()}[/blue]枚}見て、{Scry:plural:それを捨ててもよい|その中から好きなだけ捨ててもよい}。"
+  "BASELIB-SCRY.description": "[gold]山札[/gold]の上からカードを[blue]X[/blue]枚見て、その中から好きなだけ捨ててもよい。",
+  "BASELIB-SCRY.smartDescription": "[gold]山札[/gold]の上から{Scry:plural:カードを1枚|カードを[blue]{Scry:diff()}[/blue]枚}見て、{Scry:plural:それを捨ててもよい|その中から好きなだけ捨ててもよい}。"
 }

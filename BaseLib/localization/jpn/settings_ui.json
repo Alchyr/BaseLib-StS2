@@ -13,6 +13,9 @@
   "BASELIB-SHOW_MOD_CONFIG_IN_MAIN_MENU.hover.desc": "ゲームの設定画面には常に項目が表示されます。",
 
   "BASELIB-GENERAL_SETTINGS.title": "一般設定",
+
+  "BASELIB-SHOW_MOD_SOURCE_TOOLTIP.title": "ツールチップに提供元Modを表示",
+  "BASELIB-SHOW_MOD_SOURCE_TOOLTIP.hover.desc": "カード、レリック、パワー、ポーションの提供元Modを示すツールチップを追加します。",
   
   "BASELIB-SFX_PLAYER_LIMIT.title": "効果音の上限",
   "BASELIB-SFX_PLAYER_LIMIT.hover.desc": "BaseLib経由で同時に再生できる効果音の最大数。",
@@ -32,6 +35,32 @@
   "BASELIB-LOG_FONT_SIZE.title": "ログのフォントサイズ",
   "BASELIB-LOG_FONT_SIZE.hover.desc": "ログウィンドウ内でCtrl+スクロールでも設定できます。",
   "BASELIB-LOG_FONT_SIZE.sliderFormat": "{0:0} px",
+
+  "BASELIB-WHAT_MOD_SECTION.title": "WhatMod",
+
+  "BASELIB-INCLUDE_MOD_ID.title": "Mod IDを含める",
+  "BASELIB-INCLUDE_MOD_ID.hover.desc": "Mod名だけでなく、Mod名とIDの両方を表示します。",
+
+  "BASELIB-SHOW_CARD_MOD_SOURCE.title": "カード",
+  "BASELIB-SHOW_CARD_MOD_SOURCE.hover.desc": "カードのツールチップに提供元Modを追加します。",
+
+  "BASELIB-SHOW_RELIC_MOD_SOURCE.title": "レリック",
+  "BASELIB-SHOW_RELIC_MOD_SOURCE.hover.desc": "レリックのツールチップに提供元Modを追加します。",
+
+  "BASELIB-SHOW_POTION_MOD_SOURCE.title": "ポーション",
+  "BASELIB-SHOW_POTION_MOD_SOURCE.hover.desc": "ポーションのツールチップに提供元Modを追加します。",
+
+  "BASELIB-SHOW_ANCIENT_MOD_SOURCE.title": "エンシェント",
+  "BASELIB-SHOW_ANCIENT_MOD_SOURCE.hover.desc": "エンシェント画面の左下に提供元Modを追加します。",
+
+  "BASELIB-SHOW_EVENT_MOD_SOURCE.title": "イベント",
+  "BASELIB-SHOW_EVENT_MOD_SOURCE.hover.desc": "イベント画面の左下に提供元Modを追加します。",
+
+  "BASELIB-SHOW_MONSTER_MOD_SOURCE.title": "モンスター",
+  "BASELIB-SHOW_MONSTER_MOD_SOURCE.hover.desc": "モンスター名に提供元Modを追加します。",
+
+  "BASELIB-SHOW_COMBAT_ELEMENT_MOD_SOURCE.title": "戦闘要素",
+  "BASELIB-SHOW_COMBAT_ELEMENT_MOD_SOURCE.hover.desc": "バフ、オーブ、エンチャント、アフリクションのツールチップに提供元Modを追加します。",
   
   "BASELIB-HARMONY_DUMP_SECTION.title": "Harmonyパッチダンプ",
 
