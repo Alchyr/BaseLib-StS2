@@ -53,6 +53,14 @@ public sealed class KeywordPropertiesAttribute : Attribute
 
     public AutoKeywordPosition Position { get; }
     public bool RichKeyword { get; }
+
+    /// <summary>
+    /// The pool whose energy icon the keyword's tooltip should use, e.g. typeof(MyCardPool).
+    /// Only relevant for rich keywords whose description contains energy icons.
+    /// If not supplied, the icon is resolved from the character being played, which fails outside of a run
+    /// (in the card library the tooltip falls back to the colorless icon).
+    /// </summary>
+    public Type? Pool { get; set; }
 }
 
 public enum AutoKeywordPosition
@@ -71,7 +79,12 @@ public static class CustomKeywords
         public readonly string Key = key;
         public required AutoKeywordPosition AutoPosition { get; init; }
         public required bool RichKeyword { get; init; }
-        
+
+        /// <summary>
+        /// Pool supplying the energy icon for this keyword's tooltip. Null if the keyword did not declare one.
+        /// </summary>
+        public Type? PoolType { get; init; }
+
         public static implicit operator string(KeywordInfo info) => info.Key;
     }
 
@@ -315,7 +328,8 @@ class GenEnumValues
                 CustomKeywords.KeywordIDs.Add((int) key, new(keywordId)
                 {
                     AutoPosition = autoPosition,
-                    RichKeyword = poolAttribute?.RichKeyword ?? true
+                    RichKeyword = poolAttribute?.RichKeyword ?? true,
+                    PoolType = poolAttribute?.Pool
                 });
                 continue;
             }
