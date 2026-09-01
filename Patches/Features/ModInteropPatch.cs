@@ -6,6 +6,7 @@ using System.Text.RegularExpressions;
 using BaseLib.Extensions;
 using BaseLib.Utils;
 using BaseLib.Utils.ModInterop;
+using BaseLib.Utils.ModInterop.DynamicWrappers;
 using BaseLib.Utils.Patching;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Modding;
@@ -26,6 +27,8 @@ internal class ModInterop
         _loadedIds = ModManager.GetLoadedMods()
             .Where(mod => mod.manifest?.id != null) 
             .ToDictionary(mod => mod.manifest?.id ?? "", WhatMod.AssembliesForMod);
+
+        DynamicWrapper.loadedModAssemblies = _loadedIds; // please let me share
     }
 
     internal void ProcessType(Harmony harmony, Type t)
