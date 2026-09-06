@@ -105,6 +105,12 @@ public static class HealthBarForecastPatch
         var maxWidth = GetMaxFgWidth(healthBar);
         var visualDenom = creature.MaxHp;
         var hpForeground = healthBar._hpForeground;
+
+        // Placed before the HP-consuming directions and deliberately independent of them: these
+        // describe HP the creature already has, so they anchor to CurrentHp and MaxHp rather than to
+        // the forecast's running remainder, and they never read or write hpForeground.
+        PlaceOvercapSegments(healthBar, state, customSegments, maxWidth, visualDenom);
+
         var poisonDamage = Math.Max(0, creature.GetPower<PoisonPower>()?.CalculateTotalDamageNextTurn() ?? 0);
         var baseHp = Math.Max(0, creature.CurrentHp - poisonDamage);
 
@@ -392,6 +398,111 @@ public static class HealthBarForecastPatch
         }
     }
 
+    /// <summary>
+    ///     Draws <see cref="HealthBarForecastDirection.InwardFromMaxHp" /> and
+    ///     <see cref="HealthBarForecastDirection.OutwardFromCurrentHp" /> segments.
+
+    ///     InwardFromMaxHp is resolved first because OutwardFromCurrentHp is clipped by it: an absorb
+    ///     pool that overcaps max HP shows the overcapped portion pinned to the right edge, and the
+    ///     in-bounds portion fills what is left of the empty remainder. Neither kind touches the
+    ///     vanilla HP band, the doom band, or the render result the middleground tween and lethal
+    ///     label read, so a creature carrying only these segments renders exactly as vanilla plus the
+    ///     new bands.
+    /// </summary>
+    private static void PlaceOvercapSegments(
+        NHealthBar healthBar,
+        HealthBarForecastUiState state,
+        CustomSegment[] customSegments,
+        float maxWidth,
+        int visualDenom)
+    {
+        var creature = healthBar._creature;
+        var maxHp = creature.MaxHp;
+        var currentHp = creature.CurrentHp;
+        var index = 0;
+
+        if (maxHp <= 0 || maxWidth <= 0f)
+        {
+            HideSegments(state.OvercapSegments);
+            return;
+        }
+
+        var inwardGroups = customSegments
+            .Where(segment => segment.Direction == HealthBarForecastDirection.InwardFromMaxHp)
+            .GroupBy(segment => segment.LeftExclusiveZGroup)
+            .OrderBy(group => group.Key)
+            .ToArray();
+
+        // Lowest HP value any InwardFromMaxHp segment reaches down to. Resolved before anything is
+        // drawn because OutwardFromCurrentHp is clipped to it, but the inward nodes themselves are
+        // added last: child order is paint order, and inward is defined to paint over what is beneath.
+        var overcapBoundaryHp = maxHp;
+        foreach (var segment in inwardGroups.SelectMany(group => group))
+        {
+            var amount = Math.Min(segment.Amount, maxHp);
+            if (amount > 0)
+                overcapBoundaryHp = Math.Min(overcapBoundaryHp, maxHp - amount);
+        }
+
+        var outwardAccumulatedHp = currentHp;
+
+        var outward = customSegments
+            .Where(segment => segment.Direction == HealthBarForecastDirection.OutwardFromCurrentHp)
+            .OrderBy(segment => segment.Order)
+            .ThenBy(segment => segment.SequenceOrder);
+
+        foreach (var segment in outward)
+        {
+            if (outwardAccumulatedHp >= overcapBoundaryHp)
+                break;
+
+            var segmentStartHp = outwardAccumulatedHp;
+            outwardAccumulatedHp = Math.Min(overcapBoundaryHp, outwardAccumulatedHp + segment.Amount);
+            if (outwardAccumulatedHp <= segmentStartHp)
+                continue;
+
+            EnsureSegmentCount(state.OvercapSegments, state.OvercapContainer, index + 1, state.OvercapTemplate);
+            var node = state.OvercapSegments[index];
+
+            node.Visible = true;
+            ApplyForecastSegmentAppearance(node, segment.Color, segment.OverlayMaterial, segment.OverlaySelfModulate);
+            node.OffsetLeft = Math.Max(0f, GetFgWidth(healthBar, segmentStartHp, visualDenom) - node.PatchMarginLeft);
+            node.OffsetRight = GetFgWidth(healthBar, outwardAccumulatedHp, visualDenom) - maxWidth;
+
+            index++;
+        }
+
+        foreach (var group in inwardGroups)
+        {
+            var sorted = group
+                .OrderByDescending(segment => segment.Amount)
+                .ThenBy(segment => segment.Order)
+                .ThenBy(segment => segment.SequenceOrder)
+                .ToArray();
+
+            foreach (var segment in sorted)
+            {
+                var visibleAmount = Math.Min(segment.Amount, maxHp);
+                if (visibleAmount <= 0)
+                    continue;
+
+                EnsureSegmentCount(state.OvercapSegments, state.OvercapContainer, index + 1, state.OvercapTemplate);
+                var node = state.OvercapSegments[index];
+                var startHp = maxHp - visibleAmount;
+
+                node.Visible = true;
+                ApplyForecastSegmentAppearance(node, segment.Color, segment.OverlayMaterial,
+                    segment.OverlaySelfModulate);
+                node.OffsetLeft = Math.Max(0f, GetFgWidth(healthBar, startHp, visualDenom) - node.PatchMarginLeft);
+                node.OffsetRight = 0f;
+
+                index++;
+            }
+        }
+
+        HideSegments(state.OvercapSegments, index);
+    }
+
     private static CustomSegment[] GetCustomSegments(Creature creature)
     {
         return HealthBarForecastRegistry.GetSegments(creature)
@@ -418,6 +529,7 @@ public static class HealthBarForecastPatch
 
         HideSegments(state.RightSegments);
         HideSegments(state.LeftSegments);
+        HideSegments(state.OvercapSegments);
         state.OverlapLeftZ.Clear();
         state.LastRender = HealthBarForecastRenderResult.Empty;
     }
@@ -438,20 +550,26 @@ public static class HealthBarForecastPatch
 
         var rightContainer = CreateContainer("BaseLibForecastRightContainer");
         var leftContainer = CreateContainer("BaseLibForecastLeftContainer");
+        var overcapContainer = CreateContainer("BaseLibForecastOvercapContainer");
 
         mask.AddChild(rightContainer);
         mask.AddChild(leftContainer);
+        mask.AddChild(overcapContainer);
 
         var rightTemplate = CreateSegmentTemplate(poisonForeground, "BaseLibForecastRightTemplate");
         var leftTemplate = CreateSegmentTemplate(doomForeground, "BaseLibForecastLeftTemplate");
+        var overcapTemplate = CreateSegmentTemplate(poisonForeground, "BaseLibForecastOvercapTemplate");
         rightContainer.AddChild(rightTemplate);
         leftContainer.AddChild(leftTemplate);
+        overcapContainer.AddChild(overcapTemplate);
 
         UiStates[healthBar] = new HealthBarForecastUiState(
             rightContainer,
             leftContainer,
+            overcapContainer,
             rightTemplate,
             leftTemplate,
+            overcapTemplate,
             []);
         return true;
     }
@@ -497,6 +615,24 @@ public static class HealthBarForecastPatch
             MoveChildBefore(mask, state.RightContainer, hpForeground);
 
         MoveChildBefore(mask, state.LeftContainer, doomForeground);
+
+        // Overcap segments sit above every other band: InwardFromMaxHp is defined to paint over
+        // whatever lies beneath it, including the vanilla HP band, so it has to draw after them all.
+        // Anchored to the last band rather than to the end of the mask's children, because the mask
+        // is reached through the scene's unique names and may hold nodes that must stay on top - the
+        // HP label among them.
+        MoveChildAfter(mask, state.OvercapContainer, Last(
+            poisonForeground, hpForeground, doomForeground, state.RightContainer, state.LeftContainer));
+    }
+
+    private static Control Last(params Control[] candidates)
+    {
+        var last = candidates[0];
+        foreach (var candidate in candidates)
+            if (candidate.GetIndex() > last.GetIndex())
+                last = candidate;
+
+        return last;
     }
 
     private static void MoveChildAfter(Control parent, Control node, Control anchor)
@@ -671,16 +807,21 @@ public static class HealthBarForecastPatch
     private sealed class HealthBarForecastUiState(
         Control rightContainer,
         Control leftContainer,
+        Control overcapContainer,
         NinePatchRect rightTemplate,
         NinePatchRect leftTemplate,
+        NinePatchRect overcapTemplate,
         List<NinePatchRect> rightSegments)
     {
         public Control RightContainer { get; } = rightContainer;
         public Control LeftContainer { get; } = leftContainer;
+        public Control OvercapContainer { get; } = overcapContainer;
         public NinePatchRect RightTemplate { get; } = rightTemplate;
         public NinePatchRect LeftTemplate { get; } = leftTemplate;
+        public NinePatchRect OvercapTemplate { get; } = overcapTemplate;
         public List<NinePatchRect> RightSegments { get; } = rightSegments;
         public List<NinePatchRect> LeftSegments { get; } = [];
+        public List<NinePatchRect> OvercapSegments { get; } = [];
         public List<(CustomSegment Segment, int DrawIndex)> OverlapLeftZ { get; } = [];
         public HealthBarForecastRenderResult LastRender { get; set; } = HealthBarForecastRenderResult.Empty;
         public float? MiddlegroundTweenTarget { get; set; }
