@@ -1002,7 +1002,7 @@ public class CustomResourceCost<T> : ICustomResourceCost where T : CustomResourc
             .Select(m => m.Clone())
             .ToList();
         
-        return new CustomResourceCost<T>(newCard, CustomResources<T>.CanonicalCost(newCard), newCard.EnergyCost.CostsX)
+        return new CustomResourceCost<T>(newCard, CustomResources<T>.CanonicalCost(newCard), CostsX)
         {
             _base = _base,
             _capturedXValue = _capturedXValue,
