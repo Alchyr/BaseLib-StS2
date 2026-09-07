@@ -2,6 +2,9 @@
 
 namespace BaseLib.Utils.ModInterop.DynamicWrappers;
 
+/// <summary>
+/// Defines extension methods for use with DynamicWrappers
+/// </summary>
 public static class DynamicWrapperExtensions
 {
     /// <summary>
@@ -28,12 +31,10 @@ public static class DynamicWrapperExtensions
                 {
                     yield return t;
                 }
-                else if (item is IWrappable wrappable && wrappable.TargetModId == targetModId)
+                else if (item is IWrappable wrappable && wrappable.TargetModId == targetModId && DynamicWrapper.InteropLookup.TryGetValue(new(targetModId, wrappable.InterfaceType), out InteropData data)
+                    || item != null && DynamicWrapper.InteropLookup.TryGetValue(new(targetModId, item.GetType()), out data))
                 {
-                    if (DynamicWrapper.InteropLookup.TryGetValue(new(targetModId, wrappable.InterfaceType), out InteropData data))
-                    {
-                        yield return DynamicWrapper.Wrap<TReturn>(targetModId, wrappable, data.TargetInterface); // typeof(TReturn) == data.TargetInterface
-                    }
+                    yield return (TReturn)data.Factory(targetModId, data.SourceModId, item, data.Delegates);
                 }
             }
         }
