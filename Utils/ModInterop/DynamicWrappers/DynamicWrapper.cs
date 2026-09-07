@@ -6,19 +6,6 @@ using HarmonyLib;
 
 namespace BaseLib.Utils.ModInterop.DynamicWrappers;
 
-internal readonly record struct InteropKey(string TargetModId, Type SourceType) { public override readonly string ToString() => $"{TargetModId}, {SourceType}"; }
-internal readonly record struct InteropData(string SourceModId, Type TargetInterface, DynamicWrapperFactory Factory, IDictionary<string, Delegate> Delegates) { public override readonly string ToString() => $"{SourceModId}, {TargetInterface}, {Factory.Target}"; }
-
-/// <summary>
-/// A factory method to create an <see cref="IDynamicWrapper"/> from the supplied arguments. 
-/// </summary>
-/// <param name="wrapperModId">The mod that the wrapper is for.</param>
-/// <param name="instanceModId">The mod that the underlying instance object is from.</param>
-/// <param name="instance">The underlying instance object.</param>
-/// <param name="delegates">A collection of delegates that will be used to map the wrapper to the instance object.</param>
-/// <returns>A dynamically generated wrapper class for the supplied object, ready for inter-mod communication.</returns>
-public delegate IDynamicWrapper DynamicWrapperFactory(string wrapperModId, string instanceModId, object instance, IDictionary<string, Delegate> delegates);
-
 /// <summary>
 /// Wraps objects for use by another mod using interfaces, and allowing two-way communication between them. The wrapped object must implement an identical/mirror interface to that of the other mod.
 /// </summary>
@@ -30,8 +17,21 @@ public class DynamicWrapper
 {
     internal static Dictionary<string, List<Assembly>> loadedModAssemblies = null!; // keep this alive to allow a mod to declare and register their interfaces at their leisure. Otherwise would need to enforce the attribute to control all registration.
 
+    private readonly record struct InteropKey(string TargetModId, Type SourceType) { public override readonly string ToString() => $"\"{TargetModId}\", {SourceType}"; }
+    private readonly record struct InteropData(string SourceModId, Type TargetInterface, DynamicWrapperFactory Factory, IDictionary<string, Delegate> Delegates) { public override readonly string ToString() => $"\"{SourceModId}\", {TargetInterface}, {Factory.Target}"; }
+
     private static readonly Dictionary<string, HashSet<Type>> DeclaredInterfaces = [];
-    internal static readonly Dictionary<InteropKey, InteropData> InteropLookup = [];
+    private static readonly Dictionary<InteropKey, InteropData> InteropLookup = [];
+
+    /// <summary>
+    /// A factory method to create an <see cref="IDynamicWrapper"/> from the supplied arguments. 
+    /// </summary>
+    /// <param name="wrapperModId">The mod that the wrapper is for.</param>
+    /// <param name="instanceModId">The mod that the underlying instance object is from.</param>
+    /// <param name="instance">The underlying instance object.</param>
+    /// <param name="delegates">A collection of delegates that will be used to map the wrapper to the instance object.</param>
+    /// <returns>A dynamically generated wrapper class for the supplied object, ready for inter-mod communication.</returns>
+    private delegate IDynamicWrapper DynamicWrapperFactory(string wrapperModId, string instanceModId, object instance, IDictionary<string, Delegate> delegates);
 
     private static InvalidOperationException SourceModNullException() => new InvalidOperationException($"{nameof(SourceModId)} not defined. Either set the {nameof(SourceModId)} property, or call the static overload and provide the name explicitly.");
 
@@ -392,8 +392,9 @@ public class DynamicWrapper
 
     /// <inheritdoc cref="Wrap{T}(string, object?, Type?)"/>
     /// <param name="targetInterface">The interface to wrap <paramref name="objectToWrap"/> with. This interface must be native to <paramref name="targetModId"/>. If <see langword="null"/>, it will be auto-detected.</param>
+    /// <param name="returnNullIfNotWrapped">If <see langword="true"/>, returns <see langword="null"/> when the object is not able to be wrapped. Otherwise, throws an <see cref="InvalidOperationException"/>.</param>
     [return: NotNullIfNotNull(nameof(objectToWrap))]
-    private static object? WrapInternal(string targetModId, object? objectToWrap, Type? targetInterface, Type? sourceInterface = null)
+    private static object? WrapInternal(string targetModId, object? objectToWrap, Type? targetInterface, Type? sourceInterface = null, bool returnNullIfNotWrapped = false)
     {
         // WARNING: If you change this method signature, need to update the Linq query and IL in CreateWrapperFactory (look for the matching WARNING comment)
         if (objectToWrap == null)
@@ -424,8 +425,61 @@ public class DynamicWrapper
             return data.Factory(targetModId, data.SourceModId, objectToWrap, data.Delegates); // Apply wrapper
         }
 
+        if (returnNullIfNotWrapped)
+            return null!; // internal use only
+
         throw new InvalidOperationException($"The type '{objectToWrap.GetType()}' has not been registered with {targetModId}{(targetInterface == null ? "" : $" and target interface '{targetInterface}'")}. You must call {nameof(DynamicWrapper)}.{nameof(RegisterType)}() first.");
     }
+
+
+    /// <inheritdoc cref="TryWrap(string, object?, Type?, out object?)"/>
+    public bool TryWrap(object? objectToWrap, Type? sourceInterface, [NotNullWhen(true)] out object? value)
+    {
+        return TryWrap(TargetModId, objectToWrap, sourceInterface, out value);
+    }
+
+    /// <inheritdoc cref="TryWrap{T}(string, object?, out T)"/>
+    public bool TryWrap<T>(object? objectToWrap, [NotNullWhen(true)] out T? value)
+    {
+        return TryWrap(TargetModId, objectToWrap, out value);
+    }
+
+    /// <summary>
+    /// Attempts to wrap an object for <paramref name="targetModId"/>.
+    /// </summary>
+    /// <param name="targetModId">The modId that is the intended recipient of <paramref name="objectToWrap"/>.</param>
+    /// <param name="objectToWrap">The object to wrap.</param>
+    /// <param name="sourceInterface">The mirror interface that the object implements, if known. Used for lookup. Otherwise a value of <see langword="null"/> will use concrete type of the object.</param>
+    /// <param name="value">If the method returned <see langword="true"/>, then this is either an <see cref="IDynamicWrapper"/> implenting an interface that <paramref name="targetModId"/> can consume, or the object instance itself if it is native to <paramref name="targetModId"/>.</param>
+    /// <returns><see langword="true"/> if the object was successfully wrapped (or wrapping wasn't required), otherwise <see langword="false"/>.</returns>
+    public static bool TryWrap(string targetModId, object? objectToWrap, Type? sourceInterface, [NotNullWhen(true)] out object? value)
+    {
+        if (objectToWrap != null)
+        {
+            value = WrapInternal(targetModId, objectToWrap, null, sourceInterface, returnNullIfNotWrapped: true);
+            return value != null;
+        }
+
+        value = default;
+        return false;
+    }
+
+    /// <inheritdoc cref="TryWrap(string, object?, Type?, out object?)"/>
+    /// <typeparam name="T">The interface to wrap <paramref name="objectToWrap"/> with. This interface must be native to <paramref name="targetModId"/>.</typeparam>
+    public static bool TryWrap<T>(string targetModId, object? objectToWrap, [NotNullWhen(true)] out T? value)
+    {
+        if (objectToWrap != null)
+        {
+            value = (T?)WrapInternal(targetModId, objectToWrap, typeof(T), null, returnNullIfNotWrapped: true);
+            return value != null;
+        }
+
+        value = default;
+        return false;
+    }
+
+
+
 
 
 

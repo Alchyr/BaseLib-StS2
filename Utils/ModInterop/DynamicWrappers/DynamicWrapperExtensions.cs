@@ -31,10 +31,9 @@ public static class DynamicWrapperExtensions
                 {
                     yield return t;
                 }
-                else if (item is IWrappable wrappable && wrappable.TargetModId == targetModId && DynamicWrapper.InteropLookup.TryGetValue(new(targetModId, wrappable.InterfaceType), out InteropData data)
-                    || item != null && DynamicWrapper.InteropLookup.TryGetValue(new(targetModId, item.GetType()), out data))
+                else if (DynamicWrapper.TryWrap(targetModId, item, out TReturn? wrapper))
                 {
-                    yield return (TReturn)data.Factory(targetModId, data.SourceModId, item, data.Delegates);
+                    yield return wrapper;
                 }
             }
         }
