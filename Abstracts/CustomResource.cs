@@ -11,6 +11,7 @@ using Godot;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Assets;
 using MegaCrit.Sts2.Core.Combat;
+using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.Helpers;
@@ -191,6 +192,54 @@ internal static class CustomResourcePatches
         }
     }
     
+    // Captured X Value for Autoplay
+    [HarmonyPatch(typeof(CardCmd), nameof(CardCmd.AutoPlay), MethodType.Async)]
+    [HarmonyTranspiler]
+    static IEnumerable<CodeInstruction> CaptureXTranspiler(IEnumerable<CodeInstruction> code, MethodBase original)
+    {
+        var stateMachineType = original.DeclaringType;
+        if (stateMachineType == null)
+        {
+            BaseLibMain.Logger.Info("Failed to patch CardCmd.AutoPlay; DeclaringType null");
+            return code;
+        }
+
+        var skipXCaptureField = stateMachineType.FindStateMachineField("skipXCapture");
+
+        return (List<CodeInstruction>)new InstructionPatcher(code)
+            .Match(new InstructionMatcher()
+                .ldarg_0()
+                .ldfld()
+                .ldfld()
+                .call_any(typeof(CardModel).PropertyGetter(nameof(CardModel.Owner))))
+            .CopyMatch(0, 3, out var loadCard)
+            .Match(new InstructionMatcher()
+                .call_any(typeof(Player).PropertyGetter(nameof(Player.PlayerCombatState)))
+                .stloc_any())
+            .Step(-1).GetIndexOperand(out var playerCombatStateLocal).Step(1)
+            .Insert([
+                ..loadCard,
+                CodeInstruction.LoadLocal(playerCombatStateLocal),
+                CodeInstruction.LoadArgument(0),
+                new CodeInstruction(OpCodes.Ldfld, skipXCaptureField),
+                CodeInstruction.Call(typeof(CustomResourcePatches), nameof(CaptureX))
+            ]);
+    }
+
+    static void CaptureX(CardModel card, PlayerCombatState? playerCombatState, bool skipXCapture)
+    {
+        if (skipXCapture || playerCombatState == null) return;
+        
+        foreach (var resource in RegisteredResources)
+        {
+            var cost = resource.GetCost(card);
+            if (cost?.CostsX == true)
+            {
+                cost.CapturedXValue = resource.GetResource(playerCombatState).Amount;
+            }
+        }
+    }
+    
     // Energy Reset
     [HarmonyPatch(typeof(Hook), nameof(Hook.AfterEnergyReset), MethodType.Async)]
     [HarmonyTranspiler]
@@ -335,7 +384,7 @@ public static class CustomResources<T> where T : CustomResource, new()
             });
 
     private static SpireField<CardModel, int> LastSpend =>
-        _lastSpend ??= new SpireField<CardModel, int>(() => -1);
+        _lastSpend ??= new SpireField<CardModel, int>(() => 0);
 
     private static SpireField<CardPlay, int> RecordedSpend =>
         _recordedSpend ??= new SpireField<CardPlay, int>(() => 0);
@@ -361,11 +410,13 @@ public static class CustomResources<T> where T : CustomResource, new()
     private static async Task Spend(CardModel card)
     {
         var cost = Cost(card);
-        LastSpend[card] = -1;
+        LastSpend[card] = 0;
         if (cost == null)
             return;
 
         var spend = cost.GetAmountToSpend();
+        if (cost.CostsX)
+            cost.CapturedXValue = spend;
         if (await Resource.Get(card.Owner.PlayerCombatState!)
                 .Spend<T>(card.CombatState!, card, spend, cost.IsOptional(card.Owner)))
         {
@@ -561,6 +612,8 @@ public interface ICustomResourceCost
     /// <summary>
     /// The amount of this resource most recently spent to play this X-cost card.
     /// Used when duplicating X-cost cards, to make sure the duplicates are played with the same value.
+    ///
+    /// Set in <see cref="CustomResources&lt;T&gt;.Spend"/>
     /// 
     /// WARNING: Only use this for calculations related to resources spent. If you're using this to calculate a
     /// cost-X card's effect, use <see cref="ResolveXValue" /> instead, as it will take X-value
@@ -1191,7 +1244,9 @@ public abstract class CustomResource(string id)
 
     /// <summary>
     /// Called to spend this resource. Defaults to behaving the same as calling <see cref="ModifyAmount"/> with negative amount,
-    /// then triggers <seealso cref="BaseLibHooks.AfterSpendCustomResource{T}"/>
+    /// then triggers <seealso cref="BaseLibHooks.AfterSpendCustomResource{T}"/>.
+    /// Used for effects that spend this resource other than a card cost.
+    /// If not optional and amount is insufficient, will spend all remaining amount and return true.
     /// </summary>
     /// <param name="spender">The model these resources are being spent on.</param>
     /// <param name="amount">The amount of this resource to spend.</param>
