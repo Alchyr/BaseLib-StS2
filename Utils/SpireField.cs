@@ -285,7 +285,7 @@ internal interface IAddedNodes<TParentType> where TParentType : Node
         foreach (var add in _addedNodes)
         {
             var child = add.GetNode(__instance);
-            if (__instance.IsAncestorOf(child)) return;
+            if (__instance.IsAncestorOf(child)) continue;
             __instance.AddChild(child);
         }
     }

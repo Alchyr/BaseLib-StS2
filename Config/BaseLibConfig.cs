@@ -25,7 +25,15 @@ internal class BaseLibConfig : SimpleModConfig
     public static int LogFontSize { get; set; } = 14;
 
     [ConfigSection("WhatModSection")]
-    public static bool IncludeModId { get; set; } = true;
+    public static ModDisplayMode ModIdDisplayMode { get; set; } = ModDisplayMode.Id;
+
+    public enum ModDisplayMode
+    {
+        Id,
+        Name,
+        IdAndName
+    }
+    
     public static bool ShowCardModSource { get; set; } = false;
     public static bool ShowRelicModSource { get; set; } = true;
     public static bool ShowPotionModSource { get; set; } = true;

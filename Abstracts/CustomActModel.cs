@@ -277,17 +277,20 @@ public abstract class CustomActModel : ActModel, ICustomModel, ISceneConversions
     [HarmonyPatch(typeof(NTreasureRoom), nameof(NTreasureRoom._Ready))]
     public static class CustomActTreasureChest
     {
+        // Use reflection for treasure-room fields to tolerate type changes and avoid direct field access across the Android Mono/Godot bridge.
+        private static readonly FieldInfo? RunState = typeof(NTreasureRoom).Field("_runState");
         private static readonly FieldInfo? ChestNode = typeof(NTreasureRoom).Field("_chestNode");
+        private static readonly FieldInfo? ChestButton = typeof(NTreasureRoom).Field("_chestButton");
 
         [HarmonyPostfix]
         public static void InsertCustomChestVisualNode(NTreasureRoom __instance)
         {
             // validation
-            IRunState? runState = __instance._runState;
+            IRunState? runState = RunState?.GetValue(__instance) as IRunState;
             if (runState?.Act is not CustomActModel customActModel) return;
             if (customActModel.CustomChestScene is null) return;
             Node2D? chestNode = ChestNode?.GetValue(__instance) as Node2D;
-            NButton? chestButton = __instance._chestButton; //Now NTreasureButton, which does still inherit NButton
+            NButton? chestButton = ChestButton?.GetValue(__instance) as NButton; // The field may be NTreasureButton, which inherits NButton.
             if (chestNode is null || chestButton is null) // should in theory never be the case
             {
                 BaseLibMain.Logger.Warn("References not found. Using normal Chest Visuals instead");

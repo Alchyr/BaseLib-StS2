@@ -331,8 +331,10 @@ public class SimpleModConfig : ModConfig
             var nextRowMember = i < filteredMembers.Count - 1 ? filteredMembers[i + 1] : null;
             
             // Create a new collapsible section if this property starts a new section
-            var sectionName = currentRowMember.GetCustomAttribute<ConfigSectionAttribute>()?.Name;
-            sections.MaybeStartNew(sectionName, CreateCollapsibleSection, targetContainer, ref currentContainer);
+            var sectionAttribute = currentRowMember.GetCustomAttribute<ConfigSectionAttribute>();
+            var sectionName = sectionAttribute?.Name;
+            sections.MaybeStartNew(sectionName, sectionAttribute?.CollapsedByDefault ?? false,
+                CreateCollapsibleSection, targetContainer, ref currentContainer);
 
             // Set up the option row itself
             NConfigOptionRow? newRow;
@@ -675,11 +677,13 @@ public class SimpleModConfig : ModConfig
         public Control? CurrentHeader { get; private set; }
         public string? CurrentSectionName { get; private set; }
 
-        public void MaybeStartNew(string? sectionName, Func<string, bool, bool, NConfigCollapsibleSection> createSection, Control targetContainer, ref Control currentContainer)
+        public void MaybeStartNew(string? sectionName, bool collapsedByDefault,
+            Func<string, bool, bool, NConfigCollapsibleSection> createSection, Control targetContainer,
+            ref Control currentContainer)
         {
             if (sectionName == null || sectionName == CurrentSectionName) return;
 
-            var newSection = createSection(sectionName, false, false);
+            var newSection = createSection(sectionName, false, collapsedByDefault);
             targetContainer.AddChild(newSection);
             currentContainer = newSection.ContentContainer;
 

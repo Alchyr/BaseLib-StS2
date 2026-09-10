@@ -68,7 +68,9 @@ public static class BaseLibMain
         CustomLocTableManager.Register("card_modifiers");
         
         
-        ModCredits.Register(ModId, new ModCredits.Section("TEAM"));
+        ModCredits.Register(ModId, 
+            new ModCredits.Section("TEAM"),
+            new ModCredits.Section("CONTRIBUTORS"));
     }
 
     //Hopefully temporary fix for linux

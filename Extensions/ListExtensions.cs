@@ -47,4 +47,13 @@ public static class ListExtensions
             index = ~index;
         list.Insert(index, item);
     }
+    
+    internal static int GetSequenceHashCode<T>(this IList<T> sequence)
+    {
+        const int seed = 821;
+        const int modifier = 31;
+
+        return sequence.Aggregate(seed, (current, item) =>
+            (current * modifier) + (item?.GetHashCode() ?? 0));
+    }
 }

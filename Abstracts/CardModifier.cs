@@ -367,7 +367,8 @@ public abstract class CardModifier : AbstractModel, IComparable<CardModifier>
 
     /// <summary>
     /// Modifies a card's description before the game processes it.
-    /// Receives target passed into CardModel.GetDescriptionForPile.
+    /// Receives target passed into
+    /// <see cref="CardModel.GetDescriptionForPile(PileType, CardModel.DescriptionPreviewType, Creature)"/>.
     /// </summary>
     public virtual void ModifyDescription(Creature? target, ref string description)
     {
@@ -376,7 +377,8 @@ public abstract class CardModifier : AbstractModel, IComparable<CardModifier>
 
     /// <summary>
     /// Modifies a card's description after the game processes it.
-    /// Receives target passed into CardModel.GetDescriptionForPile.
+    /// Receives target passed into
+    /// <see cref="CardModel.GetDescriptionForPile(PileType, CardModel.DescriptionPreviewType, Creature)"/>.
     /// </summary>
     public virtual void ModifyDescriptionPost(Creature? target, ref string description)
     {

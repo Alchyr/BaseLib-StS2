@@ -38,8 +38,11 @@
 
   "BASELIB-WHAT_MOD_SECTION.title": "WhatMod",
 
-  "BASELIB-INCLUDE_MOD_ID.title": "Include Mod ID",
-  "BASELIB-INCLUDE_MOD_ID.hover.desc": "Displays both the mod's name and ID, instead of just its name.",
+  "BASELIB-MOD_ID_DISPLAY_MODE.title": "Display Format",
+  "BASELIB-MOD_ID_DISPLAY_MODE.hover.desc": "The format used to display mods' information.",
+  "BASELIB-MOD_ID_DISPLAY_MODE.Id": "Id",
+  "BASELIB-MOD_ID_DISPLAY_MODE.Name": "Name",
+  "BASELIB-MOD_ID_DISPLAY_MODE.IdAndName": "Id and Name",
 
   "BASELIB-SHOW_CARD_MOD_SOURCE.title": "Cards",
   "BASELIB-SHOW_CARD_MOD_SOURCE.hover.desc": "Adds the source mod to the tooltips of cards.",
