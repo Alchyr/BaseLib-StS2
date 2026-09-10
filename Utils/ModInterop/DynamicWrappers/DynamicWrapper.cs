@@ -127,16 +127,16 @@ public class DynamicWrapper
             if (sourceModId != null && sourceInterface != null)
             {
                 DeclareMirrorInterface(sourceModId, sourceInterface);
-                BaseLibMain.Logger.Info($"Declared mirror interfaces {targetInterface.FullName} and {sourceInterface.FullName} for dynamic interop");
+                BaseLibMain.Logger.Info($"[DynamicWrappers] Declared mirror interfaces {targetInterface.FullName} and {sourceInterface.FullName} for dynamic interop");
             }
             else
             {
-                BaseLibMain.Logger.Info($"{targetModId} declared {targetInterface.FullName} for use by dynamic interop.");
+                BaseLibMain.Logger.Info($"[DynamicWrappers] {targetModId} declared {targetInterface.FullName} for use by dynamic interop");
             }
         }
         else
         {
-            BaseLibMain.Logger.Error($"Interface {sourceInterface!.Name} from {targetModId} could not be found");
+            BaseLibMain.Logger.Error($"[DynamicWrappers] Interface {sourceInterface!.Name} from {targetModId} could not be found");
         }
     }
 
@@ -340,7 +340,7 @@ public class DynamicWrapper
             InteropLookup[new(targetModId, sourceType)] = data;
             InteropLookup[new(sourceModId, referenceInterfaceType)] = reverseData;
 
-            BaseLibMain.Logger.Info($"Built DynamicWrappers for interop between {targetModId} and {sourceModId} for interface {referenceInterfaceType}");
+            BaseLibMain.Logger.Info($"[DynamicWrappers] Built DynamicWrappers for interop between {targetModId} and {sourceModId} for interface {referenceInterfaceType}");
 
             TypeRegistered?.Invoke(new(targetModId, sourceModId, sourceType, sourceInterfaceType, referenceInterfaceType));
 
