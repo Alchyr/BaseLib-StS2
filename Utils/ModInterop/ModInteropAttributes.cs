@@ -20,21 +20,41 @@ public sealed class ModInteropAttribute(string modId, string? type = null) : Att
 /// Type must be provided in this attribute or in the containing class's ModInteropAttribute.
 /// If name is not provided, the name of the attached member will be used.
 /// If targeting a class, Type and Name function identically.
+/// <br/>To target a generic method, supply an array of generic types to match the target. You will need to define a separate method for each combination of generics that you want to use.
 /// </summary>
 [AttributeUsage(AttributeTargets.Property | AttributeTargets.Field | AttributeTargets.Class | AttributeTargets.Method, Inherited = false, AllowMultiple = false)]
 public sealed class InteropTargetAttribute : Attribute
 {
     public string? Type { get; }
     public string? Name { get; }
+    public Type[]? GenericTypes { get; }
 
-    public InteropTargetAttribute(string type, string? name = null)
+    public InteropTargetAttribute(string type, string? name = null, Type[]? genericTypes = null)
     {
         Type = type;
         Name = name;
+        GenericTypes = genericTypes;
+    }
+
+    public InteropTargetAttribute(string? name, Type[]? genericTypes)
+    {
+        Name = name;
+        GenericTypes = genericTypes;
     }
 
     public InteropTargetAttribute(string? name = null)
     {
         Name = name;
     }
+
+    public InteropTargetAttribute(Type[]? genericTypes)
+    {
+        GenericTypes = genericTypes;
+    }
 }
+
+/// <summary>
+/// This member will be ignored by the patcher.
+/// </summary>
+[AttributeUsage(AttributeTargets.Property | AttributeTargets.Field | AttributeTargets.Method, Inherited = false, AllowMultiple = false)]
+public sealed class InteropIgnoreAttribute : Attribute { }
