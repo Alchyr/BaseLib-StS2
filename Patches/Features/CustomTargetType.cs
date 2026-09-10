@@ -12,7 +12,6 @@ using MegaCrit.Sts2.Core.Entities.Creatures;
 using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.Helpers;
 using MegaCrit.Sts2.Core.Models;
-using MegaCrit.Sts2.Core.Nodes;
 using MegaCrit.Sts2.Core.Nodes.Combat;
 using MegaCrit.Sts2.Core.Nodes.CommonUi;
 using MegaCrit.Sts2.Core.Nodes.GodotExtensions;
@@ -31,10 +30,10 @@ namespace BaseLib.Patches.Features;
 public static class CustomTargetType
 {
   
-    /// <summary>Targets all living creatures.</summary>
+    /// <summary>Targets all living non-pet creatures.</summary>
     [CustomEnum] public static TargetType Everyone;
 
-    /// <summary>Targets any single living creature.</summary>
+    /// <summary>Targets any single living non-pet creature.</summary>
     [CustomEnum] public static TargetType Anyone;
 
     /// <summary>Targets all enemies currently intending to attack.</summary>
