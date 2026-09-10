@@ -328,7 +328,10 @@ public static class RewardFromSerializableExtPatch
 
                 var rerollOptions = new CardCreationOptions([player.Character.CardPool], source, rarityOdds);
                 if (flags != 0) rerollOptions.WithFlags(flags);
-                return new CardReward(cards, source, player, rerollOptions);
+                var mutableCards = cards
+                    .Select(card => player.RunState.CreateCard(card, player))
+                    .ToList();
+                return new CardReward(mutableCards, source, player, rerollOptions);
             }
 
             BaseLibMain.Logger.Warn(
