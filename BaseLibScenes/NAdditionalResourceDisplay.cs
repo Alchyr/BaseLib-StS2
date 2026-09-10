@@ -11,7 +11,6 @@ using MegaCrit.Sts2.Core.Nodes.HoverTips;
 
 namespace BaseLib.BaseLibScenes;
 
-//TODO - Fix default particle
 public partial class NAdditionalResourceDisplay : Control
 {
     private static readonly StringName V = new("v");

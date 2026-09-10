@@ -1,5 +1,6 @@
 ﻿using Godot;
 using MegaCrit.Sts2.Core.Assets;
+using MegaCrit.Sts2.Core.Helpers;
 using MegaCrit.Sts2.Core.Nodes.Vfx.Utilities;
 
 namespace BaseLib.Utils;
@@ -13,7 +14,21 @@ namespace BaseLib.Utils;
 /// </summary>
 public class ParticleSystemBuilder
 {
-    private static Dictionary<Vector4, CurveTexture> _basicCurveDictionary = [];
+    private static Dictionary<int, CurveTexture> _curveDictionary = [];
+
+    private static CurveTexture GetCurveCached(GodotUtils.CurveBuilder curveBuilder, int width = 128)
+    {
+        if (!_curveDictionary.TryGetValue(curveBuilder.GetHashCode(), out var curve))
+        {
+            curve = new();
+            curve.Width = width;
+            curve.Curve = curveBuilder.Curve;
+                
+            _curveDictionary.Add(curveBuilder.GetHashCode(), curve);
+        }
+
+        return curve;
+    }
     
     private class OneShotParticleData()
     {
@@ -34,7 +49,7 @@ public class ParticleSystemBuilder
             processMaterial.ParticleFlagDisableZ = true;
             SetupMaterial?.Invoke(processMaterial);
             
-            emitter.ProcessMaterial = new ParticleProcessMaterial();
+            emitter.ProcessMaterial = processMaterial;
             
             return emitter;
         }
@@ -66,6 +81,7 @@ public class ParticleSystemBuilder
     /// Sets up a particle to grow and then fade out.
     /// The parameters are used to define a start and end point for a curve for the particle's scale.
     /// </summary>
+    /// <param name="baseColor">The initial color before fading. Defaults to white.</param>
     /// <param name="initialScale">Recommended to be between 0 and 1.</param>
     /// <param name="curveIn">0 means the curve will start by moving horizontally;
     /// a positive value moves upward initially,
@@ -76,43 +92,33 @@ public class ParticleSystemBuilder
     /// a positive value ends the curve by moving upwards,
     /// a negative value ends the curve by moving downwards.
     /// Almost any value can be used, but values within +-3 are generally enough.</param>
-    public ParticleSystemBuilder GrowFade(float initialScale = 0.4f, float curveIn = 0.76f, float finalScale = 0.65f, float curveOut = 0f)
+    public ParticleSystemBuilder GrowFade(Color? baseColor = null, float initialScale = 0.4f, float curveIn = 0.76f, float finalScale = 0.65f, float curveOut = 0f)
     {
         if (_particles.Count == 0)
             throw new InvalidOperationException("Cannot set particle process type without first adding a particle.");
-        
-        Vector4 curveData = new(initialScale, curveIn, finalScale, curveOut);
-        if (!_basicCurveDictionary.TryGetValue(curveData, out var curveTex))
-        {
-            Curve curve = new();
-            curve.AddPoint(new Vector2(0, initialScale), rightTangent: curveIn);
-            curve.AddPoint(new Vector2(1, finalScale), leftTangent: curveOut);
 
-            curveTex = new();
-            curveTex.Width = 128;
-            curveTex.Curve = curve;
-                
-            _basicCurveDictionary.Add(curveData, curveTex);
-        }
+        var color = baseColor ?? StsColors.halfTransparentWhite;
+
+        GodotUtils.CurveBuilder curveBuilder = new();
+        curveBuilder.AddPoint(0, initialScale, rightTangent: curveIn)
+            .AddPoint(1, finalScale, leftTangent: curveOut);
+
+        var scaleCurve = GetCurveCached(curveBuilder);
+
+        curveBuilder = new();
+        curveBuilder.AddPoint(0.2f, 1, rightTangent: -2.463f);
+        curveBuilder.AddPoint(1, 0, leftTangent: -0.313f);
+        
+        var alphaCurve = GetCurveCached(curveBuilder);
         
         var particle = _particles[^1];
         particle.SetupMaterial += processMaterial =>
         {
+            processMaterial.ParticleFlagDisableZ = true;
             processMaterial.Gravity = new(0, 0, 0);
-            processMaterial.ScaleCurve = curveTex;
-        };
-        return this;
-    }
-    public ParticleSystemBuilder GrowFade(CurveTexture curve)
-    {
-        if (_particles.Count == 0)
-            throw new InvalidOperationException("Cannot set particle process type without first adding a particle.");
-        
-        var particle = _particles[^1];
-        particle.SetupMaterial += processMaterial =>
-        {
-            processMaterial.Gravity = new(0, 0, 0);
-            processMaterial.ScaleCurve = curve;
+            processMaterial.ScaleCurve = scaleCurve;
+            processMaterial.Color = color;
+            processMaterial.AlphaCurve = alphaCurve;
         };
         return this;
     }
