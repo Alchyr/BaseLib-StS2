@@ -122,6 +122,11 @@ public static class WhatMod
             return id;
         if (string.IsNullOrWhiteSpace(id) || id.Equals(name, StringComparison.OrdinalIgnoreCase))
             return name;
-        return BaseLibConfig.IncludeModId ? $"{name} ({id})" : name;
+        return BaseLibConfig.ModIdDisplayMode switch
+        {
+            BaseLibConfig.ModDisplayMode.Id => id,
+            BaseLibConfig.ModDisplayMode.Name => name,
+            _ => $"{name} ({id})"
+        };
     }
 }
