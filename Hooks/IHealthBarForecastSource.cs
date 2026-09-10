@@ -18,7 +18,32 @@ public enum HealthBarForecastDirection
     /// <summary>
     ///     Grows outward from the empty side (e.g. doom-style).
     /// </summary>
-    FromLeft = 1
+    FromLeft = 1,
+
+    /// <summary>
+    ///     Grows outward from the current HP edge into the empty remainder of the bar (e.g. an absorb
+    ///     pool layered above current HP).
+    ///     Unlike <see cref="FromRight" /> and <see cref="FromLeft" />, this does not consume the
+    ///     creature's HP budget: it is drawn to the right of current HP and never shortens or
+    ///     recolors the vanilla HP band. Segments chain against the empty remainder
+    ///     (MaxHp - CurrentHp) in <see cref="HealthBarForecastSegment.Order" /> sequence and
+    ///     are clipped by any <see cref="InwardFromMaxHp" /> segments, which are placed first.
+    /// </summary>
+    OutwardFromCurrentHp = 2,
+
+    /// <summary>
+    ///     Grows inward from the max HP edge, overlaying whatever lies beneath it (e.g. the portion of
+    ///     an absorb pool that overcaps max HP).
+    ///     <para>
+    ///         Anchored to the right end of the bar rather than to current HP, so unlike every other
+    ///         direction it may cross freely from the empty remainder into the filled HP band and paint
+    ///         over it. Segments do not chain; each spans its own
+    ///         <see cref="HealthBarForecastSegment.Amount" /> from the max edge and layers by
+    ///         <see cref="HealthBarForecastSegment.LeftExclusiveZGroup" />, as
+    ///         <see cref="HealthBarForecastLeftOriginLayout.OverlapFromOrigin" /> does on the left.
+    ///     </para>
+    /// </summary>
+    InwardFromMaxHp = 3
 }
 
 /// <summary>
@@ -49,7 +74,10 @@ public enum HealthBarForecastLeftOriginLayout
 /// <param name="Order">
 ///     Lower values are rendered earlier in the chain.
 ///     For <see cref="HealthBarForecastDirection.FromRight" />, earlier segments stay closer to the current HP edge; for
-///     <see cref="HealthBarForecastDirection.FromLeft" />, earlier segments stay closer to the empty edge.
+///     <see cref="HealthBarForecastDirection.FromLeft" />, earlier segments stay closer to the empty edge; for
+///     <see cref="HealthBarForecastDirection.OutwardFromCurrentHp" />, earlier segments stay closer to the current HP
+///     edge. <see cref="HealthBarForecastDirection.InwardFromMaxHp" /> does not chain, so this only breaks ties between
+///     segments of equal <c>Amount</c> in the same z-group.
 /// </param>
 /// <param name="OverlayMaterial">
 ///     Optional Godot material (e.g. shader like vanilla doom). When null, only <see cref="Color" /> tint applies.
@@ -65,10 +93,14 @@ public enum HealthBarForecastLeftOriginLayout
 ///     <see cref="HealthBarForecastLeftOriginLayout.OverlapFromOrigin" />.
 /// </param>
 /// <param name="LeftExclusiveZGroup">
-///     For <see cref="HealthBarForecastLeftOriginLayout.OverlapFromOrigin" />: larger values draw above smaller values.
+///     For <see cref="HealthBarForecastLeftOriginLayout.OverlapFromOrigin" /> and for
+///     <see cref="HealthBarForecastDirection.InwardFromMaxHp" />: larger values draw above smaller values.
 /// </param>
 /// <param name="AffectsHpLabel">
-///     Whether this segment can recolor the HP label when it reaches lethal threshold.
+///     Whether this segment can recolor the HP label when it reaches lethal threshold. Ignored by
+///     <see cref="HealthBarForecastDirection.OutwardFromCurrentHp" /> and
+///     <see cref="HealthBarForecastDirection.InwardFromMaxHp" />, which represent HP the creature has rather than HP it
+///     is about to lose and so never signal lethality.
 /// </param>
 public readonly record struct HealthBarForecastSegment(
     int Amount,
