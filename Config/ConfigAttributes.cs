@@ -11,6 +11,9 @@ namespace BaseLib.Config;
 public class ConfigSectionAttribute(string name) : Attribute
 {
     public string Name { get; } = name;
+
+    /// <summary>If true, the section starts out collapsed.</summary>
+    public bool CollapsedByDefault { get; set; }
 }
 
 /// <summary>
