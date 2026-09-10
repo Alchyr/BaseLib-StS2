@@ -128,4 +128,23 @@ public static class BaseLibHooks
             out _);
         return modifiedCost;
     }
+    
+    /// <summary>
+    /// Equivalent of CardCostHelper.TryModifyCostWithHooks.
+    /// Returns true if any model modifies the cost with a hook.
+    /// </summary>
+    public static bool TryModifyResourceCostWithHooks<T>(
+        CardModel card,
+        T resource,
+        ICombatState combatState,
+        out decimal hookModifiedCost) where T : CustomResource, new()
+    {
+        hookModifiedCost = CustomResources<T>.Cost(card)?.Base ?? -1;
+        hookModifiedCost = HookUtils.Modify<IModifyResourceCostInCombat<T>, decimal>(
+            combatState,
+            hookModifiedCost,
+            (modifier, amt) => modifier.ModifyResourceCostInCombat(card, resource, amt),
+            out var modifiers);
+        return modifiers.Any();
+    }
 }

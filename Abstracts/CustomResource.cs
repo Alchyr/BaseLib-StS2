@@ -1,26 +1,32 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Reflection.Emit;
+using BaseLib.BaseLibScenes;
 using BaseLib.Extensions;
 using BaseLib.Hooks;
 using BaseLib.Patches.UI;
 using BaseLib.Utils;
 using BaseLib.Utils.Patching;
+using Godot;
 using HarmonyLib;
+using MegaCrit.Sts2.Core.Assets;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Players;
+using MegaCrit.Sts2.Core.Helpers;
+using MegaCrit.Sts2.Core.Helpers.Models;
 using MegaCrit.Sts2.Core.Hooks;
+using MegaCrit.Sts2.Core.HoverTips;
+using MegaCrit.Sts2.Core.Localization;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Nodes.Cards;
-using MegaCrit.Sts2.Core.Nodes.Combat;
 
 namespace BaseLib.Abstracts;
 
 #region patches
 
 /// <summary>
-/// <seealso cref="CustomResourceUiPatches"/>
+/// <seealso cref="ExtraCombatUi"/>
 /// </summary>
 [HarmonyPatch]
 internal static class CustomResourcePatches
@@ -204,6 +210,22 @@ internal static class CustomResourcePatches
             resource.GetResource(playerCombatState).StartOfTurnReset(playerCombatState, combatState);
         }
     }
+    
+    // Visual updates
+    [HarmonyPatch(typeof(NCard), nameof(NCard.UpdateEnergyCostVisuals))]
+    [HarmonyPostfix]
+    static void UpdateCustomCostVisuals(NCard __instance, PileType pileType)
+    {
+        var card = __instance.Model;
+        if (card == null) return;
+        
+        foreach (var resourceHandler in RegisteredResources)
+        {
+            var cost = resourceHandler.GetCost(card);
+            if (cost == null) continue;
+            resourceHandler.UpdateCostVisuals(__instance, cost, pileType);
+        }
+    }
 }
 
 
@@ -211,8 +233,6 @@ internal static class CustomResourcePatches
 #endregion
 
 internal class ResourceHandler(string id, 
-    ICustomResourceVisualsHandler? visualsHandler,
-    ICustomCostVisualsHandler? costVisualsHandler,
     Func<PlayerCombatState, CustomResource> getResource,
     Func<CardModel, ICustomResourceCost?> getCost,
     Action<PlayerCombatState> prep, Action<PlayerCombatState> cleanup,
@@ -225,12 +245,10 @@ internal class ResourceHandler(string id,
     Action<CardModel> setToFreeThisTurn,
     Action<CardModel> finalizeUpgrade,
     Action<CardModel> resetForDowngrade,
-    Func<CardModel, bool, bool> costsMoreThanZero) : IComparable<ResourceHandler>
+    Func<CardModel, bool, bool> costsMoreThanZero,
+    Action<NCard, ICustomResourceCost, PileType> updateCostVisuals) : IComparable<ResourceHandler>
 {
     public string Id { get; } = id;
-    
-    public ICustomResourceVisualsHandler? VisualsHandler { get; } = visualsHandler;
-    public ICustomCostVisualsHandler? CostVisualsHandler { get; } = costVisualsHandler;
 
     public Func<PlayerCombatState, CustomResource> GetResource { get; } = getResource;
     public Func<CardModel, ICustomResourceCost?> GetCost { get; } = getCost;
@@ -251,8 +269,10 @@ internal class ResourceHandler(string id,
     public Action<CardModel> FinalizeUpgrade { get; } = finalizeUpgrade;
     
     public Action<CardModel> ResetForDowngrade { get; } = resetForDowngrade;
-    
+
     public Func<CardModel, bool, bool> CostsMoreThanZero { get; } = costsMoreThanZero;
+    
+    public Action<NCard, ICustomResourceCost, PileType> UpdateCostVisuals { get; } = updateCostVisuals;
 
     public int CompareTo(ResourceHandler? other)
     {
@@ -272,18 +292,18 @@ public static class CustomResources<T> where T : CustomResource, new()
     {
         if (_registered) return;
         _registered = true;
-
-        var resourceDisplayHandler = resourceInstance.ResourceVisualsHandler();
-        var costDisplayHandler = resourceInstance.CostVisualsHandler();
         
         CustomResourcePatches.RegisteredResources.InsertSorted(
-            new(resourceInstance.Id, resourceDisplayHandler, costDisplayHandler,
+            new(resourceInstance.Id,
                 Get, Cost, PrepForCombat, CleanupAfterCombat, ResourceCheck,
                 Spend, RecordSpend, 
                 AfterCardPlayedCleanup, EndOfTurnCleanup,
                 SetToFreeThisCombat, SetToFreeThisTurn,
                 FinalizeUpgrade, ResetForDowngrade,
-                CostsMoreThanZero));
+                CostsMoreThanZero,
+                (nCard, cost, pile) => UpdateCostVisuals?.Invoke(nCard, cost, pile)));
+        
+        resourceInstance.RegisterResourceVisuals<T>();
     }
     
     private static NotNullSpireField<PlayerCombatState, T>? _resource;
@@ -301,7 +321,8 @@ public static class CustomResources<T> where T : CustomResource, new()
         {
             BaseLibMain.Logger.Debug($"Initializing resource {typeof(T).Name} for combat");
             var res = new T();
-            res.PrepForCombat(playerCombatState);
+            res.Setup<T>(playerCombatState._player);
+            res.PrepForCombat<T>(playerCombatState);
             res.AmountChanged += CombatManager.Instance.StateTracker.OnPlayerCombatStateValueChanged;
             return res;
         });
@@ -406,6 +427,11 @@ public static class CustomResources<T> where T : CustomResource, new()
         
         return cost.GetWithModifiers(includeGlobalModifiers ? CostModifiers.All : CostModifiers.Local) > 0;
     }
+
+    /// <summary>
+    /// Event triggered when an NCard with a custom resource cost has its UpdateEnergyCostVisuals method called.
+    /// </summary>
+    public static event Action<NCard, ICustomResourceCost, PileType>? UpdateCostVisuals;
     
     #endregion
 
@@ -582,6 +608,11 @@ public interface ICustomResourceCost
     UnplayableReason ResourceCheck(PlayerCombatState combatState, CardModel card);
 
     /// <summary>
+    /// Determines highlighting of cost color based on card and resource's current state.
+    /// </summary>
+    CardCostColor GetCostColor(CardModel model, ICombatState? combatState);
+
+    /// <summary>
     /// Set this cost to the specified amount until the card is played.
     /// </summary>
     /// <example>
@@ -728,10 +759,6 @@ public interface ICustomResourceCost
     /// The base game uses this externally only for <see cref="T:MegaCrit.Sts2.Core.Models.Cards.MadScience" />.
     /// </summary>
     void SetCustomBaseCost(int newBaseCost);
-    
-    // Visuals Methods
-
-    void UpdateCostVisuals(NCard nCard, PileType pileType);
 }
 
 /// <summary>
@@ -751,6 +778,11 @@ public class CustomResourceCost<T> : ICustomResourceCost where T : CustomResourc
 
     /// <inheritdoc />
     public int Canonical { get; }
+
+    /// <summary>
+    /// Usually equivalent to canonical cost, unless modified separately.
+    /// </summary>
+    public int Base => _base;
 
     /// <inheritdoc />
     public bool CostsX { get; }
@@ -800,8 +832,10 @@ public class CustomResourceCost<T> : ICustomResourceCost where T : CustomResourc
                 withModifiers = localModifier.Modify(withModifiers);
         }
 
-        if (modifiers.HasFlag(CostModifiers.Global) && _card.CombatState != null)
-            withModifiers = (int)Hook.ModifyEnergyCostInCombat(_card.CombatState, _card, withModifiers);
+        var playerCombatState = _card.Owner?.PlayerCombatState;
+        if (modifiers.HasFlag(CostModifiers.Global) && _card.CombatState != null && playerCombatState != null)
+            withModifiers = (int)BaseLibHooks.
+                ModifyResourceCostInCombat(_card.CombatState, CustomResources<T>.Get(playerCombatState), _card, withModifiers);
         return Math.Max(0, withModifiers);
     }
 
@@ -828,6 +862,8 @@ public class CustomResourceCost<T> : ICustomResourceCost where T : CustomResourc
     {
         if (!CostsX)
             throw new InvalidOperationException($"This cost of type {GetType()} is not an X-cost.");
+        if (_card.CombatState == null)
+            throw new InvalidOperationException($"Attempted to resolve X value of cost {GetType()} outside of combat.");
         return Hook.ModifyXValue(_card.CombatState, _card, CapturedXValue);
     }
 
@@ -857,6 +893,26 @@ public class CustomResourceCost<T> : ICustomResourceCost where T : CustomResourc
         var resource = CustomResources<T>.Get(combatState);
         var required = GetWithModifiers(CostModifiers.All);
         return resource.CanAfford(card, required) ? UnplayableReason.None : resource.UnplayableReason;
+    }
+
+    //TODO - Optional costs in grey when can't afford them
+    /// <inheritdoc />
+    public CardCostColor GetCostColor(CardModel card, ICombatState? combatState)
+    {
+        var playerCombatState = card.Owner?.PlayerCombatState;
+        if (combatState == null || playerCombatState == null) return CardCostColor.Unmodified;
+        var resource = CustomResources<T>.Get(playerCombatState);
+        var resourceUnplayableReason = resource.UnplayableReason;
+
+        if (!card.CanPlay(out var reason, out _) && reason.HasFlag(resourceUnplayableReason))
+            return CardCostColor.InsufficientResources;
+        if (CostsX)
+            return CardCostColor.Unmodified;
+        if (BaseLibHooks.TryModifyResourceCostWithHooks(card, resource, combatState, out var hookModifiedCost))
+            return CardCostHelper.GetColorForHookModifiedCost(hookModifiedCost, Base);
+        return HasLocalModifiers ? 
+            CardCostHelper.GetColorForLocalCost(GetWithModifiers(CostModifiers.Local), GetWithModifiers(CostModifiers.None))
+            : CardCostColor.Unmodified;
     }
 
     /// <inheritdoc />
@@ -1002,7 +1058,7 @@ public class CustomResourceCost<T> : ICustomResourceCost where T : CustomResourc
             .Select(m => m.Clone())
             .ToList();
         
-        return new CustomResourceCost<T>(newCard, CustomResources<T>.CanonicalCost(newCard), newCard.EnergyCost.CostsX)
+        return new CustomResourceCost<T>(newCard, CustomResources<T>.CanonicalCost(newCard), CostsX)
         {
             _base = _base,
             _capturedXValue = _capturedXValue,
@@ -1010,13 +1066,6 @@ public class CustomResourceCost<T> : ICustomResourceCost where T : CustomResourc
             _forceOptional = _forceOptional,
             _localModifiers = list
         };
-    }
-    
-    // Visuals
-
-    public void UpdateCostVisuals(NCard nCard, PileType pileType)
-    {
-        //TODO
     }
 }
 
@@ -1040,20 +1089,21 @@ public abstract class CustomResource(string id)
     /// A unique ID used to identify and sort this resource type.
     /// </summary>
     public string Id { get; protected set; } = id;
+    
+    /// <summary>
+    /// The player this resource is attached to.
+    /// </summary>
+    public Player? Owner { get; set; }
 
     /// <summary>
-    /// Return new instance of class that will be used as a singleton to receive card cost UI update events.
-    /// Will be called during startup of game, when the resource is registered.
-    /// Return null if handling visuals separately.
+    /// Called when the resource is registered during startup.
+    /// Recommended use is overriding to register UI through <see cref="ExtraCombatUi"/>.
+    /// See <see cref="BasicCustomResource"/> for an example.
     /// </summary>
-    public abstract ICustomCostVisualsHandler? CostVisualsHandler();
-
-    /// <summary>
-    /// Return new instance of class that will be used as a singleton to receive resource amount UI update events.
-    /// Will be called during startup of game, when the resource is registered.
-    /// Return null if handling visuals separately.
-    /// </summary>
-    public abstract ICustomResourceVisualsHandler? ResourceVisualsHandler();
+    public virtual void RegisterResourceVisuals<T>() where T : CustomResource, new()
+    {
+        ValidateType<T>();
+    }
 
     /// <summary>
     /// Whether methods that make a card free to play should also set this cost.
@@ -1068,12 +1118,50 @@ public abstract class CustomResource(string id)
     public virtual bool IsDefaultOptional => false;
 
     /// <summary>
+    /// The path to a small icon image that can be used in card/tooltip text.
+    /// </summary>
+    public virtual string? IconPath => null;
+
+    /// <summary>
+    /// A color used for font outlines.
+    /// </summary>
+    public virtual Color MainColor => StsColors.defaultEnergyCostOutline;
+
+    /// <summary>
+    /// Generate a hovertip for this resource, defaulting to localization
+    /// entries Id.title and Id.description in the table static_hover_tips.
+    /// If IconPath is set, it will be usable in the tooltip with {resourceIcon}.
+    /// </summary>
+    public virtual HoverTip? MakeTip() {
+        var title = new LocString("static_hover_tips", $"{Id}.title");
+        var description = new LocString("static_hover_tips", $"{Id}.description");
+        if (IconPath != null && ResourceLoader.Exists(IconPath))
+        {
+            title.Add("resourceIcon", $"[img]{IconPath}[/img]");
+            description.Add("resourceIcon", $"[img]{IconPath}[/img]");
+        }
+            
+        return new HoverTip(title, description);
+    }
+
+    /// <summary>
+    /// Called when the resource is initialized at the start of combat, before <see cref="PrepForCombat"/>.
+    /// Sets the <see cref="Owner"/> property and receives this resource's type as a parameter to set up hooks.
+    /// </summary>
+    public void Setup<T>(Player player) where T : CustomResource, new()
+    {
+        ValidateType<T>();
+        
+        Owner = player;
+    }
+
+    /// <summary>
     /// Called when the resource is initialized at the start of each combat, if preparation is necessary.
     /// Note that this occurs when the PlayerCombatState is initialized.
     /// </summary>
-    public virtual void PrepForCombat(PlayerCombatState playerCombatState)
+    public virtual void PrepForCombat<T>(PlayerCombatState playerCombatState) where T : CustomResource, new()
     {
-        
+        ValidateType<T>();
     }
 
     /// <summary>
@@ -1109,11 +1197,9 @@ public abstract class CustomResource(string id)
     /// <param name="amount">The amount of this resource to spend.</param>
     /// <param name="optional">Whether this cost is expected to be optional.</param>
     /// <returns>Whether the resource was actually spent.</returns>
-    public virtual async Task<bool> Spend<T>(ICombatState combatState, AbstractModel? spender, int amount, bool optional) where T : CustomResource
+    public virtual async Task<bool> Spend<T>(ICombatState combatState, AbstractModel? spender, int amount, bool optional) where T : CustomResource, new()
     {
-        if (this is not T thisT)
-            throw new ArgumentException(
-                "Attempted to call Spend on a resource with a generic type that does not match the resource.");
+        var thisT = ValidateType<T>();
 
         if (amount > Amount)
         {
@@ -1146,6 +1232,8 @@ public abstract class CustomResource(string id)
 
     /// <summary>
     /// The UnplayableReason used if you can't afford to play a card due to this resource.
+    /// You are suggested to use a custom enum value for your own resource, but not required.
+    /// Due to UnplayableReason being a flag type enum, the number of keys it can have is relatively limited.
     /// </summary>
     public virtual UnplayableReason UnplayableReason => UnplayableReason.EnergyCostTooHigh;
 
@@ -1157,6 +1245,35 @@ public abstract class CustomResource(string id)
     {
         return Amount >= cost;
     }
+
+    /// <summary>
+    /// Text to display, used by NAdditionalResourceDisplay, or can be used for a custom
+    /// resource counter.
+    /// </summary>
+    /// <param name="displayAmount">The "current" amount of the resource to display.</param>
+    public virtual string GetTextForAmount(int displayAmount)
+    {
+        return $"{displayAmount}";
+    }
+
+    /// <summary>
+    /// Whether this resource's display should be visible. Note that once a resource display becomes visible,
+    /// it is expected to stay visible for the rest of combat.
+    /// Used by NAdditionalResourceDisplay, or can be used for a custom resource counter.
+    /// The most common check for this will be checking Owner.Character's type.
+    /// </summary>
+    public virtual bool ShouldShowDisplay() => Amount > 0;
+
+    /// <summary>
+    /// Verifies that the type parameter matches the resource's actual type.
+    /// </summary>
+    protected T ValidateType<T>([System.Runtime.CompilerServices.CallerMemberName] string callerName = "")
+    {
+        if (this is not T thisT)
+            throw new ArgumentException(
+                $"Attempted to call {callerName} on a resource with a generic type that does not match the resource.");
+        return thisT;
+    }
 }
 
 /// <summary>
@@ -1167,12 +1284,35 @@ public abstract class CustomResource(string id)
 /// <param name="setEachTurn">If greater than 0, this resource's amount is set to this value at the start of each turn.</param>
 public abstract class BasicCustomResource(string resourceId, int setEachTurn = -1) : CustomResource(resourceId)
 {
+    /// <summary>
+    /// The default amount of this resource that its current amount will be set to at the start of each turn.
+    /// For the actual amount with modifiers (<see cref="IModifyMaxResource"/>) use <see cref="Max"/>.
+    /// </summary>
     public int DefaultMax { get; set; } = setEachTurn;
+    
+    /// <summary>
+    /// The amount of this resource that its current amount will be set to at the start of each turn.
+    /// If <see cref="DefaultMax"/> is less than 0, always returns 0.
+    /// </summary>
+    public int Max
+    {
+        get
+        {
+            if (Owner == null || DefaultMax < 0 || _getModifiedMax == null) return 0;
+            return Math.Max(0, _getModifiedMax(Owner.Creature.CombatState, Owner, DefaultMax));
+        }
+    }
+
+    private Func<ICombatState?, Player, int, int>? _getModifiedMax;
 
     /// <inheritdoc />
-    public override void PrepForCombat(PlayerCombatState playerCombatState)
+    public override void PrepForCombat<T>(PlayerCombatState playerCombatState)
     {
+        var thisT = ValidateType<T>();
+        
         Amount = 0;
+        _getModifiedMax = (combatState, player, original) => HookUtils.Modify<IModifyMaxResource<T>, int>(combatState, original, 
+                (m, a) => m.ModifyResourceAmount(player, thisT, a), out var modifiers);
     }
 
     /// <inheritdoc />
@@ -1180,32 +1320,70 @@ public abstract class BasicCustomResource(string resourceId, int setEachTurn = -
     {
         if (DefaultMax >= 0)
         {
-            Amount = DefaultMax;
+            Amount = Max;
         }
     }
 
+    /// <summary>
+    /// Path used to load a single texture used for all of the resource's visuals.
+    /// Override to change the path, or override <see cref="CostVisualsHandler"/>
+    /// and/or <see cref="RegisterResourceVisuals"/> to change how the visuals are handled.
+    /// </summary>
+    public virtual string TexturePath => "";
+
     /// <inheritdoc />
-    public override ICustomCostVisualsHandler CostVisualsHandler()
+    public override string GetTextForAmount(int displayAmount)
     {
-        return new BasicCostVisualsHandler(this);
+        return DefaultMax >= 0 ? $"{displayAmount}/{Max}" : $"{displayAmount}";
     }
 
     /// <inheritdoc />
-    public override ICustomResourceVisualsHandler ResourceVisualsHandler()
+    public override bool ShouldShowDisplay()
     {
-        return new BasicResourceVisualsHandler(this);
+        //Above 0 regardless of character, cannot rely on amount
+        if (DefaultMax > 0)
+        {
+            return false;
+        }
+
+        return Amount > 0;
     }
-}
 
-public class BasicCostVisualsHandler(CustomResource resource) : ICustomCostVisualsHandler
-{
-    //Color: White normal, green modified, red can't afford, gray can't afford optional
-}
-
-public class BasicResourceVisualsHandler(CustomResource resource) : ICustomResourceVisualsHandler
-{
-    public void AddDisplay(NCombatUi nCombatUi, PlayerCombatState playerCombatState)
+    /// <inheritdoc />
+    public override void RegisterResourceVisuals<T>()
     {
+        ValidateType<T>();
+
+        ExtraCombatUi.RegisterCombatUiElement(static (ui, player, combatState) =>
+        {
+            var playerCombatState = player.PlayerCombatState;
+            if (playerCombatState == null) return null;
+
+            if (CustomResources<T>.Get(playerCombatState) is not BasicCustomResource resource) return null;
+            
+            var tex = PreloadManager.Cache.GetTexture2D(resource.TexturePath);
+            var display = NAdditionalResourceDisplay.Create<T>(player, resource, tex);
+            
+            ui.AddChild(display);
+            
+            return display;
+        }, ExtraCombatUi.CombatUiPositioning.AroundEnergy);
         
+        var getDisplay = ExtraCardUi.RegisterCreateCardUiElement(ExtraCardUi.CardUiPositioning.AroundCost, 
+            _ => new NAdditionalCostDisplay(Id, TexturePath, MainColor),
+            (card, model, display) =>
+            {
+                if (model == null) return false;
+                var cost = CustomResources<T>.Cost(model);
+                if (cost == null) return false;
+
+                display.UpdateCostVisual(card, cost, PileType.None);
+                return true;
+            });
+
+        CustomResources<T>.UpdateCostVisuals += (card, cost, pileType) =>
+        {
+            getDisplay(card).UpdateCostVisual(card, cost, pileType);
+        };
     }
 }

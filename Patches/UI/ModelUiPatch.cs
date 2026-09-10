@@ -14,6 +14,7 @@ namespace BaseLib.Patches.UI;
 /// <summary>
 /// When a model (card, relic, potion?) is attached to its NCard/NRelic etc, it can provide a Control which will be added as a child of the node.
 /// This child will automatically be removed when the model is unbound from the node.
+/// This is suggested for use for cards/relics that need their own single unique UI element.
 /// </summary>
 
 
