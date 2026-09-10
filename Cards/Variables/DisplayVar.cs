@@ -1,4 +1,6 @@
-﻿using MegaCrit.Sts2.Core.Localization.DynamicVars;
+﻿using MegaCrit.Sts2.Core.Entities.Cards;
+using MegaCrit.Sts2.Core.Entities.Creatures;
+using MegaCrit.Sts2.Core.Localization.DynamicVars;
 using MegaCrit.Sts2.Core.Models;
 
 namespace BaseLib.Cards.Variables;
@@ -18,7 +20,19 @@ public class DisplayVar<T> : DynamicVar where T : class
         base.SetOwner(owner);
         _tOwner = owner as T;
     }
+    
+    protected override decimal GetBaseValueForIConvertible()
+    {
+        return NumericValue;
+    }
 
+    public override void UpdateCardPreview(CardModel card, CardPreviewMode previewMode, Creature? target, bool runGlobalHooks)
+    {
+        PreviewValue = NumericValue;
+    }
+
+    public decimal NumericValue => _tOwner != null && decimal.TryParse(_displayText(_tOwner), out decimal result) ? result : BaseValue;
+    
     public override string ToString()
     {
         return _tOwner == null ? $"Owner of DisplayVar '' is wrong type [{_owner?.GetType()}]" : _displayText(_tOwner);
