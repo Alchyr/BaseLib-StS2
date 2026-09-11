@@ -205,7 +205,7 @@ public class ExtraCardUi
     static List<CodeInstruction> ReloadHook(IEnumerable<CodeInstruction> code)
     {
         return new InstructionPatcher(code)
-            .Match(new CallMatcher(typeof(NCard).Method(nameof(NCard.UpdatePortrait))))
+            .Match(new CallMatcher(typeof(NCard).Method(nameof(NCard.ReloadOverlay))))
             .Insert([
                 CodeInstruction.LoadArgument(0),
                 CodeInstruction.Call(typeof(ExtraCardUi), nameof(OnReload))
