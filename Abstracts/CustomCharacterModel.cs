@@ -58,6 +58,7 @@ public abstract class CustomCharacterModel : CharacterModel, ICustomModel, ILoca
     public virtual ModelId DefaultCompendiumOpenModelId => Id;
 
     /// <summary>
+    /// The filepath to the character's scene.
     /// Override this or place your scene at res://scenes/creature_visuals/class_name.tscn
     /// </summary>
     public virtual string? CustomVisualPath => null;
@@ -117,9 +118,8 @@ public abstract class CustomCharacterModel : CharacterModel, ICustomModel, ILoca
 
     /// <summary>
     /// Override to provide a custom NCreatureVisuals scene.
-    /// If not overridden, an NCreatureVisuals will be generated from CustomVisualPath.
+    /// If not overridden, an NCreatureVisuals will be loaded from <see cref="CustomVisualPath"/>.
     /// </summary>
-    /// <returns></returns>
     public virtual NCreatureVisuals? CreateCustomVisuals()
     {
         return null;
