@@ -1,4 +1,5 @@
-﻿using Godot;
+﻿using BaseLib.Utils.Patching;
+using Godot;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Modding;
 
@@ -86,12 +87,15 @@ public static class DefaultLoc
             var path = $"res://{mod.manifest.id}/localization/{defaultLoc}/{file}";
             if (ResourceLoader.Exists(path))
             {
-                defaultLocFirst.Add(path);
+                //Required as part of LocAliasManager to also prepend any aliased tables in the default language
+                defaultLocFirst.AddRange(LocAliasManager.MergeAliasesIntoTable([path], defaultLoc, file));
             }
         }
 
         BaseLibMain.Logger.Debug($"Found {defaultLocFirst.Count} default loc files; [{string.Join(", ", defaultLocFirst)}]");
         defaultLocFirst.AddRange(__result);
-        __result = defaultLocFirst;
+
+        //Required as part of LocAliasManager to append and aliased tables
+        __result = LocAliasManager.MergeAliasesIntoTable(defaultLocFirst, language, file);
     }
 }
