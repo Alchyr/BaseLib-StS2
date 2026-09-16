@@ -1,0 +1,64 @@
+using Godot;
+using HarmonyLib;
+using MegaCrit.Sts2.addons.mega_text;
+using MegaCrit.Sts2.Core.Assets;
+using MegaCrit.Sts2.Core.Entities.Text;
+using MegaCrit.Sts2.Core.Localization;
+using MegaCrit.Sts2.Core.Models;
+
+namespace BaseLib.Patches.Localization;
+
+[HarmonyPatch(typeof(MegaRichTextLabel), nameof(MegaRichTextLabel.SetTextAutoSize))]
+public static class ConditionalBreakPatch
+{
+    public static void Prefix(MegaRichTextLabel __instance, ref string text)
+    {
+        if (!text.Contains('\u2028'))
+            return;
+        var lineCount = CountLines(__instance, text);
+        if (lineCount >= 6)
+            text = text.Replace("\u2028", " ");
+    }
+
+    private static int CountLines(MegaRichTextLabel label, string text)
+    {
+        var font = label.GetThemeFont( ThemeConstants.RichTextLabel.NormalFont, (StringName)"RichTextLabel");
+        var size = label.GetRect().Size;
+        var bbcode = MegaLabelHelper.ParseBbcode(text);
+        using var paragraph = new TextParagraph();
+        paragraph.Clear();
+        paragraph.Direction = TextServer.Direction.Auto;
+        paragraph.Orientation = TextServer.Orientation.Horizontal;
+        var stringStack = new Stack<string>();
+        var key = 0;
+        foreach (var bbcodeObject in bbcode)
+        {
+            switch (bbcodeObject.type)
+            {
+                case BbcodeObjectType.BeginTag:
+                    stringStack.Push(bbcodeObject.tag!);
+                    break;
+                case BbcodeObjectType.EndTag:
+                    stringStack.Pop();
+                    break;
+                case BbcodeObjectType.Text when stringStack.TryPeek(out var tag) && tag == "img":
+                {
+                    var texture = PreloadManager.Cache.GetTexture2D(bbcodeObject.text!);
+                    paragraph.AddObject(key, texture.GetSize());
+                    ++key;
+                    break;
+                }
+                case BbcodeObjectType.Text:
+                    paragraph.AddString( bbcodeObject.text, font, label.MaxFontSize);
+                    break;
+            }
+        }
+        paragraph.Width = size.X;
+        paragraph.BreakFlags = TextServer.LineBreakFlag.Mandatory | TextServer.LineBreakFlag.WordBound;
+        paragraph.JustificationFlags = TextServer.JustificationFlag.Kashida | TextServer.JustificationFlag.WordBound;
+        paragraph.TextOverrunBehavior = TextServer.OverrunBehavior.TrimChar;
+        paragraph.Alignment = HorizontalAlignment.Center;
+        paragraph.MaxLinesVisible = -1;
+        return paragraph.GetLineCount();
+    }
+}
