@@ -5,6 +5,7 @@ using BaseLib.Patches.Features;
 using BaseLib.Patches.Saves;
 using BaseLib.Patches.Utils;
 using BaseLib.Utils;
+using BaseLib.Utils.ModInterop.DynamicWrappers;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Helpers;
 using MegaCrit.Sts2.Core.Localization;
@@ -74,6 +75,7 @@ class PostModInitPatch
         foreach (var type in ReflectionHelper.ModTypes)
         {
             interop.ProcessType(harmony, type);
+            DynamicWrapper.ProcessType(type);
 
             if (type.IsAbstract || type.IsInterface) continue;
             

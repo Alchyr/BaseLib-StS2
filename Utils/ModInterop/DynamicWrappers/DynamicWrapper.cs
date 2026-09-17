@@ -1,0 +1,948 @@
+﻿using System.Diagnostics.CodeAnalysis;
+using System.Linq.Expressions;
+using System.Reflection;
+using System.Reflection.Emit;
+using HarmonyLib;
+using MegaCrit.Sts2.Core.Modding;
+
+namespace BaseLib.Utils.ModInterop.DynamicWrappers;
+
+/// <summary>
+/// Wraps objects for use by another mod using interfaces, and allowing two-way communication between them. The wrapped object must implement an identical/mirror interface to that of the other mod.
+/// </summary>
+/// <remarks>
+/// For this to work, you need to first declare all such interfaces you require by calling DeclareInterfaces() (or one of its's overloads).
+/// Then, call RegisterType()
+/// </remarks>
+public class DynamicWrapper
+{
+    private static Dictionary<string, List<Assembly>> LoadedModAssemblies
+    {
+        get
+        {
+            if (field == null)
+            {
+                // Maybe should wait until AssemblyInfo.Init() instead, to give time for multi-assembly mods to register all their assemblies.
+                if (ModManager.State != ModManagerState.Initialized)
+                    throw new InvalidOperationException($"{nameof(ModManager)} has not initialized yet (current state is '{ModManager.State}'). Please wait until all mods have been loaded.");
+
+                // Not using ModInterop or WhatMod's assembly list; they may not be initialized in time.
+                field = ModManager.GetLoadedMods().Where(mod => mod.manifest?.id != null).ToDictionary(mod => mod.manifest!.id!, mod => mod.assemblies);
+            }
+            return field;
+        }
+    }
+
+    private readonly record struct InteropKey(string TargetModId, Type SourceType) { public override readonly string ToString() => $"\"{TargetModId}\", {SourceType}"; }
+    private record class InteropData(string SourceModId, Type SourceInterface, Type TargetInterface, DynamicWrapperFactory Factory) { public override string ToString() => $"\"{SourceModId}\", {SourceInterface.Name}, {TargetInterface}"; }
+
+    private static readonly Dictionary<string, HashSet<Type>> DeclaredInterfaces = [];
+    private static readonly Dictionary<Type, string> ModIdsByType = [];
+#if DEBUG
+    private static readonly SortedDictionary<InteropKey, InteropData> InteropLookup = new(Comparer<InteropKey>.Create((x, y) => (x.TargetModId + x.SourceType.FullName).CompareTo(y.TargetModId + y.SourceType.FullName)));
+#else
+    private static readonly Dictionary<InteropKey, InteropData> InteropLookup = [];
+#endif
+
+    /// <summary>
+    /// A factory method to create an <see cref="IDynamicWrapper"/> for wrapping a supplied instance object.
+    /// </summary>
+    /// <param name="instance">The underlying instance object.</param>
+    /// <returns>A dynamically generated wrapper class for the supplied <paramref name="instance"/>.</returns>
+    private delegate IDynamicWrapper DynamicWrapperFactory(object instance);
+
+    /// <summary>
+    /// Defines the constructor signature for a DynamicWrapper.
+    /// </summary>
+    /// <param name="wrapperModId">The mod that the wrapper is for.</param>
+    /// <param name="instanceModId">The mod that the underlying instance object is from.</param>
+    /// <param name="instance">The underlying instance object.</param>
+    /// <param name="delegates">A collection of delegates that will be used to map the wrapper to the instance object.</param>
+    private delegate void DynamicWrapperConstructor(string wrapperModId, string instanceModId, object instance, IReadOnlyDictionary<string, Delegate> delegates);
+
+    private static InvalidOperationException SourceModNullException() => new InvalidOperationException($"{nameof(SourceModId)} not defined. Either set the {nameof(SourceModId)} property, or call the static overload and provide the name explicitly.");
+
+    /// <summary>
+    /// Fired whenever a type is registered.
+    /// </summary>
+    public static event TypeRegisteredEventHandler? TypeRegistered;
+
+    /// <summary>
+    /// The mod that will be receiving objects.
+    /// </summary>
+    public string TargetModId { get; }
+
+    /// <summary>
+    /// The mod that will be creating and sending objects.
+    /// </summary>
+    public string? SourceModId { get; }
+
+    /// <summary>
+    /// Creates a local instance with the specified <paramref name="targetModId"/>. All method calls pass through to the static methods, using the supplied modId. No additional functionality.
+    /// </summary>
+    /// <remarks>Since you are not specifiying a sourceModId, you can only make calls to Wrap() (anything else will result in an <see cref="InvalidOperationException"/>).</remarks>
+    /// <param name="targetModId">The mod that you are wrapping objects for. If you are using this overload, it is probably your own, and you might be expecting to receive external objects.</param>
+    public DynamicWrapper(string targetModId) : this(targetModId, null) { }
+
+    /// <summary>
+    /// Creates a local instance with the specified <paramref name="targetModId"/> and <paramref name="sourceModId"/>. All method calls pass through to the static methods, using the supplied modIds. No additional functionality.
+    /// </summary>
+    /// <param name="targetModId">The mod that you are wrapping objects for (usually the optional mod).</param>
+    /// <param name="sourceModId">The mod that will be supplying the objects. Usually your own mod. Supply <see langword="null"/> if you are just providing support for your mod to be used as the optional mod (in this case, <paramref name="targetModId"/> should be your mod).</param>
+    public DynamicWrapper(string targetModId, string? sourceModId)
+    {
+        TargetModId = targetModId;
+        SourceModId = sourceModId;
+    }
+
+    /// <inheritdoc cref="DeclareInterfaces(string, string, Type, string?)"/>
+    public void DeclareInterfaces(Type sourceInterface, string? targetInterfaceName = null)
+    {
+        if (SourceModId == null)
+            throw SourceModNullException();
+
+        DeclareInterfaces(TargetModId, SourceModId, sourceInterface, targetInterfaceName);
+    }
+
+    /// <inheritdoc cref="DeclareInterfaces(string, string, IEnumerable{Type})"/>
+    public void DeclareInterfaces(IEnumerable<Type> sourceInterfaces)
+    {
+        if (SourceModId == null)
+            throw SourceModNullException();
+
+        DeclareInterfaces(TargetModId, SourceModId, sourceInterfaces);
+    }
+
+    /// <summary>
+    /// Marks a set of interfaces as mirrors of ones belonging to <paramref name="targetModId"/> (aka the optional mod), for use by dynamic mod interop.
+    /// All such interfaces must be declared here before any sourceMods call RegisterType(), otherwise generated wrappers may be incomplete, or fail altogether.
+    /// </summary>
+    /// <param name="targetModId">The mod that defines these interfaces, that you intend to use for optional mod interop.</param>
+    /// <param name="sourceModId">The mod that is defining the mirror interfaces.</param>
+    /// <param name="sourceInterface">The mirror interface of one of the same name in <paramref name="targetModId"/>.</param>
+    /// <param name="targetInterfaceName">The namespace qualified name of <paramref name="sourceInterface"/> in targetMod's assembly. The type name must match exactly.
+    /// If <see langword="null"/>, uses the type name of <paramref name="sourceInterface"/> (this would only be a problem if target mod has two types of the same name).</param>
+    public static void DeclareInterfaces(string targetModId, string sourceModId, Type sourceInterface, string? targetInterfaceName = null)
+    {
+        DeclareInterfaceInternal(targetModId, null, sourceModId, sourceInterface, targetInterfaceName);
+    }
+
+    /// <inheritdoc cref="DeclareInterfaces(string, string, Type, string?)"/>
+    /// <param name="sourceInterfaces">The mirror interfaces of ones of the same name belonging to <paramref name="targetModId"/>.</param>
+    public static void DeclareInterfaces(string targetModId, string sourceModId, IEnumerable<Type> sourceInterfaces)
+    {
+        foreach (Type sourceInterface in sourceInterfaces)
+        {
+            DeclareInterfaceInternal(targetModId, null, sourceModId, sourceInterface);
+        }
+    }
+
+    /// <inheritdoc cref="DeclareInterfaces(string, string, Type, string?)"/>
+    /// <param name="targetInterface">The target interface to register. Duplicates will be discarded.</param>
+    private static void DeclareInterfaceInternal(string targetModId, Type? targetInterface, string? sourceModId, Type? sourceInterface, string? targetInterfaceName = null)
+    {
+        if (targetInterface == null && sourceInterface == null)
+        {
+            // At least one of either targetInterface or sourceInterface should not be null, according to nullability. But check anyway.
+            throw new ArgumentException($"Arguments '{nameof(targetInterface)}' and '{nameof(sourceInterface)}' are both null. At least one must be specified.");
+        }
+
+        if (!DeclaredInterfaces.TryGetValue(targetModId, out HashSet<Type>? types))
+        {
+            types = [];
+            DeclaredInterfaces[targetModId] = types;
+        }
+
+        if (targetInterface != null || TryGetTypeFromModId(targetModId, sourceInterface!.Name, targetInterfaceName, out targetInterface))
+        {
+            types.Add(targetInterface);
+            ModIdsByType[targetInterface] = targetModId;
+
+            if (sourceModId != null && sourceInterface != null)
+            {
+                DeclareMirrorInterface(sourceModId, sourceInterface);
+                BaseLibMain.Logger.Debug($"[DynamicWrappers] Declared mirror interfaces '{targetInterface.FullName}' and '{sourceInterface.FullName}' for dynamic interop");
+            }
+            else
+            {
+                BaseLibMain.Logger.Debug($"[DynamicWrappers] '{targetModId}' declared '{targetInterface.FullName}' for use by dynamic interop");
+            }
+        }
+        else
+        {
+            BaseLibMain.Logger.Error($"[DynamicWrappers] Interface '{sourceInterface.Name}' from '{targetModId}' could not be found");
+        }
+    }
+
+    private static bool TryGetTypeFromModId(string modId, string typeName, string? namespaceQualitfiedName, [NotNullWhen(true)] out Type? type)
+    {
+        if (LoadedModAssemblies.TryGetValue(modId, out var assemblies))
+        {
+            foreach (Assembly assembly in assemblies)
+            {
+                type = namespaceQualitfiedName != null
+                    ? assembly.GetType(namespaceQualitfiedName)
+                    : assembly.GetExportedTypes().FirstOrDefault(t => t.Name == typeName);
+                if (type != null)
+                    return true;
+            }
+        }
+        type = null;
+        return false;
+    }
+
+    internal static void ProcessType(Type sourceInterface)
+    {
+        InteropInterfaceAttribute? attr = sourceInterface.GetCustomAttribute<InteropInterfaceAttribute>();
+        if (attr == null || !LoadedModAssemblies.ContainsKey(attr.TargetModId))
+            return;
+
+        DeclareInterfaceInternal(attr.TargetModId, null, attr.SourceModId, sourceInterface, attr.TargetInterfaceName);
+    }
+
+    /// <summary>
+    /// Marks the set of mirror interfaces belonging to <paramref name="sourceModId"/> (generally your own mod), that will allow generated reverse-wrappers to automatically wrap incoming and outgoing objects.
+    /// </summary>
+    /// <remarks>May not be required, but depends on use case. You can specify them here just to be safe.</remarks>
+    /// <param name="sourceModId">The mod that defines this interface, that may be receiving data back from an optional mod.</param>
+    /// <param name="sourceInterface">The interface to register. Duplicates will be discarded.</param>
+    private static void DeclareMirrorInterface(string sourceModId, Type sourceInterface)
+    {
+        if (DeclaredInterfaces.TryGetValue(sourceModId, out HashSet<Type>? types))
+        {
+            types.Add(sourceInterface);
+        }
+        else
+        {
+            DeclaredInterfaces[sourceModId] = [sourceInterface];
+        }
+        ModIdsByType[sourceInterface] = sourceModId;
+    }
+
+
+
+    /// <inheritdoc cref="RegisterType(string, string, Type, Type, string?)"/>
+    public void RegisterType(Type sourceInterface, string? interfaceName = null)
+    {
+        if (SourceModId == null)
+            throw SourceModNullException();
+
+        RegisterTypeInternal(TargetModId, SourceModId, null, sourceInterface, interfaceName);
+    }
+
+    /// <inheritdoc cref="RegisterType(string, string, Type, Type, string?)"/>
+    public void RegisterType(Type sourceType, Type sourceInterface, string? interfaceName = null)
+    {
+        if (SourceModId == null)
+            throw SourceModNullException();
+
+        RegisterTypeInternal(TargetModId, SourceModId, sourceType, sourceInterface, interfaceName);
+    }
+
+    /// <inheritdoc cref="RegisterType(string, string, Type, Type, string?)"/>
+    public static void RegisterType(string targetModId, string sourceModId, Type sourceInterface, string? interfaceName = null)
+    {
+        RegisterTypeInternal(targetModId, sourceModId, null, sourceInterface, interfaceName);
+    }
+
+    /// <summary>
+    /// Registers a type and/or interface as being a mirror for another mod's interface, and to generate dynamic wrappers that allow each others' interfaces to communicate.
+    /// <para/>
+    /// What exactly you need to register depends on the target mod's implementation. At minimum, you need to register your mirror interfaces that you are using.
+    /// You may also need to register some concrete classes. For example a mod that iterates over the game hooks will receive models directly from the game, in this case you would need to
+    /// register the model's type itself, so the correct wrapper can be found in the lookup table. Consider using the <see cref="IWrappable"/> interface to provide a hint as to which
+    /// targetMod and interface the object is for. Check the logs for any error messages, they will indicate which types require registration.
+    /// </summary>
+    /// <remarks>
+    /// Note that dynamic wrappers dont work with debugger step-through, since they have no source code.
+    /// </remarks>
+    /// <param name="targetModId">The target mod (usually the optional mod).</param>
+    /// <param name="sourceModId">Your own mod, usually.</param>
+    /// <param name="sourceType">The type that you are registering, that implements <paramref name="sourceInterface"/>. Will implicity register <paramref name="sourceInterface"/> if not already done.</param>
+    /// <param name="sourceInterface">The interface that is a mirror for one in <paramref name="targetModId"/>.
+    /// Must have same name and implementation as targetMod's (except for any other interfaces from <paramref name="targetModId"/> - they need to be mirrored and registered as well).</param>
+    /// <param name="interfaceName">If not <see langword="null"/>, will use this name instead of your interface's name when searching for target interface.</param>
+    /// <exception cref="NotSupportedException"><paramref name="sourceInterface"/> must be an interface.</exception>
+    /// <exception cref="ArgumentException">Either:
+    /// <list type="bullet">
+    /// <item><paramref name="sourceType"/> or <paramref name="sourceInterface"/> does not implement all members of the target interface <paramref name="interfaceName"/>.</item>
+    /// <item>The interface '<paramref name="interfaceName"/>' has not been registered.</item>
+    /// </list>
+    /// </exception>
+    public static void RegisterType(string targetModId, string sourceModId, Type sourceType, Type sourceInterface, string? interfaceName = null)
+    {
+        RegisterTypeInternal(targetModId, sourceModId, sourceType, sourceInterface, interfaceName);
+    }
+
+    /// <inheritdoc cref="RegisterType(string, string, Type, Type, string?)"/>
+    private static InteropData RegisterTypeInternal(string targetModId, string sourceModId, Type? sourceType, Type sourceInterface, string? interfaceName, bool isAutoRegistration = false)
+    {
+        if (!sourceInterface.IsInterface)
+        {
+            throw new ArgumentException($"The provided argument '{nameof(sourceInterface)}' of type '{sourceInterface.GetType()}' is not an interface. DynamicWrapper requires an interface.", nameof(sourceInterface));
+        }
+
+        sourceType ??= sourceInterface;
+
+        if (InteropLookup.TryGetValue(new(targetModId, sourceInterface), out InteropData? interopData))
+        {
+            InteropKey key;
+            if (sourceType != sourceInterface && !InteropLookup.ContainsKey(key = new(targetModId, sourceType)))
+            {
+                // Already generated for this interface, we can reuse the data for this concrete type
+                // Nothing to add to reverse lookups; they only require the interface, not concrete types, and it too will have already been generated
+                InteropLookup[key] = interopData;
+                TypeRegistered?.Invoke(new TypeRegisteredEventArgs(targetModId, sourceModId, sourceType, sourceInterface, interopData.TargetInterface));
+            }
+            else
+            {
+                BaseLibMain.Logger.Warn($"[DynamicWrappers] The type '{sourceType.FullName}' is already registered with {targetModId}");
+            }
+            return interopData;
+        }
+        else if (sourceType != sourceInterface)
+        {
+            // Register the interface first, then the concrete type can copy that data
+            interopData = RegisterTypeInternal(targetModId, sourceModId, null, sourceInterface, interfaceName, isAutoRegistration);
+            InteropLookup[new(targetModId, sourceType)] = interopData;
+            TypeRegistered?.Invoke(new TypeRegisteredEventArgs(targetModId, sourceModId, sourceType, sourceInterface, interopData.TargetInterface));
+            return interopData;
+        }
+
+        Type? targetInterface = null;
+        interfaceName ??= sourceInterface.Name;
+        if (DeclaredInterfaces.TryGetValue(targetModId, out HashSet<Type>? declaredTypes))
+        {
+            foreach (Type type in declaredTypes)
+            {
+                if (interfaceName == type.Name)
+                {
+                    targetInterface = type;
+                    break;
+                }
+            }
+        }
+
+        // Generate the delegates that will map wrappers to their object instance
+        // Could do this without delegates (they are from the original implementation), but I dont think it is worth rewriting
+        if (targetInterface != null)
+        {
+            Dictionary<string, Delegate> delegates = [];
+            Dictionary<string, Delegate> reverseDelegates = [];
+
+            foreach (MethodInfo targetMethod in targetInterface.GetMethods())
+            {
+                Type[] targetParamTypes = [.. targetMethod.GetParameters().Select(pInfo => pInfo.ParameterType)];
+                Type[] sourceParamTypes = null!;
+                MethodInfo? sourceMethod = sourceType.GetMethods().FirstOrDefault(method =>
+                {
+                    // Check for matching return and param types, unless the type is a declared interface (these will get wrapped in the emitted IL)
+                    sourceParamTypes = [.. method.GetParameters().Select(pInfo => pInfo.ParameterType)];
+                    if (method.Name == targetMethod.Name && sourceParamTypes.Length == targetParamTypes.Length && MatchTypes(method.ReturnType, targetMethod.ReturnType, declaredTypes!))
+                    {
+                        for (int i = 0; i < sourceParamTypes.Length; i++)
+                        {
+                            if (!MatchTypes(sourceParamTypes[i], targetParamTypes[i], declaredTypes!))
+                            {
+                                return false;
+                            }
+                        }
+                        return true;
+                    }
+                    return false;
+
+                    static bool MatchTypes(Type checkType, Type targetType, HashSet<Type> declaredTypes)
+                    {
+                        // Note that it is not checking if declared types are actually mirrors of each other. If not mirrored, it will cause problems further down the track
+                        // TODO: actually perform this check properly
+                        return checkType == targetType || checkType.IsEnum && targetType.IsEnum || declaredTypes.Contains(targetType);
+                    }
+                });
+                if (sourceMethod != null)
+                {
+                    Type delegateType = Expression.GetDelegateType([sourceType, .. sourceParamTypes, sourceMethod.ReturnType]); // Func<TParam1, ..., TReturn> -or- Func<TInstance, TParam1, ..., TReturn> if using an open (static) delegate (pass null for the target to Delegate.CreateDelegate(). Is an Action<> for void methods.
+                    Delegate del = Delegate.CreateDelegate(delegateType, null, sourceMethod); // can load directly into fields of type Func<,>
+                    delegates.Add(sourceMethod.Name, del);
+
+                    Type reverseDelegateType = Expression.GetDelegateType([targetInterface, .. targetParamTypes, targetMethod.ReturnType]);
+                    del = Delegate.CreateDelegate(reverseDelegateType, null, targetMethod);
+                    reverseDelegates.Add(targetMethod.Name, del);
+                }
+                else
+                {
+                    throw new ArgumentException($"The provided type '{sourceType}' does not implement the required interface members (missing '{targetInterface.FullName}.{targetMethod.Name}').");
+                }
+            }
+
+            var _delegates = delegates.AsReadOnly();
+            var _reverseDelegates = reverseDelegates.AsReadOnly();
+
+            // While its possible to define compile-time wrappers using dynamic objects, you can only do this for your own side, and I think it only makes sense if both parties do this.
+            // Adds a bunch of complexity, and doesnt gain a whole lot (functionally identically, and you'll suffer the DLR kicking in on first use), so not giving the option.
+            DynamicWrapperFactory factory = CreateWrapperFactory(targetInterface, sourceInterface, _delegates, targetModId, sourceModId);
+            DynamicWrapperFactory reverseFactory = CreateWrapperFactory(sourceInterface, targetInterface, _reverseDelegates, sourceModId, targetModId);
+
+            InteropData data = new(sourceModId, sourceInterface, targetInterface, factory);
+            InteropData reverseData = new(targetModId, targetInterface, sourceInterface, reverseFactory);
+
+            InteropLookup[new(targetModId, sourceType)] = data;
+            InteropLookup[new(sourceModId, targetInterface)] = reverseData;
+
+            BaseLibMain.Logger.Info($"[DynamicWrappers] Built DynamicWrappers for interop between '{sourceModId}' and '{targetModId}' with interface '{targetInterface.Name}'{(isAutoRegistration ? " (auto-registration)" : "")}");
+
+            TypeRegistered?.Invoke(new TypeRegisteredEventArgs(targetModId, sourceModId, sourceType, sourceInterface, targetInterface));
+
+            if (!isAutoRegistration) // Dont recurse on auto rego
+            {
+                // Register with all other mods that have already registered with the same targetInterface. These mods may come into contact with each other via targetMod.
+                // This does not register concrete types (will be fine so long as two such mods don try to communicate directlyt somehow)
+                // Note: If a lot of mods are registering against the same target interface, this can lead to a lot of combinations, though I dont imagine it will be an issue for sts2 modding.
+                string[] otherModIds = [.. InteropLookup.Keys.Where(key => key.SourceType == targetInterface && key.TargetModId != sourceModId).Select(key => key.TargetModId)];
+                if (otherModIds.Length > 0)
+                {
+                    BaseLibMain.Logger.Debug($"[DynamicWrappers] Auto-registering interop between '{sourceModId}' and {otherModIds.Length} other mod(s) registered with '{targetInterface.FullName}'");
+                    foreach (string modId in otherModIds)
+                    {
+                        RegisterTypeInternal(modId, sourceModId, null, sourceInterface, null, isAutoRegistration: true);
+                    }
+                }
+            }
+
+            return data;
+        }
+        else
+        {
+            throw new ArgumentException($"The provided type '{interfaceName}' was not found in {nameof(DeclaredInterfaces)}. Either wait for the target mod to add it, or add it yourself by calling {nameof(DeclareInterfaces)}.");
+        }
+    }
+
+
+
+    /// <inheritdoc cref="Wrap{T}(string, object?, Type?)"/>
+    [return: NotNullIfNotNull(nameof(objectToWrap))]
+    public object? Wrap(object? objectToWrap, Type? sourceInterface = null)
+    {
+        return WrapInternal(TargetModId, objectToWrap, null, sourceInterface);
+    }
+
+    /// <inheritdoc cref="Wrap{T}(string, object?, Type?)"/>
+    [return: NotNullIfNotNull(nameof(objectToWrap))]
+    public T? Wrap<T>(object? objectToWrap, Type? sourceInterface = null) where T : class
+    {
+        return (T?)WrapInternal(TargetModId, objectToWrap, typeof(T), sourceInterface);
+    }
+
+    /// <inheritdoc cref="Wrap{T}(string, object?, Type?)"/>
+    [return: NotNullIfNotNull(nameof(objectToWrap))]
+    public static object? Wrap(string targetModId, object? objectToWrap, Type? sourceInterface = null)
+    {
+        // WARNING: If you change this method signature, need to update the MethodInfo fields (look for the matching WARNING comment) and associated IL in CreateWrapperFactory
+        return WrapInternal(targetModId, objectToWrap, null, sourceInterface);
+    }
+
+    /// <summary>
+    /// Wraps <paramref name="objectToWrap"/> for <paramref name="targetModId"/> consumption.
+    /// </summary>
+    /// <typeparam name="T">The interface to wrap <paramref name="objectToWrap"/> with. This interface must be native to <paramref name="targetModId"/>.</typeparam>
+    /// <param name="targetModId">The modId that is the intended recipient of <paramref name="objectToWrap"/>.</param>
+    /// <param name="objectToWrap">The object to wrap.</param>
+    /// <param name="sourceInterface">The mirror interface that the object implements, if known. Used for lookup. Otherwise a value of <see langword="null"/> will use concrete type of the object.</param>
+    /// <returns>Either an <see cref="IDynamicWrapper"/> implenting an interface that <paramref name="targetModId"/> can consume, or the object instance itself if it is native to <paramref name="targetModId"/>.
+    /// Returns <see langword="null"/> if <paramref name="objectToWrap"/> is <see langword="null"/>.</returns>
+    /// <exception cref="InvalidOperationException">The interface <typeparamref name="T"/> has not been registered by <paramref name="targetModId"/>.</exception>
+    [return: NotNullIfNotNull(nameof(objectToWrap))]
+    public static T? Wrap<T>(string? targetModId, object? objectToWrap, Type? sourceInterface = null)
+    {
+        // WARNING: If you change this method signature, need to update the MethodInfo fields (look for the matching WARNING comment) and associated IL in CreateWrapperFactory
+        return (T?)WrapInternal(targetModId, objectToWrap, typeof(T), sourceInterface);
+    }
+
+    /// <inheritdoc cref="Wrap{T}(string, object?, Type?)"/>
+    /// <param name="targetInterface">The interface to wrap <paramref name="objectToWrap"/> with. This interface must be native to <paramref name="targetModId"/>. If <see langword="null"/>, it will be auto-detected.</param>
+    /// <param name="returnNullIfNotWrapped">If <see langword="true"/>, returns <see langword="null"/> when the object is not able to be wrapped. Otherwise, throws an <see cref="InvalidOperationException"/>.</param>
+    [return: NotNullIfNotNull(nameof(objectToWrap))]
+    private static object? WrapInternal(string? targetModId, object? objectToWrap, Type? targetInterface, Type? sourceInterface, bool returnNullIfNotWrapped = false)
+    {
+        if (objectToWrap == null)
+            return null;
+
+        if (targetModId == null && targetInterface == null)
+            throw new InvalidOperationException($"No {nameof(targetModId)} or {nameof(targetInterface)} supplied. At least one of these is required in order to produce a result.");
+
+        Type objType = objectToWrap.GetType();
+
+        if (targetInterface != null && objType.IsAssignableTo(targetInterface))
+        {
+            return objectToWrap; // No wrapper required
+        }
+        else if (objectToWrap is IDynamicWrapper wrapper)
+        {
+            if (sourceInterface != null && sourceInterface != wrapper.WrapperInterface)
+            {
+                BaseLibMain.Logger.Warn($"[DynamicWrappers] Mismatch between expected and actual interface type while wrapping '{wrapper.GetType()}': expected {nameof(sourceInterface)}='{sourceInterface.FullName}', actual {nameof(wrapper.WrapperInterface)}='{wrapper.WrapperInterface.FullName}'");
+            }
+
+            if (wrapper.WrapperModId == targetModId)
+            {
+                return wrapper;
+            }
+            else if (wrapper.InstanceModId == targetModId)
+            {
+                return wrapper.Instance;
+            }
+
+            // An alternative to auto-registration is to just wrap the wrapper (instead of stripping it). Simpler, but not as comprehensive.
+            // By my reasoning, this will always succeed from this point, I just dont like the idea of nested wrappers (it could get messy).
+
+            objectToWrap = wrapper.Instance; // Strip the current wrapper
+            objType = objectToWrap.GetType();
+
+            if (targetInterface != null && objType.IsAssignableTo(targetInterface))
+            {
+                return objectToWrap;
+            }
+
+            sourceInterface = wrapper.InstanceInterface;
+        }
+
+        if (TryFindWrapper(targetModId, objectToWrap, objType, targetInterface, sourceInterface, out InteropData? data))
+        {
+            if (objType.IsAssignableTo(data.TargetInterface))
+            {
+                return objectToWrap;
+            }
+            return data.Factory(objectToWrap); // Apply wrapper
+        }
+
+        static bool TryFindWrapper(string? targetModId, object? objectToWrap, Type objType, Type? targetInterface, Type? sourceInterface, [NotNullWhen(true)] out InteropData? data)
+        {
+            if (targetModId == null)
+            {
+                if (targetInterface == null) // Already known to be not-null here, but helps nullability tracking
+                    throw new InvalidOperationException();
+
+                if (objectToWrap is IWrappable wrappable && InteropLookup.TryGetValue(new(wrappable.TargetModId, wrappable.SourceInterface), out data) && data.TargetInterface == targetInterface)
+                    return true;
+                else if (ModIdsByType.TryGetValue(targetInterface, out targetModId) && InteropLookup.TryGetValue(new(targetModId, objType), out data))
+                    return true;
+
+                data = null;
+                return false;
+            }
+            else
+            {
+                bool found = false;
+                if (sourceInterface != null && InteropLookup.TryGetValue(new(targetModId, sourceInterface), out data))
+                    found = true;
+                else if (objectToWrap is IWrappable wrappable && wrappable.TargetModId == targetModId && InteropLookup.TryGetValue(new(targetModId, wrappable.SourceInterface), out data))
+                    found = true;
+                else if (InteropLookup.TryGetValue(new(targetModId, objType), out data))
+                    found = true;
+
+                return found && (targetInterface == null || targetInterface == data!.TargetInterface);
+            }
+        }
+
+        if (returnNullIfNotWrapped)
+            return null!; // internal use only
+
+        if (targetModId == null)
+            throw new InvalidOperationException($"No {nameof(targetModId)} supplied, and the type '{objectToWrap.GetType()}' has not been registered with any mods for interface {targetInterface!.FullName}.");
+
+        throw new InvalidOperationException($"The type '{objectToWrap.GetType()}' has not been registered with {targetModId}{(targetInterface == null ? "" : $" and target interface '{targetInterface}'")}. You must call {nameof(DynamicWrapper)}.{nameof(RegisterType)}() first.");
+    }
+
+
+    /// <inheritdoc cref="TryWrap(string, object?, Type?, out object?)"/>
+    public bool TryWrap(object? objectToWrap, Type? sourceInterface, [NotNullWhen(true)] out object? value)
+    {
+        return TryWrap(TargetModId, objectToWrap, sourceInterface, out value);
+    }
+
+    /// <inheritdoc cref="TryWrap{T}(string, object?, out T)"/>
+    public bool TryWrap<T>(object? objectToWrap, [NotNullWhen(true)] out T? value)
+    {
+        return TryWrap(TargetModId, objectToWrap, out value);
+    }
+
+    /// <summary>
+    /// Attempts to wrap an object for <paramref name="targetModId"/>.
+    /// </summary>
+    /// <param name="targetModId">The modId that is the intended recipient of <paramref name="objectToWrap"/>.</param>
+    /// <param name="objectToWrap">The object to wrap.</param>
+    /// <param name="sourceInterface">The mirror interface that the object implements, if known. Used for lookup. Otherwise a value of <see langword="null"/> will use concrete type of the object.</param>
+    /// <param name="wrapper">If the method returned <see langword="true"/>, then this is either an <see cref="IDynamicWrapper"/> implenting an interface that <paramref name="targetModId"/> can consume, or the object instance itself if it is native to <paramref name="targetModId"/>.</param>
+    /// <returns><see langword="true"/> if the object was successfully wrapped (or wrapping wasn't required), otherwise <see langword="false"/>. Returns <see langword="false"/> if <paramref name="objectToWrap"/> is <see langword="null"/>.</returns>
+    public static bool TryWrap(string targetModId, object? objectToWrap, Type? sourceInterface, [NotNullWhen(true)] out object? wrapper)
+    {
+        wrapper = WrapInternal(targetModId, objectToWrap, null, sourceInterface, returnNullIfNotWrapped: true);
+        return wrapper != null;
+    }
+
+    /// <typeparam name="T">The interface to wrap <paramref name="objectToWrap"/> with. This interface must be native to <paramref name="targetModId"/>.</typeparam>
+    /// <param name="targetModId">The modId that is the intended recipient of <paramref name="objectToWrap"/>. If not known, supply <see langword="null"/>, and it will seek the target mod using type <typeparamref name="T"/>.</param>
+    /// <inheritdoc cref="TryWrap(string, object?, Type?, out object?)"/>
+    public static bool TryWrap<T>(string? targetModId, object? objectToWrap, [NotNullWhen(true)] out T? wrapper)
+    {
+        wrapper = (T?)WrapInternal(targetModId, objectToWrap, typeof(T), null, returnNullIfNotWrapped: true);
+        return wrapper != null;
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    // Here is the meat
+
+    internal static void RegisterDynamicAssembly()
+    {
+        // Unsure about this...if any caller wants to know, I think "BaseLib" is the wrong answer...
+        ModManager.AssociateAssemblyWithMod(BaseLibMain.ModId, _assemblyBuilder);
+    }
+
+    private static readonly AssemblyBuilder _assemblyBuilder = AssemblyBuilder.DefineDynamicAssembly(new AssemblyName("DynamicWrappers"), AssemblyBuilderAccess.Run);
+    private static readonly ModuleBuilder _moduleBuilder = _assemblyBuilder.DefineDynamicModule("DynamicWrappers");
+
+#if DEBUG
+    private static readonly PersistedAssemblyBuilder _persistedAssemblyBuilder = new PersistedAssemblyBuilder(new AssemblyName("DynamicWrappers"), typeof(object).Assembly);
+    private static readonly ModuleBuilder _persistedModuleBuilder = _persistedAssemblyBuilder.DefineDynamicModule("DynamicWrappers");
+#endif
+
+    // WARNING: If you change the signature of either Wrap<T>(string, object?, Type?) or Wrap(string, object?, Type?), make sure the below two fields can still find them
+    // Also make sure to adjust the IL in CreateWrapperFactory() accordingly
+    private static readonly MethodInfo wrapNonGeneric = ((Func<string, object?, Type?, object?>)Wrap).Method;
+    private static readonly MethodInfo wrapOpenGeneric = ((Func<string, object?, Type?, object?>)Wrap<object>).Method.GetGenericMethodDefinition();
+    private static readonly MethodInfo getTypeFromHandle = ((Func<RuntimeTypeHandle, Type?>)Type.GetTypeFromHandle).Method;
+
+
+    /// <inheritdoc cref="CreateWrapperFactory(ModuleBuilder, Type, Type, IReadOnlyDictionary{string, Delegate}, string, string)"/>
+    private static DynamicWrapperFactory CreateWrapperFactory(Type wrapperInterfaceType, Type instanceInterfaceType, IReadOnlyDictionary<string, Delegate> delegates, string targetModId, string originModId)
+    {
+        return CreateWrapperFactory(_moduleBuilder, wrapperInterfaceType, instanceInterfaceType, delegates, targetModId, originModId);
+    }
+
+    /// <summary>
+    /// Generates a dynamic type to be used as a wrapper between <paramref name="wrapperModId"/> and <paramref name="instanceModId"/>.
+    /// </summary>
+    /// <remarks>
+    /// Wrappers come in pairs - the default or main one is the more visible one, that will wrap the sourceMod's objects for targetMod's consumption.
+    /// The reverse wrappers wrap targetMod's objects for sourceMod consumption, and will primarily be used internally by the main wrapper (as mentioned).
+    /// Both types will also handle any internal wrapping of objects passed in as arguments, and return values on the way back.
+    /// This may produce some redundant wrapping attempts, but those should silently pass through the current wrapper as is (or it's underlying object instance).
+    /// </remarks>
+    /// <param name="moduleBuilder">Which module to use. For runtime types, the module from the standard <see cref="AssemblyBuilder"/> is required.
+    /// Only use the module from <see cref="PersistedAssemblyBuilder"/> for debugging, which allows saving to disk for inspection in dnSpy (and has no runtime presence).</param>
+    /// <param name="wrapperInterfaceType">The interface that this wrapper will implement.</param>
+    /// <param name="instanceInterfaceType">The mirror interface that the underlying object implements.</param>
+    /// <param name="delegates">The dictionary of delegates that map the wrapper's members to those of the underlying object.</param>
+    /// <param name="wrapperModId">The modId that this wrapper is being used for (ie. the optional mod), regardless of the direction being wrapped.</param>
+    /// <param name="instanceModId">The modId that the instance object belongs to. Only used to create a unique namespace in the assembly.</param>
+    /// <returns>A <see cref="DynamicWrapperFactory"/> delegate that can be invoked to instantiate new instances of the generated dynamic type.</returns>
+    private static DynamicWrapperFactory CreateWrapperFactory(ModuleBuilder moduleBuilder, Type wrapperInterfaceType, Type instanceInterfaceType, IReadOnlyDictionary<string, Delegate> delegates, string wrapperModId, string instanceModId)
+    {
+        string typeName = $"{wrapperModId}.{instanceModId}.{wrapperInterfaceType.Name[1..]}Wrapper"; // Remove the leading 'I' from the interface name. Will be awkward if it doesnt start with I
+        TypeBuilder typeBuilder = moduleBuilder.DefineType(typeName, TypeAttributes.Public | TypeAttributes.Class, typeof(object), [wrapperInterfaceType, typeof(IDynamicWrapper)]);
+
+        MethodAttributes getterSetterAttributes = MethodAttributes.Public | MethodAttributes.Virtual | MethodAttributes.NewSlot | MethodAttributes.SpecialName | MethodAttributes.HideBySig;
+
+        // IDynamicWrapper properties
+        FieldBuilder wrapperModIdField = typeBuilder.DefineField(nameof(IDynamicWrapper.WrapperModId).AsBackingFieldCamelCase, typeof(string), FieldAttributes.Private | FieldAttributes.InitOnly);
+        FieldBuilder instanceModIdField = typeBuilder.DefineField(nameof(IDynamicWrapper.InstanceModId).AsBackingFieldCamelCase, typeof(string), FieldAttributes.Private | FieldAttributes.InitOnly);
+        FieldBuilder instanceField = typeBuilder.DefineField(nameof(IDynamicWrapper.Instance).AsBackingFieldCamelCase, instanceInterfaceType, FieldAttributes.Private | FieldAttributes.InitOnly);
+
+        DefineIDynamicWrapperProperty(typeBuilder, typeof(IDynamicWrapper).GetProperty(nameof(IDynamicWrapper.WrapperModId))!, wrapperModIdField, getterSetterAttributes, null, null);
+        DefineIDynamicWrapperProperty(typeBuilder, typeof(IDynamicWrapper).GetProperty(nameof(IDynamicWrapper.InstanceModId))!, instanceModIdField, getterSetterAttributes, null, null);
+        DefineIDynamicWrapperProperty(typeBuilder, typeof(IDynamicWrapper).GetProperty(nameof(IDynamicWrapper.Instance))!, instanceField, getterSetterAttributes, castGetTo: typeof(object), castSetTo: instanceInterfaceType);
+        DefineIDynamicWrapperProperty_InterfaceType(typeBuilder, typeof(IDynamicWrapper).GetProperty(nameof(IDynamicWrapper.WrapperInterface))!, wrapperInterfaceType, getterSetterAttributes); // readonly, no backing field
+        DefineIDynamicWrapperProperty_InterfaceType(typeBuilder, typeof(IDynamicWrapper).GetProperty(nameof(IDynamicWrapper.InstanceInterface))!, instanceInterfaceType, getterSetterAttributes);
+
+        static void DefineIDynamicWrapperProperty(TypeBuilder typeBuilder, PropertyInfo propInfo, FieldBuilder backingField, MethodAttributes attr, Type? castGetTo, Type? castSetTo)
+        {
+            PropertyBuilder propBuilder = typeBuilder.DefineProperty(propInfo.Name, PropertyAttributes.None, propInfo.PropertyType, Type.EmptyTypes);
+            if (propInfo.GetMethod != null)
+            {
+                MethodBuilder propGetter = typeBuilder.DefineMethod(propInfo.GetMethod.Name, attr, CallingConventions.HasThis, propBuilder.PropertyType, Type.EmptyTypes);
+                propBuilder.SetGetMethod(propGetter);
+
+                ILGenerator il = propGetter.GetILGenerator();
+                il.Emit(OpCodes.Ldarg_0);
+                il.Emit(OpCodes.Ldfld, backingField);
+                if (castGetTo != null)
+                    il.Emit(OpCodes.Castclass, castGetTo);
+                il.Emit(OpCodes.Ret);
+            }
+            if (propInfo.SetMethod != null)
+            {
+                MethodBuilder propSetter = typeBuilder.DefineMethod(propInfo.SetMethod.Name, attr, CallingConventions.HasThis, typeof(void), [propBuilder.PropertyType]);
+                propBuilder.SetSetMethod(propSetter);
+                propSetter.DefineParameter(1, ParameterAttributes.None, "value");
+
+                ILGenerator il = propSetter.GetILGenerator();
+                il.Emit(OpCodes.Ldarg_0);
+                il.Emit(OpCodes.Ldarg_1);
+                if (castSetTo != null)
+                    il.Emit(OpCodes.Castclass, castSetTo);
+                il.Emit(OpCodes.Stfld, backingField);
+                il.Emit(OpCodes.Ret);
+            }
+        }
+
+        static void DefineIDynamicWrapperProperty_InterfaceType(TypeBuilder typeBuilder, PropertyInfo propInfo, Type interfaceType, MethodAttributes attr)
+        {
+            PropertyBuilder propBuilder = typeBuilder.DefineProperty(propInfo.Name, PropertyAttributes.None, propInfo.PropertyType, Type.EmptyTypes);
+            if (propInfo.GetMethod != null)
+            {
+                MethodBuilder propGetter = typeBuilder.DefineMethod(propInfo.GetMethod.Name, attr, CallingConventions.HasThis, propBuilder.PropertyType, Type.EmptyTypes);
+                propBuilder.SetGetMethod(propGetter);
+
+                ILGenerator il = propGetter.GetILGenerator();
+                il.Emit(OpCodes.Ldtoken, interfaceType);
+                il.Emit(OpCodes.Call, getTypeFromHandle);
+                il.Emit(OpCodes.Ret);
+            }
+        }
+
+        static bool RequireWrapping(Type type, string wrapperModId)
+        {
+            // Cant use the lookups because they may not be filled out yet (ie if this is the first type registered, the lookups will be empty)
+            return DeclaredInterfaces.TryGetValue(wrapperModId, out var targetTypes) && targetTypes.Contains(type);
+        }
+
+        // Dont actually need to use the delegates here, since we already know the types of the wrapper and the underlying object, could just perform a direct pass through instead.
+        // But they are more flexible (if the implementation should change), and using them doesnt hurt.
+        // They are required though for writing compile-time wrappers, and since we have them, might as well use them. I also dont want to re-write the code.
+        Dictionary<string, FieldInfo> delegateFields = [];
+
+        // Get all properties and methods from the wrapperInterfaceType (methods exclude property getter and setters)
+        IEnumerable<PropertyInfo> interfaceProps = wrapperInterfaceType.GetProperties();
+        IEnumerable<MethodInfo> interfaceMethods = wrapperInterfaceType.GetMethods().Except(interfaceProps.SelectMany(prop => ((IEnumerable<MethodInfo>)[prop.GetMethod!, prop.SetMethod!]).Where(mInfo => mInfo != null)));
+
+        foreach (PropertyInfo propInfo in interfaceProps)
+        {
+            PropertyBuilder propBuilder = typeBuilder.DefineProperty(propInfo.Name, PropertyAttributes.None, propInfo.PropertyType, Type.EmptyTypes);
+
+            if (propInfo.GetMethod != null)
+            {
+                MethodBuilder propGetter = typeBuilder.DefineMethod(propInfo.GetMethod.Name, getterSetterAttributes, CallingConventions.HasThis, propInfo.PropertyType, Type.EmptyTypes);
+                propBuilder.SetGetMethod(propGetter);
+
+                string propName = propGetter.Name;
+                Delegate del = delegates[propName];
+                FieldBuilder delField = typeBuilder.DefineField(propName.AsBackingField, del.GetType(), FieldAttributes.Private | FieldAttributes.InitOnly);
+                MethodInfo invoke = del.GetType().GetMethod("Invoke")!;
+                delegateFields.Add(propName, delField);
+
+                bool wrapReturn = RequireWrapping(propInfo.PropertyType, wrapperModId);
+                MethodInfo? wrap = null;
+
+                ILGenerator il = propGetter.GetILGenerator();
+                if (wrapReturn)
+                {
+                    wrap = wrapOpenGeneric.MakeGenericMethod(propInfo.PropertyType); // T
+                    il.Emit(OpCodes.Ldarg_0);
+                    il.Emit(OpCodes.Ldfld, wrapperModIdField); // targetModId
+                }
+                il.Emit(OpCodes.Ldarg_0);
+                il.Emit(OpCodes.Ldfld, delField);
+                il.Emit(OpCodes.Ldarg_0);
+                il.Emit(OpCodes.Ldfld, instanceField);
+
+                il.Emit(OpCodes.Callvirt, invoke);
+                if (wrapReturn)
+                {
+                    il.Emit(OpCodes.Castclass, typeof(object)); // objectToWrap
+                    il.Emit(OpCodes.Ldnull); // sourceInterface
+                    il.Emit(OpCodes.Call, wrap!); // public static T? Wrap<T>(string targetModId, object? objectToWrap, Type? sourceInterface = null)
+                }
+                il.Emit(OpCodes.Ret);
+            }
+            if (propInfo.SetMethod != null)
+            {
+                MethodBuilder propSetter = typeBuilder.DefineMethod(propInfo.SetMethod.Name, getterSetterAttributes, CallingConventions.HasThis, typeof(void), [propInfo.PropertyType]);
+                propBuilder.SetSetMethod(propSetter);
+                propSetter.DefineParameter(1, ParameterAttributes.None, "value");
+
+                string propName = propSetter.Name;
+                Delegate del = delegates[propName];
+                FieldBuilder delField = typeBuilder.DefineField(propName.AsBackingField, del.GetType(), FieldAttributes.Private | FieldAttributes.InitOnly);
+                MethodInfo invoke = del.GetType().GetMethod("Invoke")!;
+                delegateFields.Add(propName, delField);
+
+                ILGenerator il = propSetter.GetILGenerator();
+                il.Emit(OpCodes.Ldarg_0);
+                il.Emit(OpCodes.Ldfld, delField);
+                il.Emit(OpCodes.Ldarg_0);
+                il.Emit(OpCodes.Ldfld, instanceField);
+
+                if (RequireWrapping(propInfo.PropertyType, wrapperModId))
+                {
+                    il.Emit(OpCodes.Ldarg_0);
+                    il.Emit(OpCodes.Ldfld, instanceModIdField); // targetModId
+                    il.Emit(OpCodes.Ldarg_1); // objectToWrap
+                    il.Emit(OpCodes.Ldtoken, propInfo.PropertyType);
+                    il.Emit(OpCodes.Call, getTypeFromHandle); // sourceInterface
+                    il.Emit(OpCodes.Call, wrapNonGeneric); // public static object? Wrap(string targetModId, object? objectToWrap, Type? sourceInterface = null)
+                }
+                else
+                {
+                    il.Emit(OpCodes.Ldarg_1);
+                }
+
+                il.Emit(OpCodes.Callvirt, invoke);
+                il.Emit(OpCodes.Ret);
+            }
+        }
+
+        foreach (MethodInfo method in interfaceMethods)
+        {
+            Delegate del = delegates[method.Name];
+            FieldBuilder delField = typeBuilder.DefineField(method.Name.AsBackingField, del.GetType(), FieldAttributes.Private | FieldAttributes.InitOnly);
+            MethodInfo invoke = del.GetType().GetMethod("Invoke")!;
+            delegateFields.Add(method.Name, delField);
+
+            ParameterInfo[] paramInfos = method.GetParameters();
+            Type[]? paramTypes = [.. paramInfos.Select(p => p.ParameterType)];
+            MethodBuilder methodBuilder = typeBuilder.DefineMethod(method.Name, MethodAttributes.Public | MethodAttributes.Virtual | MethodAttributes.NewSlot, CallingConventions.HasThis, method.ReturnType, paramTypes);
+
+            bool wrapReturn = method.ReturnType != typeof(void) && RequireWrapping(method.ReturnType, wrapperModId);
+            MethodInfo? wrap = null;
+
+            ILGenerator il = methodBuilder.GetILGenerator();
+            if (wrapReturn)
+            {
+                // Need to wrap the return value so the caller can read it. Pre-stack some arguments now, but will perform the method call at the end.
+                wrap = wrapOpenGeneric.MakeGenericMethod(method.ReturnType); // T
+                il.Emit(OpCodes.Ldarg_0);
+                il.Emit(OpCodes.Ldfld, wrapperModIdField); // targetModId
+            }
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Ldfld, delField);
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Ldfld, instanceField);
+
+            for (int i = 0; i < paramInfos.Length; i++)
+            {
+                if (RequireWrapping(paramInfos[i].ParameterType, wrapperModId))
+                {
+                    // Need to wrap the argument so the instance can read it
+                    il.Emit(OpCodes.Ldarg_0);
+                    il.Emit(OpCodes.Ldfld, instanceModIdField); // targetModId
+                    il.Emit(OpCodes.Ldarg, i + 1); // objectToWrap
+                    il.Emit(OpCodes.Ldtoken, paramInfos[i].ParameterType);
+                    il.Emit(OpCodes.Call, getTypeFromHandle); // sourceInterface
+                    il.Emit(OpCodes.Call, wrapNonGeneric); // public static object? Wrap(string targetModId, object? objectToWrap, Type? sourceInterface = null)
+                }
+                else
+                {
+                    il.Emit(OpCodes.Ldarg, i + 1);
+                }
+                ParameterAttributes attr = paramInfos[i].IsOptional ? ParameterAttributes.Optional | ParameterAttributes.HasDefault : ParameterAttributes.None;
+                methodBuilder.DefineParameter(i + 1, attr, paramInfos[i].Name);
+            }
+
+            il.Emit(OpCodes.Callvirt, invoke); // Invoke the delegate
+            if (wrapReturn)
+            {
+                il.Emit(OpCodes.Castclass, typeof(object)); // objectToWrap
+                il.Emit(OpCodes.Ldnull); // sourceInterface
+                il.Emit(OpCodes.Call, wrap!); // public static T? Wrap<T>(string targetModId, object? objectToWrap, Type? sourceInterface = null)
+            }
+            il.Emit(OpCodes.Ret);
+        }
+
+        // Constructor (do this last because it requires all the delegate fields to have already been defined)
+        {
+            MethodAttributes ctorAttr = MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.SpecialName | MethodAttributes.RTSpecialName;
+            ParameterInfo[] paramInfos = typeof(DynamicWrapperConstructor).GetMethod("Invoke")!.GetParameters();
+            ConstructorBuilder ctorBuilder = typeBuilder.DefineConstructor(ctorAttr, CallingConventions.HasThis, [.. paramInfos.Select(p => p.ParameterType)]);
+
+            for (int i = 0; i < paramInfos.Length; i++)
+            {
+                ctorBuilder.DefineParameter(i + 1, ParameterAttributes.None, paramInfos[i].Name);
+            }
+
+            ILGenerator il = ctorBuilder.GetILGenerator();
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Call, typeof(object).GetConstructor(Type.EmptyTypes)!);
+
+            // Init IDynamicWrapper fields
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Ldarg_1);
+            il.Emit(OpCodes.Stfld, wrapperModIdField);
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Ldarg_2);
+            il.Emit(OpCodes.Stfld, instanceModIdField);
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Ldarg_3);
+            il.Emit(OpCodes.Castclass, instanceInterfaceType);
+            il.Emit(OpCodes.Stfld, instanceField);
+
+            // Init all delegate fields. Delegates from the dictionary should map 1:1 with the fields
+            MethodInfo dictIndexerGetter = typeof(IDictionary<string, Delegate>).IndexerGetter(null);
+            foreach (var kvp in delegateFields)
+            {
+                il.Emit(OpCodes.Ldarg_0);
+                il.Emit(OpCodes.Ldarg_S, 4); // load the delegate dict
+                il.Emit(OpCodes.Ldstr, kvp.Key);
+                il.Emit(OpCodes.Callvirt, dictIndexerGetter); // get the delegate itself
+                il.Emit(OpCodes.Stfld, kvp.Value);
+            }
+
+            il.Emit(OpCodes.Ret);
+        }
+
+        TypeInfo createdType = typeBuilder.CreateTypeInfo(); // Woot!
+
+#if DEBUG
+        if (moduleBuilder != _persistedModuleBuilder) // dont stuck in loop
+        {
+            // Run this through the persisted builder so we can save and inspect it in dnSpy if needed.
+            CreateWrapperFactory(_persistedModuleBuilder, wrapperInterfaceType, instanceInterfaceType, delegates, wrapperModId, instanceModId);
+        }
+        else
+        {
+            return null!;
+        }
+#endif
+
+        return (instance) => (IDynamicWrapper)Activator.CreateInstance(createdType, wrapperModId, instanceModId, instance, delegates)!;
+    }
+
+    /// <summary>
+    /// Saves the generated assembly to disk. Call this to inspect the generated types with dnSpy.
+    /// </summary>
+    /// <remarks>Requires debug build. In a release build, perform the following to inspect instead: dnSpy -> Debug Menu -> Attach to Process -> SlayTheSpire2.exe -> break/pause -> Debug Menu -> Windows -> Modules -> DynamicWrappers</remarks>
+    /// <param name="filename">The file name to save to. Root directory is StS executable folder.</param>
+    /// <returns><see langword="false"/> if BaseLib is not running a debug build (and no file is generated).</returns>
+    internal static bool SaveAssembly(string filename)
+    {
+        // I dont think this belongs on the public API, but can call this via reflection from another mod if needed
+#if DEBUG
+        _persistedAssemblyBuilder.Save(filename);
+        return true;
+#else
+        // TODO: generate the persisted assembly on demand
+        return false;
+#endif
+    }
+}
+
+file static class Extensions
+{
+    extension(string name)
+    {
+        public string AsBackingField => $"_{name}";
+        public string AsBackingFieldCamelCase => $"_{Godot.StringExtensions.ToCamelCase(name)}";
+        public string AsPropertyGetter => $"_get_{name}";
+        public string AsPropertySetter => $"_set_{name}";
+    }
+}
