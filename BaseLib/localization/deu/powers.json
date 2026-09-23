@@ -5,5 +5,8 @@
   "BASELIB-CUSTOM_TEMPORARY_POWER_MODEL.UP.description": "Erhöht einen [gold]Effekt[/gold] für eine gewisse Zeit.",
   "BASELIB-CUSTOM_TEMPORARY_POWER_MODEL.UP.smartDescription": "Erhalte [blue]{Amount:abs()}[/blue] [gold]{TemporaryPowerTitle}[/gold] bis zum Ende {UntilEndOfOtherSideTurn:cond:dieses Zuges|des gegnerischen Zuges}.{Repeat:cond:>0?\\nHält [blue]{Repeat:diff()}[/blue] {Repeat:plural:weiteren Zug|weitere Züge} an.|}",
   "BASELIB-CUSTOM_TEMPORARY_POWER_MODEL.DOWN.description": "Verringert einen [gold]Effekt[/gold] für eine gewisse Zeit.",
-  "BASELIB-CUSTOM_TEMPORARY_POWER_MODEL.DOWN.smartDescription": "Verliere [blue]{Amount:abs()}[/blue] [gold]{TemporaryPowerTitle}[/gold] bis zum Ende {UntilEndOfOtherSideTurn:cond:dieses Zuges|des gegnerischen Zuges}.{Repeat:cond:>0?\\nHält [blue]{Repeat:diff()}[/blue] {Repeat:plural:weiteren Zug|weitere Züge} an.|}"
+  "BASELIB-CUSTOM_TEMPORARY_POWER_MODEL.DOWN.smartDescription": "Verliere [blue]{Amount:abs()}[/blue] [gold]{TemporaryPowerTitle}[/gold] bis zum Ende {UntilEndOfOtherSideTurn:cond:dieses Zuges|des gegnerischen Zuges}.{Repeat:cond:>0?\\nHält [blue]{Repeat:diff()}[/blue] {Repeat:plural:weiteren Zug|weitere Züge} an.|}",
+  "BASELIB-TEMP_HP_POWER.title": "Temporäre LP",
+  "BASELIB-TEMP_HP_POWER.description": "Absorbiert Schaden, bevor LP verloren gehen – auch Schaden, der [gold]Block[/gold] ignoriert. Verschwindet am Ende des Kampfes.",
+  "BASELIB-TEMP_HP_POWER.smartDescription": "Absorbiert Schaden, bevor LP verloren gehen – auch Schaden, der [gold]Block[/gold] ignoriert. Verschwindet am Ende des Kampfes."
 }
