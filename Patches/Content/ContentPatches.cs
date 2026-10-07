@@ -192,25 +192,32 @@ class AddCustomAncientsToPool
     private static readonly FieldInfo RoomSet = AccessTools.Field(typeof(ActModel), "_rooms");
     
     [HarmonyPrefix]
-    static void AddToModelPool(ActModel __instance, List<AncientEventModel>? ____sharedAncientSubset)
+    static void AddToModelPool(ActModel __instance)
     {
-        if (____sharedAncientSubset == null) return; //Act 1 or other act with no shared ancients
+        var workingList = __instance._sharedAncientSubset ?? [];
+        //Will be null for act 1 or other possible exceptional cases.
 
         //Not a fan of this, but having them in shared ancients rather than all ancients is the easiest way to have them
         //appear in compendium.
-        ____sharedAncientSubset.RemoveAll(CustomContentDictionary.CustomAncients.Contains);
+        workingList.RemoveAll(CustomContentDictionary.CustomAncients.Contains);
         
         List<CustomAncientModel> toAdd = [..CustomContentDictionary.CustomAncients];
         toAdd.Sort((a, b) =>  string.Compare(a.Id.Entry, b.Id.Entry, StringComparison.Ordinal));
         
-        toAdd.RemoveAll(ancient => !ancient.IsValidForAct(__instance) || ____sharedAncientSubset.Contains(ancient));
+        toAdd.RemoveAll(ancient => !ancient.IsValidForAct(__instance) || workingList.Contains(ancient));
         foreach (var act in CurrentGeneratingRunState.State?.Acts ?? [])
         {
             if (RoomSet.GetValue(act) is not RoomSet { HasAncient: true }) continue;
             if (act == __instance) continue;
             if (act.Ancient is CustomAncientModel customAncient) toAdd.Remove(customAncient);
         }
-        ____sharedAncientSubset.AddRange(toAdd);
+        workingList.AddRange(toAdd);
+
+        //Avoid modification if unnecessary.
+        if (__instance._sharedAncientSubset == null && workingList.Count > 0)
+        {
+            __instance._sharedAncientSubset = workingList;
+        }
     }
 }
 

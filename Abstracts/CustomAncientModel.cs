@@ -4,7 +4,9 @@ using BaseLib.Utils;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Entities.Ancients;
 using MegaCrit.Sts2.Core.Events;
+using MegaCrit.Sts2.Core.Helpers;
 using MegaCrit.Sts2.Core.Models;
+using MegaCrit.Sts2.Core.Nodes;
 using MegaCrit.Sts2.Core.Runs;
 
 namespace BaseLib.Abstracts;
@@ -23,12 +25,12 @@ public abstract class CustomAncientModel : AncientEventModel, ICustomModel, ILoc
     public virtual List<(string, string)>? Localization => null;
 
     /// <summary>
-    /// Suggested to check act.ActNumber == 2 or 3.
+    /// Suggested to check act.ActNumber == 1/2/3 or
+    /// act.Index == 0/1/2.
     ///
     /// If you are overriding ShouldForceSpawn, you should override this and return false.
     /// </summary>
-    /// <param name="act"></param>
-    /// <returns></returns>
+    /// <seealso cref="BaseLib.Extensions.ActModelExtensions.ActNumber"/>
     public virtual bool IsValidForAct(ActModel act) => true;
     
     /// <summary>
@@ -38,7 +40,32 @@ public abstract class CustomAncientModel : AncientEventModel, ICustomModel, ILoc
     /// <param name="rngChosenAncient">The ancient that will have been chosen by the games rng.</param>
     /// <returns></returns>
     public virtual bool ShouldForceSpawn(ActModel act, AncientEventModel? rngChosenAncient) => false;
-    
+
+    /// <summary>
+    /// This method is checked in BeforeEventStarted to determine if this event should act like Neow and
+    /// set the player's HP to 0 before healing them. By default, will return true
+    /// if the run is currently in the first act.
+    /// </summary>
+    public virtual bool HealFromZero => Owner?.RunState.CurrentActIndex == 0;
+
+    /// <inheritdoc />
+    protected override async Task BeforeEventStarted(bool isPreFinished)
+    {
+        if (isPreFinished) return;
+        
+        var healFromZero = HealFromZero;
+        if (healFromZero)
+        {
+            Owner?.Creature.SetCurrentHpInternal(0M);
+        }
+        await base.BeforeEventStarted(isPreFinished); //handles the actual healing
+        if (NRun.Instance != null && healFromZero)
+        {
+            //Not awaited as this is for visuals
+            TaskHelper.RunSafely(NRun.Instance.GlobalUi.TopBar.Hp.LerpAtNeow());
+        }
+    }
+
     /// <summary>
     /// Set up a new OptionPools with 1, 2, or 3 pools using MakePool for each pool.
     /// If there is 1 pool, all ancient options will be chosen randomly from this pool.
