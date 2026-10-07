@@ -1,5 +1,6 @@
 ﻿using System.Reflection;
 using BaseLib.Abstracts;
+using BaseLib.Extensions;
 using BaseLib.Patches.Content;
 using BaseLib.Patches.Features;
 using BaseLib.Patches.Saves;
@@ -64,13 +65,15 @@ class PostModInitPatch
         //Loads custom message types into custom message type maps
         CustomMessageWrapper.Initialize();
         CustomTargetedMessageWrapper.Initialize();
-        
+
         Harmony harmony = new("PostModInit");
 
         AddActContent.Patch(harmony);
-        
+
+        InsertEpochSystemRelevantInformationIntoDictionaries();
+
         ModInterop interop = new();
-        
+
         foreach (var type in ReflectionHelper.ModTypes)
         {
             interop.ProcessType(harmony, type);
@@ -164,8 +167,8 @@ class PostModInitPatch
                 else if (!SavePatchUtils.IsHolderTypeBaseSupported(prop.DeclaringType))
                 {
                     var endMsg = ExtendedSaveTypes.IsSaveHolderSupported(type)
-                        ? "change to a SavedSpireField for BaseLib to save it."
-                        : "this type is currently also unsupported by BaseLib for saved values.";
+                                ? "change to a SavedSpireField for BaseLib to save it."
+                                : "this type is currently also unsupported by BaseLib for saved values.";
                     BaseLibMain.Logger.Warn($"SavedProperty {prop.Name} will not work on type {type.Name}; {endMsg}");
                 }
                 else
@@ -197,10 +200,10 @@ class PostModInitPatch
     private static void CheckSpecialSpireField(FieldInfo field)
     {
         Type fType = field.FieldType;
-                
+
         if (!fType.IsGenericType)
             return;
-        
+
         var genericTypeDef = fType.GetGenericTypeDefinition();
 
         if (genericTypeDef != typeof(SavedSpireField<,>) &&
@@ -209,6 +212,15 @@ class PostModInitPatch
 
         field.GetValue(null); //Trigger field initialization
     }
+
+    private static void InsertEpochSystemRelevantInformationIntoDictionaries()
+    {
+        CustomStoryModel.FillStoryDictionaries(ReflectionUtils.GetListOfInstantiatedSubclassesFromAllAssemblies<CustomStoryModel>());
+        CustomEpochModel.FillEpochDictionaries(ReflectionUtils.GetListOfInstantiatedSubclassesFromAllAssemblies<CustomEpochModel>());
+        
+    }
+    
+    
     
     /// <summary>
     /// Registers custom scene paths.
