@@ -218,6 +218,7 @@ class AddCustomAncientsToPool
             if (act == __instance) continue;
             if (act.Ancient is CustomAncientModel customAncient) toAdd.Remove(customAncient);
         }
+        BaseLibMain.Logger.Debug($"Added {toAdd.Count} ancient(s) to act {__instance}");
         workingList.AddRange(toAdd);
 
         //Avoid modification if unnecessary.
