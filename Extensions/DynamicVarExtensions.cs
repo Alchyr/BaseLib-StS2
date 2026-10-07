@@ -66,7 +66,10 @@ public static class DynamicVarExtensions
 
         DynamicVarTips[var] = (locVar) =>
         {
-            LocString title = new(locTable, key + ".title");
+            var title = new LocString(locTable,
+                LocString.Exists(locTable, key + ".smartTitle")
+                    ? key + ".smartTitle"
+                    : key + ".title");
 
             var descKey = LocString.Exists(locTable, key + ".smartDescription")
                 ? key + ".smartDescription"
