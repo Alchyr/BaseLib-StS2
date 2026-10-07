@@ -194,6 +194,13 @@ class AddCustomAncientsToPool
     [HarmonyPrefix]
     static void AddToModelPool(ActModel __instance)
     {
+        if (CurrentGeneratingRunState.State?.Modifiers.Count > 0 &&
+            __instance.Index == 0)
+        {
+            //Disabled for runs with modifiers.
+            return;
+        }
+        
         var workingList = __instance._sharedAncientSubset ?? [];
         //Will be null for act 1 or other possible exceptional cases.
 
