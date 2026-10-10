@@ -49,7 +49,7 @@ public static class KeywordDescriptionPatch
         return string.Join("\n", list.ToArray());
     }
     
-    // Add a [HarmonyPatchCategory("Card Spacing Fix")] to add this to a Mod Configuration toggle.
+    // Add a [HarmonyPatchCategory("Card Spacing Fix")] to make this a Mod Configuration toggle.
     [HarmonyPatch(typeof(CardModel))]
     public static class CardDescriptionPatch
     {
@@ -62,16 +62,31 @@ public static class KeywordDescriptionPatch
         {
             var replacement = AccessTools.Method(typeof(KeywordDescriptionPatch), nameof(MergeKeywordJoin));
             var codes = instructions.ToList();
-            var lastJoin = -1;
+            var matches = new List<int>();
+            
             for (var i = 0; i < codes.Count; i++)
             {
-                if (codes[i].operand is not MethodInfo method || method.DeclaringType != typeof(string) || method.Name != nameof(string.Join)) continue;
-                lastJoin = i;
+                if (codes[i].operand is not MethodInfo method || method.DeclaringType != typeof(string) || method.Name != nameof(string.Join))
+                    continue;
+                var parameters = method.GetParameters();
+                if (method.ReturnType != typeof(string) || parameters.Length != 2 || parameters[0].ParameterType != typeof(char) || parameters[1].ParameterType != typeof(IEnumerable<string>))
+                    continue;
+                matches.Add(i);
             }
-            if (lastJoin == -1)
-                return codes;
-            codes[lastJoin].opcode = OpCodes.Call;
-            codes[lastJoin].operand = replacement;
+
+            switch (matches.Count)
+            {
+                case 0:
+                    Console.WriteLine("[KeywordDescriptionPatch] WARNING: Could not find " + "string.Join(char, IEnumerable<string>) in " + "CardModel.GetDescriptionForPile().");
+                    return codes;
+                case > 1:
+                    Console.WriteLine($"[KeywordDescriptionPatch] WARNING: Found " + $"{matches.Count} matching string.Join instructions. " + "Using the final match.");
+                    break;
+            }
+
+            var index = matches[^1];
+            codes[index].operand = replacement;
+            Console.WriteLine($"[KeywordDescriptionPatch] Successfully patched " + $"string.Join at IL index {index}.");
             return codes;
         }
     }
