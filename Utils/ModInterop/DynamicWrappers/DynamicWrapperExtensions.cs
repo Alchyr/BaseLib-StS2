@@ -21,7 +21,7 @@ public static class DynamicWrapperExtensions
         /// <remarks>Intended for use with <see cref="Hook"/>.IterateCombatHookListeners().OfTypeDynamic&lt;TReturn&gt;()</remarks>
         /// <param name="targetModId">The modId to wrap elements for, if able. If not known, supply <see langword="null"/>, and it will seek the target mod using type <typeparamref name="TReturn"/>.</param>
         /// <returns>A new sequence filtered to elements of type <typeparamref name="TReturn"/>.</returns>
-        public IEnumerable<TReturn> OfTypeDynamic(string? targetModId = null)
+        public IEnumerable<TReturn> OfTypeOrWrappedAs(string? targetModId = null)
         {
             ArgumentNullException.ThrowIfNull(enumerable);
 

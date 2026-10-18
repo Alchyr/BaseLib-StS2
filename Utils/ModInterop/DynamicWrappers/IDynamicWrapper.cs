@@ -1,7 +1,7 @@
 ﻿namespace BaseLib.Utils.ModInterop.DynamicWrappers;
 
 /// <summary>
-/// A wrapper object for seamless inter-mod communication via interfaces.
+/// A wrapper object for inter-mod communication via interfaces.
 /// </summary>
 public interface IDynamicWrapper
 {
