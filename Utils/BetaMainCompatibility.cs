@@ -2,8 +2,6 @@
 using System.Reflection;
 using BaseLib.Extensions;
 using HarmonyLib;
-using MegaCrit.Sts2.Core.Combat;
-using MegaCrit.Sts2.Core.Combat.History;
 using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Commands.Builders;
 using MegaCrit.Sts2.Core.Debug;
@@ -16,7 +14,6 @@ using MegaCrit.Sts2.Core.Hooks;
 using MegaCrit.Sts2.Core.HoverTips;
 using MegaCrit.Sts2.Core.Modding;
 using MegaCrit.Sts2.Core.Models;
-using MegaCrit.Sts2.Core.Models.Singleton;
 using MegaCrit.Sts2.Core.Multiplayer.Game.Lobby;
 using MegaCrit.Sts2.Core.Nodes.CommonUi;
 using MegaCrit.Sts2.Core.Runs;
@@ -154,14 +151,6 @@ public static class BetaMainCompatibility
 
     public static class Creature_
     {
-        [Obsolete("No longer differs between main and beta.")]
-        public static CombatStateWrapper? WrappedCombatState(Creature creature)
-        {
-            var state = CombatState.Get(creature);
-            if (state == null) return null;
-            return new CombatStateWrapper(state);
-        }
-
         private static MethodInfo? OldInfiniteHp = typeof(Creature).PropertyGetter("ShowsInfiniteHp");
         private static MethodInfo? NewInfiniteHp = typeof(Creature).PropertyGetter(nameof(Creature.HpDisplay));
         [Obsolete("No longer differs between main and beta.")]
@@ -183,15 +172,7 @@ public static class BetaMainCompatibility
 
     public static class CardModel_
     {
-        [Obsolete("No longer differs between main and beta.")]
-        public static CombatStateWrapper? WrappedCombatState(CardModel card) 
-        {
-            var state = CombatState.Get(card);
-            if (state == null) return null;
-            return new CombatStateWrapper(state);
-        }
-        [Obsolete("No longer differs between main and beta.")]
-        public static VariableReference<object?> CombatState = new(typeof(CardModel), "CombatState");
+        
     }
 
     public static class PowerCmd_
@@ -483,92 +464,5 @@ public class VariableMethod
             finalArgs[i] = null;
         
         method.Invoke(instance, finalArgs);
-    }
-}
-
-[Obsolete("No longer differs between main and beta.")]
-public class CombatStateWrapper(object combatState)
-{
-    static CombatStateWrapper()
-    {
-        Type? combatStateType = null;
-        try
-        {
-            combatStateType = Type.GetType("MegaCrit.Sts2.Core.Combat.ICombatState, sts2");
-        }
-        catch (Exception) { }
-
-        if (combatStateType == null) combatStateType = Type.GetType("MegaCrit.Sts2.Core.Combat.CombatState, sts2");
-        //If this also fails BaseLib won't work anyways, so no try-catch
-        if (combatStateType == null) throw new Exception("Failed to get combat state type in CombatStateWrapper for compatibility");
-
-        RunStateRef = new(combatStateType, "RunState");
-        AlliesRef = new(combatStateType, "Allies");
-        EnemiesRef = new (combatStateType, "Enemies");
-        ModifiersRef = new(combatStateType, "Modifiers");
-        MultiplayerScalingModelRef = new(combatStateType, "MultiplayerScalingModel");
-        RoundNumberRef = new(combatStateType, "RoundNumber");
-        CurrentSideRef = new(combatStateType, "CurrentSide");
-        EscapedCreaturesRef = new(combatStateType, "EscapedCreatures");
-        HittableEnemiesRef = new(combatStateType, "HittableEnemies");
-    }
-
-    private static readonly VariableReference<IRunState> RunStateRef;
-    private static readonly VariableReference<IReadOnlyList<Creature>> AlliesRef;
-    private static readonly VariableReference<IReadOnlyList<Creature>> EnemiesRef;
-    private static readonly VariableReference<IReadOnlyList<ModifierModel>> ModifiersRef;
-    private static readonly VariableReference<MultiplayerScalingModel?> MultiplayerScalingModelRef;
-    private static readonly VariableReference<int> RoundNumberRef;
-    private static readonly VariableReference<CombatSide> CurrentSideRef;
-    private static readonly VariableReference<List<Creature>> EscapedCreaturesRef;
-    private static readonly VariableReference<IReadOnlyList<Creature>> HittableEnemiesRef;
-
-    public object WrappedState => combatState;
-    
-    public IRunState RunState => RunStateRef.Get(combatState);
-
-    public IReadOnlyList<Creature> Allies => AlliesRef.Get(combatState);
-    public IReadOnlyList<Creature> Enemies => EnemiesRef.Get(combatState);
-    public IReadOnlyList<Creature> Creatures => Allies.Concat(Enemies).ToList();
-    public IReadOnlyList<Creature> PlayerCreatures => Creatures.Where(c => c.IsPlayer).ToList();
-    public IReadOnlyList<Player> Players => PlayerCreatures.Select(c => c.Player!).ToList();
-    
-    public IReadOnlyList<ModifierModel> Modifiers => ModifiersRef.Get(combatState);
-    public MultiplayerScalingModel? MultiplayerScalingModel => MultiplayerScalingModelRef.Get(combatState);
-
-    public int RoundNumber => RoundNumberRef.Get(combatState);
-    public CombatSide CurrentSide => CurrentSideRef.Get(combatState);
-    public List<Creature> EscapedCreatures => EscapedCreaturesRef.Get(combatState);
-
-    public IReadOnlyList<Creature> HittableEnemies => HittableEnemiesRef.Get(combatState);
-
-    public IReadOnlyList<Creature> CreaturesOnCurrentSide => GetCreaturesOnSide(CurrentSide);
-    public IReadOnlyList<Creature> GetCreaturesOnSide(CombatSide side)
-    {
-        if (side != CombatSide.Enemy)
-        {
-            return Allies;
-        }
-        return Enemies;
-    }
-
-    public IReadOnlyList<Creature> GetOpponentsOf(Creature creature)
-    {
-        return GetCreaturesOnSide(creature.Side.GetOppositeSide());
-    }
-
-    public IReadOnlyList<Creature> GetTeammatesOf(Creature creature)
-    {
-        return GetCreaturesOnSide(creature.Side);
-    }
-
-    public Player? GetPlayer(ulong playerId)
-    {
-        return Players.FirstOrDefault(p => p.NetId == playerId);
-    }
-
-    public bool HappenedThisTurn(CombatHistoryEntry entry)
-    {
-        return RoundNumber == entry.RoundNumber && CurrentSide == entry.CurrentSide;
     }
 }
