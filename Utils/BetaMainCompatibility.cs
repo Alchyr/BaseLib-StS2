@@ -2,7 +2,6 @@
 using System.Reflection;
 using BaseLib.Extensions;
 using HarmonyLib;
-using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Commands.Builders;
 using MegaCrit.Sts2.Core.Debug;
 using MegaCrit.Sts2.Core.Entities.Cards;
@@ -11,12 +10,10 @@ using MegaCrit.Sts2.Core.Entities.Multiplayer;
 using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.GameActions.Multiplayer;
 using MegaCrit.Sts2.Core.Hooks;
-using MegaCrit.Sts2.Core.HoverTips;
 using MegaCrit.Sts2.Core.Modding;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Multiplayer.Game.Lobby;
 using MegaCrit.Sts2.Core.Nodes.CommonUi;
-using MegaCrit.Sts2.Core.Runs;
 using MegaCrit.Sts2.Core.ValueProps;
 
 namespace BaseLib.Utils;
@@ -165,90 +162,11 @@ public static class BetaMainCompatibility
 
             throw new InvalidOperationException("Could not find property for infinite hp check");
         }
-
-        [Obsolete("No longer differs between main and beta.")]
-        public static VariableReference<object?> CombatState = new(typeof(Creature), "CombatState");
     }
 
     public static class CardModel_
     {
         
-    }
-
-    public static class PowerCmd_
-    {
-        [Obsolete("No longer differs between main and beta.")]
-        public static VariableMethod Apply = new(
-            (typeof(PowerCmd), "Apply", 
-                [typeof(PlayerChoiceContext), typeof(Creature), typeof(decimal), typeof(Creature), typeof(CardModel), typeof(bool)], 
-                [0, 1, 2, 3, 4, 5]),
-            (typeof(PowerCmd), "Apply", 
-                [typeof(Creature), typeof(decimal), typeof(Creature), typeof(CardModel), typeof(bool)], 
-                [1, 2, 3, 4, 5]));
-        [Obsolete("No longer differs between main and beta.")]
-        public static VariableMethod ApplyMulti = new(
-            (typeof(PowerCmd), "Apply", 
-                [typeof(PlayerChoiceContext), typeof(IEnumerable<Creature>), typeof(decimal), typeof(Creature), typeof(CardModel), typeof(bool)], 
-                [0, 1, 2, 3, 4, 5]),
-            (typeof(PowerCmd), "Apply", 
-                [typeof(IEnumerable<Creature>), typeof(decimal), typeof(Creature), typeof(CardModel), typeof(bool)], 
-                [1, 2, 3, 4, 5]));
-    }
-
-    public static class RunState
-    {
-        [Obsolete("No longer differs between main and beta.")]
-        public static VariableMethod IterateHookListeners = new(
-            (typeof(IRunState), "IterateHookListeners", 
-                [null], 
-                [0])
-            );
-    }
-
-    public static class _HoverTipFactory
-    {
-        [Obsolete("No longer differs between main and beta.")]
-        private static VariableMethod FromPowerDef = new(
-            (typeof(HoverTipFactory), "FromPower",
-                [typeof(int?)],
-                [0],
-                m => m.IsGenericMethod),
-            (typeof(HoverTipFactory), "FromPower",
-                [],
-                [],
-                m => m.IsGenericMethod)
-            );
-        
-        [Obsolete("No longer differs between main and beta.")]
-        private static VariableMethod FromPowerInstanceDef = new(
-            (typeof(HoverTipFactory), "FromPower",
-                [typeof(PowerModel), typeof(int?)],
-                [0, 1],
-                m => !m.IsGenericMethod),
-            (typeof(HoverTipFactory), "FromPower",
-                [typeof(PowerModel)],
-                [0],
-                m => !m.IsGenericMethod)
-        );
-
-        [Obsolete("No longer differs between main and beta.")]
-        public static IHoverTip FromPower<T>() where T : PowerModel
-        {
-            if (FromPowerDef.ParamCount == 1)
-            {
-                return FromPowerDef.InvokeGeneric<IHoverTip, T>(null, [null])!;
-            }
-            else
-            {
-                return FromPowerDef.InvokeGeneric<IHoverTip, T>(null)!;
-            }
-        }
-
-        [Obsolete("No longer differs between main and beta.")]
-        public static IHoverTip FromPower(PowerModel power, int? amount = null)
-        {
-            return FromPowerInstanceDef.Invoke<IHoverTip>(null, [power, amount])!;
-        }
     }
 
     public static class _ModManifest

@@ -91,8 +91,5 @@ public class CustomCalculatedBlockVar : CalculatedBlockVar
     }
 
     /// <inheritdoc />
-    protected override decimal GetBaseValueForIConvertible() => CalculateCustom(null);
-
-    /// <inheritdoc />
     public override string ToString() => CalculateCustom(null).ToString(CultureInfo.InvariantCulture);
 }
