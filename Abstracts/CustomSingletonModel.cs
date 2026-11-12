@@ -8,7 +8,7 @@ namespace BaseLib.Abstracts;
 /// <summary>
 /// Model that will passively receive hooks at all times.
 /// </summary>
-public abstract class CustomSingletonModel : SingletonModel, ICustomModel
+public abstract class CustomSingletonModel : AbstractModel, ICustomModel
 {
     public enum HookType
     {
@@ -23,6 +23,10 @@ public abstract class CustomSingletonModel : SingletonModel, ICustomModel
     public override bool ShouldReceiveCombatHooks { get; }
 
 
+    /// <summary>
+    /// Create a singleton that receives either combat hooks or run hooks.
+    /// While there is probably no point in creating a singleton that receives no hooks, it can be done.
+    /// </summary>
     public CustomSingletonModel(HookType hookType)
     {
         switch (hookType)
