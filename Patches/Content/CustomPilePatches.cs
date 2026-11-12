@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Reflection.Emit;
+using System.Runtime.CompilerServices;
 using BaseLib.Abstracts;
 using BaseLib.Extensions;
 using BaseLib.Utils;
@@ -302,7 +303,7 @@ public class TheBigPatchToCardPileCmdAdd
           bool flag1 = cardNode == null && targetPile.Type.IsCombatPile() && (isFullHandAdd || oldPile != null || targetPile.Type == PileType.Hand);
           For piles that should be visible like the hand.
          */
-        return patcher.Match(new InstructionMatcher() //patch createCardNode
+        patcher.Match(new InstructionMatcher() //patch createCardNode
             .ldfld(fullHandAdd)
             .brtrue_s()
             .ldarg_0()
@@ -441,6 +442,7 @@ public class TheBigPatchToCardPileCmdAdd
             new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(TheBigPatchToCardPileCmdAdd), "CustomPileUseCustomTween")),
             new CodeInstruction(OpCodes.Brtrue_S, tweenLoopEnd)
         ]);
+        return ReplaceCombatPileChecks(patcher);
     }
 
     //Generating NCard if necessary
@@ -484,7 +486,7 @@ public class TheBigPatchToCardPileCmdAdd
         /* cardNode = NCard.FindOnTable(card);
          bool flag1 = cardNode == null && targetPile.Type.IsCombatPile() && (isFullHandAdd || oldPile != null || targetPile.Type == PileType.Hand);
          for piles that should be visible like the hand.*/
-        return patcher.Match(new InstructionMatcher() //patch createCardNode
+        patcher.Match(new InstructionMatcher() //patch createCardNode
                 .ldloc_any() //current result piletype of cardAdded
                 .call_any()
                 .call_any(typeof(PileTypeExtensions).Method(nameof(PileTypeExtensions.IsCombatPile)))
@@ -558,7 +560,27 @@ public class TheBigPatchToCardPileCmdAdd
                         nameof(IsPileCustomPileWhereCardShouldBeVisible))),
                 new CodeInstruction(OpCodes.Brtrue_S, updateVisualsLabel)
             ]);
+        return ReplaceCombatPileChecks(patcher);
     }
+
+    private static List<CodeInstruction> ReplaceCombatPileChecks(List<CodeInstruction> code)
+    {
+        var original = AccessTools.Method(typeof(PileTypeExtensions), nameof(PileTypeExtensions.IsCombatPile));
+        var replacement = AccessTools.Method(typeof(TheBigPatchToCardPileCmdAdd), nameof(IsCombatPileForTransition));
+        foreach (var instruction in code)
+        {
+            if (instruction.Calls(original))
+                instruction.operand = replacement;
+        }
+        return code;
+    }
+
+    // These transpilers are installed before the IsCombatPile prefix in PatchAll.
+    // Check custom piles explicitly so an inlined vanilla enum check cannot prevent
+    // NCard creation. Read the registry at runtime: mods register their piles later.
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static bool IsCombatPileForTransition(PileType pileType) =>
+        CustomPiles.IsCustomPile(pileType) || pileType.IsCombatPile();
 
     //Making the actual tween
     [Obsolete("For old beta version 1.111.0")]
