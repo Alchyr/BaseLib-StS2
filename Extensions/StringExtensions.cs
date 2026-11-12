@@ -82,7 +82,10 @@ public static class StringExtensions
     {
         try
         {
-            return Type.GetType($"{typeName}, sts2");
+            // Type.GetType returns null (rather than throwing) when the assembly exists but does not
+            // contain the type, so a catch-only fallback never ran for the common case - including
+            // the beta/main branch differences this method exists to paper over.
+            return Type.GetType($"{typeName}, sts2") ?? AccessTools.TypeByName(typeName);
         }
         catch (Exception)
         {
