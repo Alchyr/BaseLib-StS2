@@ -8,6 +8,7 @@ using MegaCrit.Sts2.Core.Helpers;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Nodes;
 using MegaCrit.Sts2.Core.Runs;
+#pragma warning disable CS4014 // Because this call is not awaited, execution of the current method continues before the call is completed
 
 namespace BaseLib.Abstracts;
 
@@ -94,13 +95,15 @@ public abstract class CustomAncientModel : AncientEventModel, ICustomModel, ILoc
         _optionPools = null;
     }
 
+    /// <inheritdoc />
     public override IEnumerable<EventOption> AllPossibleOptions => 
-        OptionPools.AllOptions.SelectMany(option => option.AllVariants.Select(relic => RelicOption(relic)));
-    
+        OptionPools.AllOptions.SelectMany(option => option.AllVariants.Select(relic => this.RelicOptionCompatibility(relic)));
+
+    /// <inheritdoc />
     protected override IReadOnlyList<EventOption> GenerateInitialOptions()
     {
         var options = OptionPools.Roll(Rng, this);
-        return options.Select(option => RelicOption(option.ModelForOption)).ToList();
+        return options.Select(option => this.RelicOptionCompatibility(option.ModelForOption)).ToList();
     }
     
     public static WeightedList<AncientOption> MakePool(params RelicModel[] options)

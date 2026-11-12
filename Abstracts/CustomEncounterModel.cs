@@ -66,8 +66,14 @@ public abstract class CustomEncounterModel : EncounterModel, ICustomModel
     /// Initial enemies will be placed at these markers in the order they exist in the scene.
     /// If using a custom scene the <see cref="Slots"/> method must return the names of all the slots.
     /// A default implementation that reads the custom scene is provided, but it can be overridden.
+    ///
+    /// NOTE - No longer necessary; ScenePath can be overriden directly.
     /// </summary>
+    [Obsolete("ScenePath is now virtual and can be directly overriden.")]
     public virtual string? CustomScenePath => null;
+
+    /// <inheritdoc />
+    protected override string ScenePath => CustomScenePath ?? base.ScenePath;
 
     private readonly Dictionary<string, List<string>> _sceneSlotsDict = [];
     public override IReadOnlyList<string> Slots
@@ -132,7 +138,7 @@ public abstract class CustomEncounterModel : EncounterModel, ICustomModel
     public virtual string? CustomRunHistoryIconOutlinePath => null;
     
     
-    [HarmonyPatch(typeof(EncounterModel), nameof(EncounterModel.ScenePath), MethodType.Getter)]
+    [HarmonyPatch(typeof(EncounterModel), "ScenePath", MethodType.Getter)]
     static class ScenePathPatch {
         [HarmonyPrefix]
         static bool Custom(EncounterModel __instance, ref string? __result) {

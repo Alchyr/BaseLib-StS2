@@ -8,6 +8,7 @@ using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Creatures;
 using MegaCrit.Sts2.Core.Entities.Multiplayer;
 using MegaCrit.Sts2.Core.Entities.Players;
+using MegaCrit.Sts2.Core.Events;
 using MegaCrit.Sts2.Core.GameActions.Multiplayer;
 using MegaCrit.Sts2.Core.Hooks;
 using MegaCrit.Sts2.Core.Modding;
@@ -49,6 +50,22 @@ public static class BetaMainCompatibility
         
         return version;
     }
+
+    /// <summary>
+    /// Compatibility extension for RelicOption for versions above 111
+    /// </summary>
+    public static EventOption RelicOptionCompatibility(this AncientEventModel ancient, RelicModel relic, string pageName = "INITIAL")
+    {
+        return _relicOption.Invoke<EventOption>(ancient, relic, pageName, null)!;
+    }
+    private static VariableMethod _relicOption = new(
+        (typeof(AncientEventModel), "RelicOption",
+            [typeof(RelicModel), typeof(string), typeof(string)],
+            [0, 1, 2]),
+        (typeof(AncientEventModel), "RelicOption",
+            [typeof(RelicModel), typeof(string)],
+            [0, 1])
+    );
     
     /// <summary>
     /// Compatibility extension method to use instead of FromCard that works on both main and beta branch.
