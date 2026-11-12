@@ -7,9 +7,14 @@ using MegaCrit.Sts2.Core.Runs;
 
 namespace BaseLib.Patches.Networking;
 
-[HarmonyPatch(typeof(NetHostGameService), MethodType.Constructor, typeof(PeerVersionInfo))]
+[HarmonyPatch]
 internal static class NetHostCustomMessagePatches
 {
+    static MethodBase TargetMethod()
+    {
+        return typeof(NetHostGameService).GetDeclaredConstructors().Single();
+    }
+    
     [HarmonyPostfix]
     private static void RegisterCustomMessageHandler(NetHostGameService __instance)
     {
@@ -17,9 +22,14 @@ internal static class NetHostCustomMessagePatches
     }
 }
 
-[HarmonyPatch(typeof(NetClientGameService), MethodType.Constructor, typeof(PeerVersionInfo))]
+[HarmonyPatch]
 internal static class NetClientCustomMessagePatches
 {
+    static MethodBase TargetMethod()
+    {
+        return typeof(NetHostGameService).GetDeclaredConstructors().Single();
+    }
+    
     [HarmonyPostfix]
     private static void RegisterCustomMessageHandler(NetClientGameService __instance)
     {
