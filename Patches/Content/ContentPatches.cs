@@ -9,13 +9,10 @@ using HarmonyLib;
 using MegaCrit.Sts2.Core.Helpers;
 using MegaCrit.Sts2.Core.Modding;
 using MegaCrit.Sts2.Core.Models;
-using MegaCrit.Sts2.Core.Models.Acts;
 using MegaCrit.Sts2.Core.Models.Relics;
 using MegaCrit.Sts2.Core.Random;
 using MegaCrit.Sts2.Core.Rooms;
 using MegaCrit.Sts2.Core.Runs;
-using MegaCrit.Sts2.Core.Saves;
-using MegaCrit.Sts2.Core.Timeline.Epochs;
 using MegaCrit.Sts2.Core.Unlocks;
 
 namespace BaseLib.Patches.Content;
@@ -186,10 +183,16 @@ public class CurrentGeneratingRunState
         State = null;
     }
 }
-[HarmonyPatch(typeof(ActModel), nameof(ActModel.GenerateRooms))]
+[HarmonyPatch]
 class AddCustomAncientsToPool
 {
     private static readonly FieldInfo RoomSet = AccessTools.Field(typeof(ActModel), "_rooms");
+
+    static MethodInfo TargetMethod()
+    {
+        return typeof(ActModel).DeclaredMethod("GenerateRooms", [typeof(Rng), typeof(UnlockState), typeof(bool)]) ??
+               typeof(ActModel).DeclaredMethod("GenerateRooms", [typeof(Rng), typeof(UnlockState), typeof(bool), typeof(bool)]);
+    }
     
     [HarmonyPrefix]
     static void AddToModelPool(ActModel __instance)
@@ -225,6 +228,21 @@ class AddCustomAncientsToPool
         if (__instance._sharedAncientSubset == null && workingList.Count > 0)
         {
             __instance._sharedAncientSubset = workingList;
+        }
+    }
+    
+    [HarmonyPostfix]
+    static void ForceAncientToSpawn(ActModel __instance)
+    {
+        var rooms = RoomSet.GetValue(__instance);
+        if (rooms is not RoomSet { HasAncient: true } roomSet) return;
+        
+        var rngChosenAncient = roomSet.Ancient;
+        var ancientToSpawn = CustomContentDictionary.CustomAncients.Find(a => a.ShouldForceSpawn(__instance, rngChosenAncient));
+
+        if (ancientToSpawn != null)
+        {
+            roomSet.Ancient = ancientToSpawn;
         }
     }
 }
@@ -283,25 +301,6 @@ class ModelDbSharedPotionPoolsPatch
         if (!CustomContentDictionary.RegisterType(pool.GetType())) return;
         
         customSharedPools.Add(pool);
-    }
-}
-
-[HarmonyPatch(typeof(ActModel), nameof(ActModel.GenerateRooms))]
-class ActModelGenerateRoomsPatch
-{
-    [HarmonyPostfix]
-    static void ForceAncientToSpawn(ActModel __instance)
-    {
-        var rooms = Traverse.Create(__instance).Field<RoomSet>("_rooms").Value;
-        if (!rooms.HasAncient) return;
-        
-        var rngChosenAncient = rooms.Ancient;
-        var ancientToSpawn = CustomContentDictionary.CustomAncients.Find(a => a.ShouldForceSpawn(__instance, rngChosenAncient));
-
-        if (ancientToSpawn != null)
-        {
-            rooms.Ancient = ancientToSpawn;
-        }
     }
 }
 
