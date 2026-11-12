@@ -15,9 +15,10 @@ public static class TypeExtensions
     /// </summary>
     /// <param name="type"></param>
     /// <param name="originalFieldName"></param>
+    /// <param name="paramType"></param>
     /// <returns></returns>
     /// <exception cref="ArgumentException"></exception>
-    public static FieldInfo FindStateMachineField(this Type type, string originalFieldName)
+    public static FieldInfo FindStateMachineField(this Type type, string originalFieldName, Type? paramType = null)
     {
         string stateMachineFieldName = $"<{originalFieldName}>";
         if (!_declaredFields.TryGetValue(type, out var declaredFields))
@@ -40,6 +41,16 @@ public static class TypeExtensions
             if (field.Name.Contains(originalFieldName))
             {
                 return field;
+            }
+        }
+        if (paramType != null)
+        {
+            foreach (var field in declaredFields)
+            {
+                if (field.FieldType.IsAssignableTo(paramType) && field.Name.Contains("__this"))
+                {
+                    return field;
+                }
             }
         }
         throw new ArgumentException($"No matching field found in type {type} for name {originalFieldName}");

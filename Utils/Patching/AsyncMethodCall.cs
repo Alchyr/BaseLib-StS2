@@ -382,7 +382,7 @@ public static class AsyncMethodCall
         }
         else
         {
-            var field = context.StateMachineType.FindStateMachineField(param.Name);
+            var field = context.StateMachineType.FindStateMachineField(param.Name, param.ParameterType);
             if (!field.FieldType.IsAssignableTo(param.ParameterType))
             {
                 throw new ArgumentException(
