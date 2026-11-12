@@ -61,6 +61,10 @@
     </ItemGroup>
 
     <ItemGroup>
+        <ProjectReference Include="..\BaseLibCompatibilityHelper\BaseLibCompatibilityHelper.csproj" Private="false"/>
+    </ItemGroup>
+
+    <ItemGroup>
         <Publicize Include="sts2" IncludeVirtualMembers="false" IncludeCompilerGeneratedMembers="false" />
     </ItemGroup>
     

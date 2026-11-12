@@ -1,5 +1,6 @@
 using System.Reflection;
 using BaseLib.Abstracts;
+using BaseLibCompatibilityHelper.BaseLibCompatibilityHelperCode.Intermediary;
 using Godot;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Models;
@@ -12,7 +13,7 @@ namespace BaseLib.BaseLibScenes;
 /// <summary>
 /// Internal adapter that reuses the vanilla character select button scene for a custom entry.
 /// </summary>
-internal sealed class NCustomCharacterSelectEntryButton : ICharacterSelectButtonDelegate
+internal sealed class NCustomCharacterSelectEntryButton : SelectButtonDelegateIntermediary
 {
     private const string ButtonScenePath = "res://scenes/screens/char_select/char_select_button.tscn";
 
@@ -56,7 +57,7 @@ internal sealed class NCustomCharacterSelectEntryButton : ICharacterSelectButton
     public NCharacterSelectButton Button { get; }
 
     /// <inheritdoc />
-    public StartRunLobby Lobby => _screen.Lobby;
+    public override StartRunLobby Lobby => _screen.Lobby;
 
     /// <summary>
     /// Whether this entry is currently locked.
@@ -104,8 +105,7 @@ internal sealed class NCustomCharacterSelectEntryButton : ICharacterSelectButton
         }
     }
 
-    /// <inheritdoc />
-    public void SelectCharacter(NCharacterSelectButton charSelectButton, CharacterModel characterModel)
+    public override void SelectCharacter(NCharacterSelectButton charSelectButton)
     {
         _onSelected(this);
     }
@@ -113,22 +113,13 @@ internal sealed class NCustomCharacterSelectEntryButton : ICharacterSelectButton
     private void ApplyVisuals()
     {
         var icon = Button.GetNodeOrNull<TextureRect>("%Icon");
-        if (icon != null)
-        {
-            icon.Texture = ResourceLoader.Load<Texture2D>(Entry.ButtonIconPath);
-        }
+        icon?.Texture = ResourceLoader.Load<Texture2D>(Entry.ButtonIconPath);
 
         var iconAdd = Button.GetNodeOrNull<TextureRect>("%IconAdd");
-        if (iconAdd != null)
-        {
-            iconAdd.Texture = icon?.Texture;
-        }
+        iconAdd?.Texture = icon?.Texture;
 
         var lockIcon = Button.GetNodeOrNull<TextureRect>("%Lock");
-        if (lockIcon != null)
-        {
-            lockIcon.Visible = IsLocked;
-        }
+        lockIcon?.Visible = IsLocked;
     }
 
     private void UpdateInteractionState()
