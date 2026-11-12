@@ -203,16 +203,16 @@ class SpecialPileInCombat
 
 public class TheBigPatchToCardPileCmdAdd
 {
-    private static readonly SemanticVersion ChangeVersion = new(0, 109, 999);
+    private static readonly SemanticVersion OldestVersion = new(0, 109, 999);
+    private static readonly SemanticVersion OldBetaVersion = new(0, 111, 999);
     
     private static Type? stateMachineType;
 
     public static void Patch(Harmony harmony)
     {
-        BaseLibMain.Logger.Info("Performing CustomPile Add patch");
-
-        if (BetaMainCompatibility.Version.LessThanOrEqual(ChangeVersion))
+        if (BetaMainCompatibility.Version.LessThanOrEqual(OldestVersion))
         {
+            BaseLibMain.Logger.Info("Performing CustomPile Add patch for old versions");
             harmony.PatchAsyncMoveNext(
                 AccessTools.Method(typeof(CardPileCmd), nameof(CardPileCmd.Add),
                 [
@@ -227,8 +227,10 @@ public class TheBigPatchToCardPileCmdAdd
                 out stateMachineType,
                 transpiler: AccessTools.Method(typeof(TheBigPatchToCardPileCmdAdd), nameof(BigPatch)));
         }
-        else
+        else if (BetaMainCompatibility.Version.LessThanOrEqual(OldBetaVersion))
         {
+            BaseLibMain.Logger.Info("Performing CustomPile Add patch for old beta version");
+            
             var targetMethodAddResult = AccessTools.Method(typeof(CardPileCmd), "GetTweenForCardsChangingPiles",
                 [
                     typeof(IEnumerable<CardPileAddResult>)
@@ -238,6 +240,34 @@ public class TheBigPatchToCardPileCmdAdd
                     typeof(IEnumerable<CardPileAddResult>),
                     typeof(bool)
                 ]);
+            var targetMethodMakeTween = AccessTools.Method(typeof(CardPileCmd), "GetTweenForCardsChangingPiles",
+            [
+                typeof(IEnumerable<(NCard, PileType?)>)
+            ]);
+            if (targetMethodAddResult == null || targetMethodMakeTween == null)
+            {
+                BaseLibMain.Logger.Warn($"Unable to find target method for patching visual transitions for game version {BetaMainCompatibility.Version}");
+                return;
+            }
+
+            harmony.Patch(targetMethodAddResult,
+                transpiler: typeof(TheBigPatchToCardPileCmdAdd).Method(nameof(SmallerPatchOne)));
+            harmony.Patch(targetMethodMakeTween,
+                transpiler: typeof(TheBigPatchToCardPileCmdAdd).Method(nameof(SmallPatchTwoOld)));
+        }
+        else
+        {
+            BaseLibMain.Logger.Info("Performing CustomPile Add patch for beta version");
+            
+            var targetMethodAddResult = AccessTools.Method(typeof(CardPileCmd), "GetTweenForCardsChangingPiles",
+                                        [
+                                            typeof(IEnumerable<CardPileAddResult>)
+                                        ]) ??
+                                        AccessTools.Method(typeof(CardPileCmd), "GetTweenForCardsChangingPiles",
+                                        [
+                                            typeof(IEnumerable<CardPileAddResult>),
+                                            typeof(bool)
+                                        ]);
             var targetMethodMakeTween = AccessTools.Method(typeof(CardPileCmd), "GetTweenForCardsChangingPiles",
             [
                 typeof(IEnumerable<(NCard, PileType?)>)
@@ -531,14 +561,16 @@ public class TheBigPatchToCardPileCmdAdd
     }
 
     //Making the actual tween
-    static List<CodeInstruction> SmallPatchTwo(IEnumerable<CodeInstruction> code)
+    [Obsolete("For old beta version 1.111.0")]
+    static List<CodeInstruction> SmallPatchTwoOld(IEnumerable<CodeInstruction> code)
     {
         return new InstructionPatcher(code)
-            .Match(new InstructionMatcher() //get local index of tween
+            .Match(BetaMainCompatibility.Version.LessThanOrEqual(OldBetaVersion) ? new InstructionMatcher() //get local index of tween
                 .call_any(typeof(Node), nameof(Node.CreateTween))
                 .ldc_i4_1()
                 .callvirt(typeof(Tween), nameof(Tween.SetParallel))
-                .stloc_any()
+                .stloc_any() :
+                new InstructionMatcher()
             )
             .Step(-1).GetIndexOperand(out var tweenIndex) 
             .Match(
@@ -604,6 +636,91 @@ public class TheBigPatchToCardPileCmdAdd
                 ..loadCardNode,
                 CodeInstruction.LoadLocal(oldPileLocal), //oldpile type
                 CodeInstruction.LoadLocal(tweenIndex), //tween
+                new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(TheBigPatchToCardPileCmdAdd), nameof(CustomPileUseCustomTweenPileType))),
+                new CodeInstruction(OpCodes.Brtrue_S, tweenLoopEnd)
+            ]);
+    }
+    
+    static List<CodeInstruction> SmallPatchTwo(IEnumerable<CodeInstruction> code)
+    {
+        MethodInfo? getTweenMethod = null;
+        return new InstructionPatcher(code)
+            .Match(
+                new InstructionMatcher()
+                    .newobj(null).PredicateMatch(op =>
+                    {
+                        return op is ConstructorInfo ct &&
+                               ct.DeclaringType?.TryGetMethodExt("GetTween", (s1, s2) => s1.Contains(s2),
+                                   out getTweenMethod) == true;
+                    })
+                    .stloc_any()
+            )
+            .Step(-1).GetIndexOperand(out var tweenIndex) 
+            .Match(
+                new InstructionMatcher()
+                    .ldloc_any()
+                    .call_any().PredicateMatch(op => op is MethodInfo { Name: "get_Current" }) //method of IEnumerable
+                    .stloc_any()
+            )
+            .Step(-1).GetIndexOperand(out var currentCardTupleLocal)
+            .Match(new InstructionMatcher()
+                .ldloc(currentCardTupleLocal)
+                .ldfld().PredicateMatch(op => op is FieldInfo { Name: "Item2" })
+                .stloc_any())
+            .Step(-1).GetIndexOperand(out var oldPileLocal)
+            .Match(new InstructionMatcher() //get fields of generated DisplayClass
+                .newobj(null) //long match due to using entirely generic matches
+                .stloc_any().StoreOperand("index")
+                .ldloc("index")
+                .ldloc_any()
+                .stfld(null)
+                .ldloc("index")
+                .ldloc("index")
+                .ldfld()
+                .ldfld().PredicateMatch(op => op is FieldInfo fieldInfo &&
+                                              fieldInfo.FieldType == typeof(NCard))
+            )
+            .CopyMatch(6, 3, out var loadCardNode)
+            .Step(-3).GetIndexOperand(out var displayClassLocIndex)
+            .Match(new InstructionMatcher()
+                .ldloc(displayClassLocIndex)
+                .ldfld()
+                .call_any(typeof(CardModel).PropertyGetter(nameof(CardModel.Pile))))
+            .CopyMatch(0, 2, out var loadCard)
+            .Match(new InstructionMatcher() //patch for generic goaway tween
+                .stloc_any().StoreOperand("index")
+                .ldloc("index")
+                .ldc_i4_1()
+                .sub()
+                .ldc_i4_2()
+                .ble_un_s()
+            )
+            .Step(-1).GetOperandLabel(out var genericGoAwayTweenLabel)
+            .Step(1)
+            .Insert([
+                ..loadCard,
+                new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(TheBigPatchToCardPileCmdAdd), nameof(CustomPileUseGenericTweenForOtherPlayers))),
+                new CodeInstruction(OpCodes.Brtrue_S, genericGoAwayTweenLabel)
+            ])
+            .Match(new InstructionMatcher() //end of generic tween
+                .callvirt(AccessTools.Method(typeof(Tween), nameof(Tween.TweenCallback)))
+                .pop()
+                .br()
+            )
+            .Step(-1).GetOperandLabel(out var tweenLoopEnd) //jump location after tween is set up
+            .Match(new InstructionMatcher()
+                .stloc_any().StoreOperand("index")
+                .ldloc("index")
+                .ldc_i4_2()
+                .sub()
+                .switch_()
+            )
+            .Insert([
+                ..loadCard,
+                ..loadCardNode,
+                CodeInstruction.LoadLocal(oldPileLocal), //oldpile type
+                CodeInstruction.LoadLocal(tweenIndex), //tween holder displayclass
+                new CodeInstruction(OpCodes.Callvirt, getTweenMethod),
                 new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(TheBigPatchToCardPileCmdAdd), nameof(CustomPileUseCustomTweenPileType))),
                 new CodeInstruction(OpCodes.Brtrue_S, tweenLoopEnd)
             ]);
