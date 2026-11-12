@@ -54,11 +54,7 @@ public static class WhatMod
         }
         else if (AssembliesField != null)
         {
-            var assemblies = (List<Assembly>?) AssembliesField.GetValue(mod);
-            if (assemblies != null)
-            {
-                AssembliesByMod[mod] = [..assemblies];
-            }
+            modAssemblies = (List<Assembly>?) AssembliesField.GetValue(mod);
         }
         else
         {

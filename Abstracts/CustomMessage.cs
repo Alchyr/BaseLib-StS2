@@ -99,6 +99,7 @@ public sealed class CustomMessageWrapper : INetMessage
 /// <summary>
 /// A custom message that is sent using CustomMessageWrapper,
 /// and doesn't directly implement INetMessage.
+/// Multiplayer receive handlers are registered when the network service is created, including in lobbies.
 /// </summary>
 public interface ICustomMessage : IPacketSerializable
 {

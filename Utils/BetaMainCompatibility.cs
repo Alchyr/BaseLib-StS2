@@ -3,7 +3,6 @@ using System.Reflection;
 using BaseLib.Extensions;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Combat;
-using MegaCrit.Sts2.Core.Combat.History;
 using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Commands.Builders;
 using MegaCrit.Sts2.Core.Debug;
@@ -11,15 +10,15 @@ using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Creatures;
 using MegaCrit.Sts2.Core.Entities.Multiplayer;
 using MegaCrit.Sts2.Core.Entities.Players;
+using MegaCrit.Sts2.Core.Events;
 using MegaCrit.Sts2.Core.GameActions.Multiplayer;
 using MegaCrit.Sts2.Core.Hooks;
-using MegaCrit.Sts2.Core.HoverTips;
 using MegaCrit.Sts2.Core.Modding;
 using MegaCrit.Sts2.Core.Models;
-using MegaCrit.Sts2.Core.Models.Singleton;
 using MegaCrit.Sts2.Core.Multiplayer.Game.Lobby;
 using MegaCrit.Sts2.Core.Nodes.CommonUi;
 using MegaCrit.Sts2.Core.Runs;
+using MegaCrit.Sts2.Core.TestSupport;
 using MegaCrit.Sts2.Core.ValueProps;
 
 namespace BaseLib.Utils;
@@ -55,6 +54,61 @@ public static class BetaMainCompatibility
         
         return version;
     }
+
+
+    /// <summary>
+    /// Compatibility for versions above 111, where this method was adjusted
+    /// </summary>
+    public static void UndoEndTurnReadyForCardSelect(this CombatManager combatManager, Player player)
+    {
+        _undoEndTurn.Invoke(combatManager, player);
+    }
+    private static VariableMethod _undoEndTurn = new(
+        (typeof(CombatManager), "UndoReadyToEndTurn",
+            [typeof(Player)],
+            [0]),
+        (typeof(CardSelectCmd), "UndoEndTurnIfNecessary",
+            [typeof(Player)],
+            [0])
+    );
+    
+
+    /// <summary>
+    /// Compatibility for versions above 111, where card selector stack was moved to RunManager
+    /// </summary>
+    public static ICardSelector? CurrentCardSelector(Player player)
+    {
+        if (_cardSelectorStack != null)
+        {
+            if (RunManager.Instance == null) return null;
+            var stack = _cardSelectorStack.Invoke(RunManager.Instance, null);
+            if (stack == null) return null;
+            _getSelector ??= stack.GetType().GetMethod("GetSelector");
+            return _getSelector?.Invoke(stack, [player]) as ICardSelector;
+        }
+
+        return _oldSelector?.Invoke(null, null) as ICardSelector;
+    }
+
+    private static MethodInfo? _cardSelectorStack = typeof(RunManager).PropertyGetter("CardSelectorStack");
+    private static MethodInfo? _getSelector = null;
+    private static MethodInfo? _oldSelector = typeof(CardSelectCmd).PropertyGetter("Selector");
+
+    /// <summary>
+    /// Compatibility extension for RelicOption for versions above 111
+    /// </summary>
+    public static EventOption RelicOptionCompatibility(this AncientEventModel ancient, RelicModel relic, string pageName = "INITIAL")
+    {
+        return _relicOption.Invoke<EventOption>(ancient, relic, pageName, null)!;
+    }
+    private static VariableMethod _relicOption = new(
+        (typeof(AncientEventModel), "RelicOption",
+            [typeof(RelicModel), typeof(string), typeof(string)],
+            [0, 1, 2]),
+        (typeof(AncientEventModel), "RelicOption",
+            [typeof(RelicModel), typeof(string)],
+            [0, 1])
+    );
     
     /// <summary>
     /// Compatibility extension method to use instead of FromCard that works on both main and beta branch.
@@ -154,14 +208,6 @@ public static class BetaMainCompatibility
 
     public static class Creature_
     {
-        [Obsolete("No longer differs between main and beta.")]
-        public static CombatStateWrapper? WrappedCombatState(Creature creature)
-        {
-            var state = CombatState.Get(creature);
-            if (state == null) return null;
-            return new CombatStateWrapper(state);
-        }
-
         private static MethodInfo? OldInfiniteHp = typeof(Creature).PropertyGetter("ShowsInfiniteHp");
         private static MethodInfo? NewInfiniteHp = typeof(Creature).PropertyGetter(nameof(Creature.HpDisplay));
         [Obsolete("No longer differs between main and beta.")]
@@ -176,98 +222,11 @@ public static class BetaMainCompatibility
 
             throw new InvalidOperationException("Could not find property for infinite hp check");
         }
-
-        [Obsolete("No longer differs between main and beta.")]
-        public static VariableReference<object?> CombatState = new(typeof(Creature), "CombatState");
     }
 
     public static class CardModel_
     {
-        [Obsolete("No longer differs between main and beta.")]
-        public static CombatStateWrapper? WrappedCombatState(CardModel card) 
-        {
-            var state = CombatState.Get(card);
-            if (state == null) return null;
-            return new CombatStateWrapper(state);
-        }
-        [Obsolete("No longer differs between main and beta.")]
-        public static VariableReference<object?> CombatState = new(typeof(CardModel), "CombatState");
-    }
-
-    public static class PowerCmd_
-    {
-        [Obsolete("No longer differs between main and beta.")]
-        public static VariableMethod Apply = new(
-            (typeof(PowerCmd), "Apply", 
-                [typeof(PlayerChoiceContext), typeof(Creature), typeof(decimal), typeof(Creature), typeof(CardModel), typeof(bool)], 
-                [0, 1, 2, 3, 4, 5]),
-            (typeof(PowerCmd), "Apply", 
-                [typeof(Creature), typeof(decimal), typeof(Creature), typeof(CardModel), typeof(bool)], 
-                [1, 2, 3, 4, 5]));
-        [Obsolete("No longer differs between main and beta.")]
-        public static VariableMethod ApplyMulti = new(
-            (typeof(PowerCmd), "Apply", 
-                [typeof(PlayerChoiceContext), typeof(IEnumerable<Creature>), typeof(decimal), typeof(Creature), typeof(CardModel), typeof(bool)], 
-                [0, 1, 2, 3, 4, 5]),
-            (typeof(PowerCmd), "Apply", 
-                [typeof(IEnumerable<Creature>), typeof(decimal), typeof(Creature), typeof(CardModel), typeof(bool)], 
-                [1, 2, 3, 4, 5]));
-    }
-
-    public static class RunState
-    {
-        [Obsolete("No longer differs between main and beta.")]
-        public static VariableMethod IterateHookListeners = new(
-            (typeof(IRunState), "IterateHookListeners", 
-                [null], 
-                [0])
-            );
-    }
-
-    public static class _HoverTipFactory
-    {
-        [Obsolete("No longer differs between main and beta.")]
-        private static VariableMethod FromPowerDef = new(
-            (typeof(HoverTipFactory), "FromPower",
-                [typeof(int?)],
-                [0],
-                m => m.IsGenericMethod),
-            (typeof(HoverTipFactory), "FromPower",
-                [],
-                [],
-                m => m.IsGenericMethod)
-            );
         
-        [Obsolete("No longer differs between main and beta.")]
-        private static VariableMethod FromPowerInstanceDef = new(
-            (typeof(HoverTipFactory), "FromPower",
-                [typeof(PowerModel), typeof(int?)],
-                [0, 1],
-                m => !m.IsGenericMethod),
-            (typeof(HoverTipFactory), "FromPower",
-                [typeof(PowerModel)],
-                [0],
-                m => !m.IsGenericMethod)
-        );
-
-        [Obsolete("No longer differs between main and beta.")]
-        public static IHoverTip FromPower<T>() where T : PowerModel
-        {
-            if (FromPowerDef.ParamCount == 1)
-            {
-                return FromPowerDef.InvokeGeneric<IHoverTip, T>(null, [null])!;
-            }
-            else
-            {
-                return FromPowerDef.InvokeGeneric<IHoverTip, T>(null)!;
-            }
-        }
-
-        [Obsolete("No longer differs between main and beta.")]
-        public static IHoverTip FromPower(PowerModel power, int? amount = null)
-        {
-            return FromPowerInstanceDef.Invoke<IHoverTip>(null, [power, amount])!;
-        }
     }
 
     public static class _ModManifest
@@ -483,92 +442,5 @@ public class VariableMethod
             finalArgs[i] = null;
         
         method.Invoke(instance, finalArgs);
-    }
-}
-
-[Obsolete("No longer differs between main and beta.")]
-public class CombatStateWrapper(object combatState)
-{
-    static CombatStateWrapper()
-    {
-        Type? combatStateType = null;
-        try
-        {
-            combatStateType = Type.GetType("MegaCrit.Sts2.Core.Combat.ICombatState, sts2");
-        }
-        catch (Exception) { }
-
-        if (combatStateType == null) combatStateType = Type.GetType("MegaCrit.Sts2.Core.Combat.CombatState, sts2");
-        //If this also fails BaseLib won't work anyways, so no try-catch
-        if (combatStateType == null) throw new Exception("Failed to get combat state type in CombatStateWrapper for compatibility");
-
-        RunStateRef = new(combatStateType, "RunState");
-        AlliesRef = new(combatStateType, "Allies");
-        EnemiesRef = new (combatStateType, "Enemies");
-        ModifiersRef = new(combatStateType, "Modifiers");
-        MultiplayerScalingModelRef = new(combatStateType, "MultiplayerScalingModel");
-        RoundNumberRef = new(combatStateType, "RoundNumber");
-        CurrentSideRef = new(combatStateType, "CurrentSide");
-        EscapedCreaturesRef = new(combatStateType, "EscapedCreatures");
-        HittableEnemiesRef = new(combatStateType, "HittableEnemies");
-    }
-
-    private static readonly VariableReference<IRunState> RunStateRef;
-    private static readonly VariableReference<IReadOnlyList<Creature>> AlliesRef;
-    private static readonly VariableReference<IReadOnlyList<Creature>> EnemiesRef;
-    private static readonly VariableReference<IReadOnlyList<ModifierModel>> ModifiersRef;
-    private static readonly VariableReference<MultiplayerScalingModel?> MultiplayerScalingModelRef;
-    private static readonly VariableReference<int> RoundNumberRef;
-    private static readonly VariableReference<CombatSide> CurrentSideRef;
-    private static readonly VariableReference<List<Creature>> EscapedCreaturesRef;
-    private static readonly VariableReference<IReadOnlyList<Creature>> HittableEnemiesRef;
-
-    public object WrappedState => combatState;
-    
-    public IRunState RunState => RunStateRef.Get(combatState);
-
-    public IReadOnlyList<Creature> Allies => AlliesRef.Get(combatState);
-    public IReadOnlyList<Creature> Enemies => EnemiesRef.Get(combatState);
-    public IReadOnlyList<Creature> Creatures => Allies.Concat(Enemies).ToList();
-    public IReadOnlyList<Creature> PlayerCreatures => Creatures.Where(c => c.IsPlayer).ToList();
-    public IReadOnlyList<Player> Players => PlayerCreatures.Select(c => c.Player!).ToList();
-    
-    public IReadOnlyList<ModifierModel> Modifiers => ModifiersRef.Get(combatState);
-    public MultiplayerScalingModel? MultiplayerScalingModel => MultiplayerScalingModelRef.Get(combatState);
-
-    public int RoundNumber => RoundNumberRef.Get(combatState);
-    public CombatSide CurrentSide => CurrentSideRef.Get(combatState);
-    public List<Creature> EscapedCreatures => EscapedCreaturesRef.Get(combatState);
-
-    public IReadOnlyList<Creature> HittableEnemies => HittableEnemiesRef.Get(combatState);
-
-    public IReadOnlyList<Creature> CreaturesOnCurrentSide => GetCreaturesOnSide(CurrentSide);
-    public IReadOnlyList<Creature> GetCreaturesOnSide(CombatSide side)
-    {
-        if (side != CombatSide.Enemy)
-        {
-            return Allies;
-        }
-        return Enemies;
-    }
-
-    public IReadOnlyList<Creature> GetOpponentsOf(Creature creature)
-    {
-        return GetCreaturesOnSide(creature.Side.GetOppositeSide());
-    }
-
-    public IReadOnlyList<Creature> GetTeammatesOf(Creature creature)
-    {
-        return GetCreaturesOnSide(creature.Side);
-    }
-
-    public Player? GetPlayer(ulong playerId)
-    {
-        return Players.FirstOrDefault(p => p.NetId == playerId);
-    }
-
-    public bool HappenedThisTurn(CombatHistoryEntry entry)
-    {
-        return RoundNumber == entry.RoundNumber && CurrentSide == entry.CurrentSide;
     }
 }

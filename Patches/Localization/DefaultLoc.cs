@@ -60,12 +60,19 @@ public static class DefaultLoc
                 if (ResourceLoader.Exists(origPath)) continue;
                 BaseLibMain.Logger.VeryDebug($"\"{origPath}\" not found and DefaultLoc not set; looking for existing loc file");
 
+                //Language directories live directly under localization/; ListDirectory marks subdirectories with a trailing slash.
                 HashSet<string> existingLang = [];
-                foreach (var directory in ResourceLoader.ListDirectory($"res://{mod.manifest.id}/localization/{language}/").Where(str => str.EndsWith('/')))
+                var localizationRoot = $"res://{mod.manifest.id}/localization";
+                if (DirAccess.DirExistsAbsolute(localizationRoot))
                 {
-                    if (directory == null) continue;
-                    defaultLoc = directory;
-                    existingLang.Add(directory);
+                    foreach (var entry in ResourceLoader.ListDirectory(localizationRoot))
+                    {
+                        if (entry == null || !entry.EndsWith('/')) continue;
+
+                        var lang = entry.TrimEnd('/');
+                        if (lang.Length == 0) continue;
+                        existingLang.Add(lang);
+                    }
                 }
                 
                 if (existingLang.Count == 0) continue;

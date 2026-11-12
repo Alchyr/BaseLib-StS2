@@ -21,9 +21,9 @@
         <PackageId>Alchyr.Sts2.BaseLib</PackageId>
         <Title>BaseLib-StS2</Title>
         <Description>Mod for Slay the Spire 2 providing utilities and features for other mods.</Description>
-        <Version>3.4.7</Version>
+        <Version>3.4.8</Version>
         <Authors>Alchyr</Authors>
-        <PackageReleaseNotes>fix patch for main branch, IPlayCustomPowerSfx interface for powers</PackageReleaseNotes>
+        <PackageReleaseNotes>Beta compatibility prep, act 1 ancient support, removal of some older obsolete compatibility methods, many small fixes</PackageReleaseNotes>
         <PackageTags>c#</PackageTags>
         <NoWarn>$(NoWarn);NU5128;MSB3270</NoWarn>
 
@@ -58,6 +58,10 @@
             <Private>false</Private>
         </Reference>
         <PackageReference Include="Krafs.Publicizer" Version="2.3.0" PrivateAssets="All"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\BaseLibCompatibilityHelper\BaseLibCompatibilityHelper.csproj" Private="false"/>
     </ItemGroup>
 
     <ItemGroup>

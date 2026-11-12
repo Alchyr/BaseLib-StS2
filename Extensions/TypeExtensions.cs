@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using HarmonyLib;
 using System.Reflection;
 using System.Reflection.Emit;
@@ -52,14 +53,62 @@ public static class TypeExtensions
     /// Unlike GetMethod(), does 'loose' matching on generic
     /// parameter types, and searches base interfaces.
     /// </summary>
+    public static bool TryGetMethodExt(this Type thisType, string name, [NotNullWhen(true)] out MethodInfo? resultMethod,
+        Func<MethodInfo, bool>? extraFilter = null, params Type?[] parameterTypes)
+    {
+        return thisType.TryGetMethodExt(name, string.Equals, out resultMethod, extraFilter, parameterTypes);
+    }
+    
+    /// <summary>
+    /// Search for a method by name and parameter types.  
+    /// Unlike GetMethod(), does 'loose' matching on generic
+    /// parameter types, and searches base interfaces.
+    /// </summary>
+    public static bool TryGetMethodExt(this Type thisType, string name, Func<string, string, bool> nameMatching, [NotNullWhen(true)] out MethodInfo? resultMethod,
+        Func<MethodInfo, bool>? extraFilter = null, params Type?[] parameterTypes)
+    {
+        resultMethod = thisType.GetMethodExt(name, nameMatching, extraFilter, parameterTypes);
+        return resultMethod != null;
+    }
+
+    /// <summary>
+    /// Search for a method by name and parameter types.  
+    /// Unlike GetMethod(), does 'loose' matching on generic
+    /// parameter types, and searches base interfaces.
+    /// </summary>
+    /// <exception cref="AmbiguousMatchException"/>
+    public static MethodInfo? GetMethodExt( this Type thisType, 
+        string name,
+        Func<MethodInfo, bool>? extraFilter = null,
+        params Type?[] parameterTypes)
+    {
+        return GetMethodExt(thisType, 
+            name, 
+            string.Equals,
+            BindingFlags.Instance 
+            | BindingFlags.Static 
+            | BindingFlags.Public 
+            | BindingFlags.NonPublic
+            | BindingFlags.FlattenHierarchy, 
+            extraFilter,
+            parameterTypes);
+    }
+    
+    /// <summary>
+    /// Search for a method by name and parameter types.  
+    /// Unlike GetMethod(), does 'loose' matching on generic
+    /// parameter types, and searches base interfaces.
+    /// </summary>
     /// <exception cref="AmbiguousMatchException"/>
     public static MethodInfo? GetMethodExt( this Type thisType, 
                                             string name, 
+                                            Func<string, string, bool> nameMatching,
                                             Func<MethodInfo, bool>? extraFilter = null,
                                             params Type?[] parameterTypes)
     {
         return GetMethodExt(thisType, 
                             name, 
+                            nameMatching,
                             BindingFlags.Instance 
                             | BindingFlags.Static 
                             | BindingFlags.Public 
@@ -73,10 +122,14 @@ public static class TypeExtensions
     /// Search for a method by name, parameter types, and binding flags.  
     /// Unlike GetMethod(), does 'loose' matching on generic
     /// parameter types, and searches base interfaces.
+    ///
+    /// Recommended method of matching name is string.Equals, though string.Contains can be useful for
+    /// compiler-generated types.
     /// </summary>
     /// <exception cref="AmbiguousMatchException"/>
     public static MethodInfo? GetMethodExt( this Type thisType, 
                                             string name, 
+                                            Func<string, string, bool> nameMatching,
                                             BindingFlags bindingFlags, 
                                             Func<MethodInfo, bool>? extraFilter = null,
                                             params Type?[] parameterTypes)
@@ -84,7 +137,7 @@ public static class TypeExtensions
         MethodInfo? matchingMethod = null;
 
         // Check all methods with the specified name, including in base classes
-        GetMethodExt(ref matchingMethod, thisType, name, bindingFlags, extraFilter, parameterTypes);
+        GetMethodExt(ref matchingMethod, thisType, name, nameMatching, bindingFlags, extraFilter, parameterTypes);
 
         // If we're searching an interface, we have to manually search base interfaces
         if (matchingMethod == null && thisType.IsInterface)
@@ -93,6 +146,7 @@ public static class TypeExtensions
                 GetMethodExt(ref matchingMethod, 
                              interfaceType, 
                              name, 
+                             nameMatching,
                              bindingFlags, 
                              extraFilter,
                              parameterTypes);
@@ -104,6 +158,7 @@ public static class TypeExtensions
     private static void GetMethodExt(   ref MethodInfo? matchingMethod, 
                                         Type type, 
                                         string name, 
+                                        Func<string, string, bool> nameMatching,
                                         BindingFlags bindingFlags, 
                                         Func<MethodInfo, bool>? extraFilter,
                                         params Type?[] parameterTypes)
@@ -111,7 +166,7 @@ public static class TypeExtensions
         // Check all methods with the specified name, including in base classes
         foreach (MethodInfo methodInfo in type.GetMethods(bindingFlags))
         {
-            if (!methodInfo.Name.Equals(name))
+            if (!nameMatching(methodInfo.Name, name))
             {
                 continue;
             }

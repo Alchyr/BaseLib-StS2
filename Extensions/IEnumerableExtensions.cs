@@ -27,6 +27,19 @@ public static class IEnumerableExtensions
         return sb.ToString();
     }
 
+    internal static TSource? FirstOrNullStruct<TSource>(this IEnumerable<TSource> source, Func<TSource, bool> predicate) where TSource : struct
+    {
+        foreach (var element in source)
+        {
+            if (predicate(element))
+            {
+                return element;
+            }
+        }
+
+        return null;
+    }
+    
     internal static T LogCode<T>(this T code) where T : IEnumerable<CodeInstruction>
     {
         BaseLibMain.Logger.Info($"CODE:\n{code.Join(instruction => instruction.ToString(), "\n")}");

@@ -181,9 +181,11 @@ public static class ModAudio
             } < 0)
             return null;
         
+        //Snapshot the active lists before iterating: RemoveChildSafely detaches the player from the tree, which raises
+        //TreeExited synchronously and removes it from the same list, modifying the collection under the iterator.
         if (sound.SoundType == SoundType.Music)
         {
-            foreach (var music in _activeMusic)
+            foreach (var music in _activeMusic.ToList())
             {
                 if (music.Name == sound.File)
                 {
@@ -195,7 +197,7 @@ public static class ModAudio
         }
         else if (sound.SoundType == SoundType.Ambience)
         {
-            foreach (var ambience in _activeAmbience)
+            foreach (var ambience in _activeAmbience.ToList())
             {
                 if (ambience.Name == sound.File)
                 {

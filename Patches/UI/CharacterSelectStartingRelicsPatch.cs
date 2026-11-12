@@ -42,8 +42,7 @@ internal static class CharacterSelectStartingRelicsPatch
     [HarmonyPostfix]
     private static void SelectCharacterPostfix(
         NCharacterSelectScreen __instance,
-        NCharacterSelectButton charSelectButton,
-        CharacterModel characterModel)
+        NCharacterSelectButton charSelectButton)
     {
         if (charSelectButton.IsLocked || charSelectButton.IsRandom)
         {
@@ -51,7 +50,7 @@ internal static class CharacterSelectStartingRelicsPatch
             return;
         }
 
-        ApplyForCharacter(__instance, characterModel, charSelectButton);
+        ApplyForCharacter(__instance, charSelectButton.Character, charSelectButton);
     }
 
     [HarmonyPatch(typeof(NCharacterSelectScreen), nameof(NCharacterSelectScreen.OnSubmenuOpened))]

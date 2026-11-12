@@ -43,6 +43,16 @@ public class ExtraTooltips
         return __result;
     }
     
+    [HarmonyPatch(typeof(PotionModel), nameof(PotionModel.HoverTips), MethodType.Getter)]
+    [HarmonyPostfix]
+    static IEnumerable<IHoverTip> AddCustomPotionTips(IEnumerable<IHoverTip> __result, PotionModel __instance)
+    {
+        // PotionModel.HoverTips is a lazy Concat, not a collection, so it has to be copied before adding to it.
+        var tips = __result.ToList();
+        AddTipsGeneric(tips, __instance);
+        return tips;
+    }
+
     [HarmonyPatch(typeof(PowerModel), nameof(PowerModel.HoverTips), MethodType.Getter)]
     [HarmonyPostfix]
     static IEnumerable<IHoverTip> AddCustomPowerTips(IEnumerable<IHoverTip> __result, PowerModel __instance)

@@ -44,7 +44,7 @@ static class ModSourceTooltip
         }
         else
         {
-            list.Add(new HoverTip(TitleLoc(), name) { Id = $"BASELIB-MOD_SOURCE-{name}" });
+            list.Add(new HoverTip(TitleLoc(), name));
         }
         return list;
     }
@@ -57,7 +57,7 @@ static class ModSourceTooltip
         var name = WhatMod.FindModName(model.GetType());
         return name == null
             ? tips
-            : tips.Append(new HoverTip(TitleLoc(), name) { Id = $"BASELIB-MOD_SOURCE-{name}" });
+            : tips.Append(new HoverTip(TitleLoc(), name));
     }
 
     [HarmonyPatch(typeof(RelicModel), nameof(RelicModel.HoverTips), MethodType.Getter)]

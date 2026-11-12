@@ -1,4 +1,5 @@
-﻿using BaseLib.Abstracts;
+﻿using System.Globalization;
+using BaseLib.Abstracts;
 using BaseLib.Extensions;
 using BaseLib.Utils;
 using MegaCrit.Sts2.Core.Combat;
@@ -129,18 +130,18 @@ public class CustomCalculatedVar : CalculatedVar
         return this;
     }
 
+    /// <inheritdoc />
     protected override DynamicVar GetBaseVar()
     {
         return _owner!.GetDynamicVar($"{Name}Base");
     }
 
+    /// <inheritdoc />
     protected override DynamicVar GetExtraVar()
     {
         return _owner!.GetDynamicVar($"{Name}Extra");
     }
 
-    protected override decimal GetBaseValueForIConvertible() => CalculateCustom(null);
-
     /// <inheritdoc />
-    public override string ToString() => CalculateCustom(null).ToString();
+    public override string ToString() => CalculateCustom(null).ToString(CultureInfo.InvariantCulture);
 }

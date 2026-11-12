@@ -266,70 +266,7 @@ public static class CommonActions
     {
         return await CardPileCmd.Draw(context, card.DynamicVars.Cards.BaseValue, card.Owner);
     }
-        
-    /// FOR COMPATIBILITY - WILL BE REMOVED
-    /// <summary>
-    /// Applies the power specified as the generic parameter to the target using a PowerVar defined for that power.
-    /// </summary>
-    /// <returns></returns>
-    [Obsolete("Will be removed. Change to calling the overload that receives a PlayerChoiceContext if you are on the beta branch.")]
-    public static async Task<T?> Apply<T>(Creature target, DynamicVarSource dynVarSource, bool silent = false) where T : PowerModel
-    {
-        return await BetaMainCompatibility.PowerCmd_.Apply.InvokeGeneric<Task<T?>, T>
-            (null, new ThrowingPlayerChoiceContext(), target, dynVarSource.DynamicVars.Power<T>().BaseValue, dynVarSource.Owner, dynVarSource.Card, silent)!;
-    }
-    /// <summary>
-    /// Applies the power specified as the generic parameter to multiple targets using a PowerVar defined for that power.
-    /// </summary>
-    /// <returns></returns>
-    [Obsolete("Will be removed. Change to calling the overload that receives a PlayerChoiceContext if you are on the beta branch.")]
-    public static async Task<IReadOnlyList<T>> Apply<T>(IEnumerable<Creature> targets, DynamicVarSource dynVarSource, bool silent = false) where T : PowerModel
-    {
-        return await BetaMainCompatibility.PowerCmd_.ApplyMulti.InvokeGeneric<Task<IReadOnlyList<T>>, T>
-            (null, new ThrowingPlayerChoiceContext(), targets, dynVarSource.DynamicVars.Power<T>().BaseValue, dynVarSource.Owner, dynVarSource.Card, silent)!;
-    }
     
-    /// <summary>
-    /// Applies the power specified as the generic parameter to the target using a PowerVar defined for that power.
-    /// </summary>
-    /// <returns></returns>
-    [Obsolete("Will be removed. Change to calling the overload that receives a PlayerChoiceContext if you are on the beta branch.")]
-    public static async Task<T?> Apply<T>(Creature target, CardModel card, bool silent = false) where T : PowerModel
-    {
-        return await BetaMainCompatibility.PowerCmd_.Apply.InvokeGeneric<Task<T?>, T>
-            (null, new ThrowingPlayerChoiceContext(), target, card.DynamicVars.Power<T>().BaseValue, card.Owner.Creature, card, silent)!;
-    }
-    
-    /// <summary>
-    /// Applies the power specified as the generic parameter to the target.
-    /// </summary>
-    /// <returns></returns>
-    [Obsolete("Will be removed. Change to calling the overload that receives a PlayerChoiceContext if you are on the beta branch.")]
-    public static async Task<T?> Apply<T>(Creature target, CardModel? card, decimal amount, bool silent = false) where T : PowerModel
-    {
-        return await BetaMainCompatibility.PowerCmd_.Apply.InvokeGeneric<Task<T?>, T>
-            (null, new ThrowingPlayerChoiceContext(), target, amount, card?.Owner.Creature, card, silent)!;
-    }
-    
-    /// <summary>
-    /// Applies the power specified as the generic parameter to the card's owner using a PowerVar defined for that power.
-    /// </summary>
-    [Obsolete("Will be removed. Change to calling the overload that receives a PlayerChoiceContext if you are on the beta branch.")]
-    public static async Task<T?> ApplySelf<T>(CardModel card, bool silent = false) where T : PowerModel
-    {
-        return await ApplySelf<T>(new ThrowingPlayerChoiceContext(), card, card.DynamicVars.Power<T>().BaseValue, silent);
-    }
-    
-    /// <summary>
-    /// Applies the power specified as the generic parameter to the card's owner.
-    /// </summary>
-    [Obsolete("Will be removed. Change to calling the overload that receives a PlayerChoiceContext if you are on the beta branch.")]
-    public static async Task<T?> ApplySelf<T>(CardModel card, decimal amount, bool silent = false) where T : PowerModel
-    {
-        return await BetaMainCompatibility.PowerCmd_.Apply.InvokeGeneric<Task<T?>, T>
-            (null, new ThrowingPlayerChoiceContext(), card.Owner.Creature, amount, card.Owner.Creature, card, silent)!;
-    }
-    /* END OF COMPATIBILITY SECTION */
     
     /// <summary>
     /// Applies the power specified as the generic parameter to the target using a PowerVar defined for that power.
@@ -337,8 +274,7 @@ public static class CommonActions
     /// <returns></returns>
     public static async Task<T?> Apply<T>(PlayerChoiceContext context, Creature target, DynamicVarSource dynVarSource, bool silent = false) where T : PowerModel
     {
-        return await BetaMainCompatibility.PowerCmd_.Apply.InvokeGeneric<Task<T?>, T>
-            (null, context, target, dynVarSource.DynamicVars.Power<T>().BaseValue, dynVarSource.Owner, dynVarSource.Card, silent)!;
+        return await PowerCmd.Apply<T>(context, target, dynVarSource.DynamicVars.Power<T>().BaseValue, dynVarSource.Owner, dynVarSource.Card, silent);
     }
     /// <summary>
     /// Applies the power specified as the generic parameter to multiple targets using a PowerVar defined for that power.
@@ -346,8 +282,7 @@ public static class CommonActions
     /// <returns></returns>
     public static async Task<IReadOnlyList<T>> Apply<T>(PlayerChoiceContext context, IEnumerable<Creature> targets, DynamicVarSource dynVarSource, bool silent = false) where T : PowerModel
     {
-        return await BetaMainCompatibility.PowerCmd_.ApplyMulti.InvokeGeneric<Task<IReadOnlyList<T>>, T>
-            (null, context, targets, dynVarSource.DynamicVars.Power<T>().BaseValue, dynVarSource.Owner, dynVarSource.Card, silent)!;
+        return await PowerCmd.Apply<T>(context, targets, dynVarSource.DynamicVars.Power<T>().BaseValue, dynVarSource.Owner, dynVarSource.Card, silent);
     }
     
     /// <summary>
@@ -356,8 +291,7 @@ public static class CommonActions
     /// <returns></returns>
     public static async Task<T?> Apply<T>(PlayerChoiceContext context, Creature target, CardModel card, bool silent = false) where T : PowerModel
     {
-        return await BetaMainCompatibility.PowerCmd_.Apply.InvokeGeneric<Task<T?>, T>
-            (null, context, target, card.DynamicVars.Power<T>().BaseValue, card.Owner.Creature, card, silent)!;
+        return await PowerCmd.Apply<T>(context, target, card.DynamicVars.Power<T>().BaseValue, card.Owner.Creature, card, silent);
     }
     
     /// <summary>
@@ -366,8 +300,7 @@ public static class CommonActions
     /// <returns></returns>
     public static async Task<T?> Apply<T>(PlayerChoiceContext context, Creature target, CardModel? card, decimal amount, bool silent = false) where T : PowerModel
     {
-        return await BetaMainCompatibility.PowerCmd_.Apply.InvokeGeneric<Task<T?>, T>
-            (null, context, target, amount, card?.Owner.Creature, card, silent)!;
+        return await PowerCmd.Apply<T>(context, target, amount, card?.Owner.Creature, card, silent);
     }
     
     /// <summary>
@@ -383,8 +316,7 @@ public static class CommonActions
     /// </summary>
     public static async Task<T?> ApplySelf<T>(PlayerChoiceContext context, CardModel card, decimal amount, bool silent = false) where T : PowerModel
     {
-        return await BetaMainCompatibility.PowerCmd_.Apply.InvokeGeneric<Task<T?>, T>
-            (null, context, card.Owner.Creature, amount, card.Owner.Creature, card, silent)!;
+        return await PowerCmd.Apply<T>(context, card.Owner.Creature, amount, card.Owner.Creature, card, silent);
     }
     
     /// <summary>

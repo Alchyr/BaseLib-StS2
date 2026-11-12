@@ -13,13 +13,15 @@ namespace BaseLib.Cards.Variables;
 /// </summary>
 public class ScryVar : DynamicVar
 {
+    public const string defaultName = "Scry";
+    
     /// <summary>
     /// Creates a new scry variable named <c>"Scry"</c> and registers its hover tooltip
     /// via <see cref="DynamicVarExtensions.WithTooltip{TDynamicVar}"/>, which resolves the
     /// <c>BASELIB-SCRY</c> localization entries (preferring <c>.smartDescription</c> when available).
     /// </summary>
     /// <param name="baseValue">The base scry amount before modifiers are applied.</param>
-    public ScryVar(decimal baseValue) : base("Scry", baseValue)
+    public ScryVar(decimal baseValue) : base(defaultName, baseValue)
     {
         this.WithTooltip();
     }

@@ -277,7 +277,7 @@ public static class HealthBarForecastPatch
             return;
 
         var creature = healthBar._creature;
-        if (creature.CurrentHp <= 0 || BetaMainCompatibility.Creature_.ShowsInfiniteHp(creature))
+        if (creature.CurrentHp <= 0 || creature.HpDisplay.IsInfinite())
             return;
 
         var targetOffsetRight = state.LastRender.RightForecastEdgeOffsetRight;
@@ -401,7 +401,7 @@ public static class HealthBarForecastPatch
     /// <summary>
     ///     Draws <see cref="HealthBarForecastDirection.InwardFromMaxHp" /> and
     ///     <see cref="HealthBarForecastDirection.OutwardFromCurrentHp" /> segments.
-
+    /// 
     ///     InwardFromMaxHp is resolved first because OutwardFromCurrentHp is clipped by it: an absorb
     ///     pool that overcaps max HP shows the overcapped portion pinned to the right edge, and the
     ///     in-bounds portion fills what is left of the empty remainder. Neither kind touches the

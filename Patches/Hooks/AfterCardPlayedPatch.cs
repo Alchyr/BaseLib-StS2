@@ -26,7 +26,12 @@ class AfterCardPlayedPatch
     {
         if (PostModInitPatch.CanModifyGameplay)
         {
-            foreach (var modifier in  CardModifier.Modifiers(cardPlay.Card))
+            // OnPlay is awaited, and a modifier is free to remove (or add) itself or another modifier while it
+            // runs (CardModifier.RemoveModifier/AddModifier). Modifiers() is only a read-only wrapper over the
+            // card's live list (CardModifier.cs:201), so iterating it directly threw InvalidOperationException
+            // as soon as one OnPlay touched that list. Snapshot first: same order, same serial awaits, and
+            // changes made during a play take effect from the next play.
+            foreach (var modifier in CardModifier.Modifiers(cardPlay.Card).ToList())
             {
                 await modifier.OnPlay(choiceContext, cardPlay);
             }

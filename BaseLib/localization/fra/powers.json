@@ -1,0 +1,9 @@
+{
+  "BASELIB-CUSTOM_TEMPORARY_POWER_MODEL.title": "Pouvoir Temporaire",
+  "BASELIB-CUSTOM_TEMPORARY_POWER_MODEL.description": "Applique un pouvoir temporairement à la créature.",
+  "BASELIB-CUSTOM_TEMPORARY_POWER_MODEL.smartDescription": "Applique un pouvoir temporairement à la créature.",
+  "BASELIB-CUSTOM_TEMPORARY_POWER_MODEL.UP.description": "Augmente un [gold]Pouvoir[/gold] pour une durée.",
+  "BASELIB-CUSTOM_TEMPORARY_POWER_MODEL.UP.smartDescription": "Gagnez [blue]{Amount:abs()}[/blue] [gold]{TemporaryPowerTitle}[/gold] jusqu'à la fin de vôtre {UntilEndOfOtherSideTurn:cond:|enemies }tour.{Repeat:cond:>0?\\nPersiste pour encore [blue]{Repeat:diff()}[/blue] {Repeat:plural:tour|tours} supplémentaires.|}",
+  "BASELIB-CUSTOM_TEMPORARY_POWER_MODEL.DOWN.description": "Réduit un [gold]Pouvoir[/gold] pour une durée.",
+  "BASELIB-CUSTOM_TEMPORARY_POWER_MODEL.DOWN.smartDescription": "Perdez [blue]{Amount:abs()}[/blue] [gold]{TemporaryPowerTitle}[/gold] jusqu'à la fin de vôtre {UntilEndOfOtherSideTurn:cond:|enemies }tour.{Repeat:cond:>0?\\nPersiste pour encore [blue]{Repeat:diff()}[/blue] {Repeat:plural:tour|tours} supplémentaires.|}"
+}

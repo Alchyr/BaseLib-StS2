@@ -1,0 +1,22 @@
+{
+  "BASELIB-PERSIST.title": "Persistante",
+  "BASELIB-PERSIST.smartTitle": "Persistante ({Persist})",
+  "BASELIB-PERSIST.description": "Cette carte retourne dans votre main [blue]X[/blue] fois qu'elle est jouée ce tour.",
+  "BASELIB-PERSIST.smartDescription": "Cette carte retourne dans votre main {Persist:cond:>1?[blue]{Persist}[/blue] |}{Persist:plural:fois|fois} qu'elle est jouée à chaque tour.",
+  "BASELIB-EXHAUSTIVE.title": "Épuisée",
+  "BASELIB-EXHAUSTIVE.smartTitle": "Epuisée ({Exhaustive})",
+  "BASELIB-EXHAUSTIVE.description": "Cette carte [gold]s'Épuise[/gold] après [blue]X[/blue] utilisations.",
+  "BASELIB-EXHAUSTIVE.smartDescription": "Cette carte [gold]s'Épuise[/gold] après {Exhaustive:cond:>1?[blue]{Exhaustive}[/blue] |}{Exhaustive:plural:utilisation|utilisations}.",
+  "BASELIB-REFUND.title": "Remboursement",
+  "BASELIB-REFUND.smartTitle": "Remboursement ({Refund})",
+  "BASELIB-REFUND.description": "Quand vous utilisez de l'energie pour utiliser cette carte, jusqu'à [blue]X[/blue] points d'énergie vous sont remboursés.",
+  "BASELIB-REFUND.smartDescription": "Quand vous utilisez de l'energie pour utiliser cette carte, jusqu'à [blue]{Refund}[/blue] points d'énergie vous sont remboursés.",
+  "BASELIB-SCRY.title": "Scruter",
+  "BASELIB-SCRY.smartTitle": "Scruter ({Scry})",
+  "BASELIB-SCRY.description": "Regardez les premières cartes de votre [gold]Pioche[/gold]. Vous pouvez en défausser autant que vous souhaitez.",
+  "BASELIB-SCRY.smartDescription": "Regardez {Scry:plural:la [blue]première[/blue] carte|les [blue]{Scry:diff()}[/blue] premières cartes} de votre [gold]Pioche[/gold]. Vous pouvez {Scry:plural:la defausser si vous le souhaitez|en défausser autant que vous souhaitez}.",
+  "BASELIB-BUNDLED_REWARDS.title": "Pack récompenses",
+  "BASELIB-BUNDLED_REWARDS.description": "Vous pouvez selectionner [gold]Toutes[/gold] ou [gold]Aucunes[/gold] récompenses de ce set.",
+  "BASELIB-EXCLUSIVE_REWARDS.title": "Récompenses Exclusives",
+  "BASELIB-EXCLUSIVE_REWARDS.description": "Vous pouvez seulement selectionner [blue]1[/blue] récompense de ce set."
+}

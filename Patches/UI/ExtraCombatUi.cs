@@ -271,7 +271,9 @@ public class ExtraCombatUi
     /// </summary>
     static void UpdatePositions(NCombatUi ui, CombatUiPositioning positioning)
     {
-        foreach (var control in ActiveControls(ui, positioning))
+        // DropPosition mutates the very list ActiveControls returns, so iterating it directly threw
+        // InvalidOperationException the moment a control was hidden. Snapshot first.
+        foreach (var control in ActiveControls(ui, positioning).ToList())
         {
             if (!control.Visible) DropPosition(ui, control, false);
         }

@@ -133,7 +133,7 @@ internal class ModInterop
         }
         catch (Exception e)
         {
-            BaseLibMain.Logger.Info(e.ToString());
+            BaseLibMain.Logger.Error(e.ToString());
             return false;
         }
     }
@@ -165,6 +165,9 @@ internal class ModInterop
             Type[]? genericTypes = targetAttr?.GenericTypes;
             if (genericTypes != null)
             {
+                if (genericTypes.Length != method.GetGenericArguments().Length)
+                    throw new Exception($"Method '{method.DeclaringType}.{method.Name}' does not match the generic argument count provided in it's attached {nameof(InteropTargetAttribute)}");
+
                 method = method.MakeGenericMethod(genericTypes);
             }
 
@@ -175,7 +178,14 @@ internal class ModInterop
             foreach (var target in targetType.GetDeclaredMethods())
             {
                 if (target.Name != methodName) continue;
-                var possibleTarget = genericTypes == null ? target : target.MakeGenericMethod(genericTypes);
+                var possibleTarget = target;
+                if (genericTypes != null)
+                {
+                    if (!target.IsGenericMethodDefinition || target.GetGenericArguments().Length != genericTypes.Length)
+                        continue;
+
+                    possibleTarget = target.MakeGenericMethod(genericTypes);
+                }
                 var targetParams = possibleTarget.GetParameters();
                 if (!CheckParamMatch(targetParams, methodParams)) continue;
                 targetMethod = possibleTarget;
@@ -218,7 +228,7 @@ internal class ModInterop
         }
         catch (Exception e)
         {
-            BaseLibMain.Logger.Info(e.ToString());
+            BaseLibMain.Logger.Error(e.ToString());
             return false;
         }
 
@@ -360,7 +370,7 @@ internal class ModInterop
         }
         catch (Exception e)
         {
-            BaseLibMain.Logger.Info(e.ToString());
+            BaseLibMain.Logger.Error(e.ToString());
             return false;
         }
     }

@@ -9,13 +9,10 @@ using HarmonyLib;
 using MegaCrit.Sts2.Core.Helpers;
 using MegaCrit.Sts2.Core.Modding;
 using MegaCrit.Sts2.Core.Models;
-using MegaCrit.Sts2.Core.Models.Acts;
 using MegaCrit.Sts2.Core.Models.Relics;
 using MegaCrit.Sts2.Core.Random;
 using MegaCrit.Sts2.Core.Rooms;
 using MegaCrit.Sts2.Core.Runs;
-using MegaCrit.Sts2.Core.Saves;
-using MegaCrit.Sts2.Core.Timeline.Epochs;
 using MegaCrit.Sts2.Core.Unlocks;
 
 namespace BaseLib.Patches.Content;
@@ -186,31 +183,67 @@ public class CurrentGeneratingRunState
         State = null;
     }
 }
-[HarmonyPatch(typeof(ActModel), nameof(ActModel.GenerateRooms))]
+[HarmonyPatch]
 class AddCustomAncientsToPool
 {
     private static readonly FieldInfo RoomSet = AccessTools.Field(typeof(ActModel), "_rooms");
+
+    static MethodInfo TargetMethod()
+    {
+        return typeof(ActModel).DeclaredMethod("GenerateRooms", [typeof(Rng), typeof(UnlockState), typeof(bool)]) ??
+               typeof(ActModel).DeclaredMethod("GenerateRooms", [typeof(Rng), typeof(UnlockState), typeof(bool), typeof(bool)]);
+    }
     
     [HarmonyPrefix]
-    static void AddToModelPool(ActModel __instance, List<AncientEventModel>? ____sharedAncientSubset)
+    static void AddToModelPool(ActModel __instance)
     {
-        if (____sharedAncientSubset == null) return; //Act 1 or other act with no shared ancients
+        if (CurrentGeneratingRunState.State?.Modifiers.Count > 0 &&
+            __instance.Index == 0)
+        {
+            //Disabled for runs with modifiers.
+            return;
+        }
+        
+        var workingList = __instance._sharedAncientSubset ?? [];
+        //Will be null for act 1 or other possible exceptional cases.
 
         //Not a fan of this, but having them in shared ancients rather than all ancients is the easiest way to have them
         //appear in compendium.
-        ____sharedAncientSubset.RemoveAll(CustomContentDictionary.CustomAncients.Contains);
+        workingList.RemoveAll(CustomContentDictionary.CustomAncients.Contains);
         
         List<CustomAncientModel> toAdd = [..CustomContentDictionary.CustomAncients];
         toAdd.Sort((a, b) =>  string.Compare(a.Id.Entry, b.Id.Entry, StringComparison.Ordinal));
         
-        toAdd.RemoveAll(ancient => !ancient.IsValidForAct(__instance) || ____sharedAncientSubset.Contains(ancient));
+        toAdd.RemoveAll(ancient => !ancient.IsValidForAct(__instance) || workingList.Contains(ancient));
         foreach (var act in CurrentGeneratingRunState.State?.Acts ?? [])
         {
             if (RoomSet.GetValue(act) is not RoomSet { HasAncient: true }) continue;
             if (act == __instance) continue;
             if (act.Ancient is CustomAncientModel customAncient) toAdd.Remove(customAncient);
         }
-        ____sharedAncientSubset.AddRange(toAdd);
+        BaseLibMain.Logger.Debug($"Added {toAdd.Count} ancient(s) to act {__instance}");
+        workingList.AddRange(toAdd);
+
+        //Avoid modification if unnecessary.
+        if (__instance._sharedAncientSubset == null && workingList.Count > 0)
+        {
+            __instance._sharedAncientSubset = workingList;
+        }
+    }
+    
+    [HarmonyPostfix]
+    static void ForceAncientToSpawn(ActModel __instance)
+    {
+        var rooms = RoomSet.GetValue(__instance);
+        if (rooms is not RoomSet { HasAncient: true } roomSet) return;
+        
+        var rngChosenAncient = roomSet.Ancient;
+        var ancientToSpawn = CustomContentDictionary.CustomAncients.Find(a => a.ShouldForceSpawn(__instance, rngChosenAncient));
+
+        if (ancientToSpawn != null)
+        {
+            roomSet.Ancient = ancientToSpawn;
+        }
     }
 }
 
@@ -268,25 +301,6 @@ class ModelDbSharedPotionPoolsPatch
         if (!CustomContentDictionary.RegisterType(pool.GetType())) return;
         
         customSharedPools.Add(pool);
-    }
-}
-
-[HarmonyPatch(typeof(ActModel), nameof(ActModel.GenerateRooms))]
-class ActModelGenerateRoomsPatch
-{
-    [HarmonyPostfix]
-    static void ForceAncientToSpawn(ActModel __instance)
-    {
-        var rooms = Traverse.Create(__instance).Field<RoomSet>("_rooms").Value;
-        if (!rooms.HasAncient) return;
-        
-        var rngChosenAncient = rooms.Ancient;
-        var ancientToSpawn = CustomContentDictionary.CustomAncients.Find(a => a.ShouldForceSpawn(__instance, rngChosenAncient));
-
-        if (ancientToSpawn != null)
-        {
-            rooms.Ancient = ancientToSpawn;
-        }
     }
 }
 

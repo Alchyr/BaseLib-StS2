@@ -13,6 +13,18 @@ namespace BaseLib.Utils;
 ///     <para />
 ///     Hook interfaces should be implemented on <see cref="AbstractModel" /> subclasses
 ///     to be picked up by the listeners.
+///     <para />
+///     Every dispatch and value-folding loop invokes each listener <b>in isolation</b>: a listener
+///     that throws is logged through <c>BaseLibMain.Logger.Error</c> (naming the listener's full
+///     type and the mod that defined it) and its exception is swallowed, so the remaining
+///     listeners still run and one mod's bug cannot abort a hook or the run.
+///     <see cref="OperationCanceledException" /> is the one exception that is <b>not</b> swallowed:
+///     it signals the game tearing the action down rather than a buggy listener, so it keeps
+///     propagating after the choice-context stack is restored.
+///     <para />
+///     The boolean gates <c>All</c> and <c>Any</c> deliberately do <b>not</b> isolate: a throwing
+///     listener has no neutral truth value to contribute to an all/any answer, so their predicates
+///     still propagate to the caller.
 /// </summary>
 public static class HookUtils
 {
@@ -28,7 +40,7 @@ public static class HookUtils
     {
         if (combatState == null) return;
         foreach (var model in Hook.IterateCombatHookListeners(combatState).OfType<THook>())
-            await action(model);
+            await InvokeSafely(model, action);
     }
 
     /// <summary>
@@ -54,8 +66,17 @@ public static class HookUtils
         {
             if (model is not AbstractModel abstractModel) continue;
             ctx.PushModel(abstractModel);
-            await action(model);
-            ctx.PopModel(abstractModel);
+            try
+            {
+                await InvokeSafely(model, action);
+            }
+            finally
+            {
+                // The pop must run even when the listener throws (including the cancellation that
+                // InvokeSafely rethrows), otherwise a failed listener stays on top of the stack and
+                // every later player choice is attributed to it.
+                ctx.PopModel(abstractModel);
+            }
         }
     }
 
@@ -68,8 +89,9 @@ public static class HookUtils
     ///         No-op when the player has no combat state (outside combat). Each context is
     ///         attributed to <paramref name="player" />'s <c>NetId</c> — the acting player, not
     ///         necessarily the local client. <see cref="AbstractModel.InvokeExecutionFinished" />
-    ///         is raised for each listener after its action completes; listeners should not raise
-    ///         it themselves.
+    ///         is raised for each listener after its action completes, and also after one that
+    ///         threw (the throw is logged and swallowed, see <see cref="HookUtils" />); listeners
+    ///         should not raise it themselves.
     ///     </para>
     /// </summary>
     /// <typeparam name="THook">The hook interface to filter listeners by.</typeparam>
@@ -92,8 +114,10 @@ public static class HookUtils
         {
             if (model is not AbstractModel abstractModel) continue;
             var hookCtx = new HookPlayerChoiceContext(abstractModel, netId, combatState, GameActionType.Combat);
-            var task = action(model, hookCtx);
-            await hookCtx.AssignTaskAndWaitForPauseOrCompletion(task);
+            // AssignTaskAndWaitForPauseOrCompletion both stores the task on the context and waits for
+            // it to complete or pause; its internal TaskHelper.WhenAny rethrows a faulted listener,
+            // which InvokeSafely catches.
+            await InvokeSafely(model, m => hookCtx.AssignTaskAndWaitForPauseOrCompletion(action(m, hookCtx)));
             abstractModel.InvokeExecutionFinished();
         }
     }
@@ -107,13 +131,31 @@ public static class HookUtils
     /// <param name="combatState">The current combat state to iterate listeners from.</param>
     /// <param name="initial">The initial value for the aggregation.</param>
     /// <param name="action">A function that takes a listener and the current value and returns the new value.</param>
-    /// <returns>The final aggregated value after all listeners have been processed.</returns>
+    /// <returns>
+    ///     The final aggregated value after all listeners have been processed. A listener that
+    ///     throws is logged and skipped: the accumulated value keeps what the previous listeners
+    ///     produced.
+    /// </returns>
     public static TResult Aggregate<THook, TResult>(ICombatState combatState, TResult initial,
         Func<THook, TResult, TResult> action)
         where THook : class
     {
-        return Hook.IterateCombatHookListeners(combatState).OfType<THook>()
-            .Aggregate(initial, (current, model) => action(model, current));
+        var result = initial;
+        foreach (var model in Hook.IterateCombatHookListeners(combatState).OfType<THook>())
+        {
+            try
+            {
+                result = action(model, result);
+            }
+            catch (Exception e) when (e is not OperationCanceledException)
+            {
+                // A listener that throws contributes nothing: the accumulator keeps the value it
+                // had before this listener ran.
+                LogListenerFailure(model, e);
+            }
+        }
+
+        return result;
     }
 
     /// <summary>
@@ -203,6 +245,11 @@ public static class HookUtils
     ///     The final modified value. When <paramref name="combatState" /> is
     ///     <see langword="null" />, returns <paramref name="originalAmount" /> with an empty
     ///     <paramref name="modifiers" /> set.
+    ///     <para>
+    ///         A listener that throws is logged and skipped: the accumulated value keeps what the
+    ///         previous listeners produced, and the thrown listener is <b>not</b> added to
+    ///         <paramref name="modifiers" />.
+    ///     </para>
     /// </returns>
     public static TValue Modify<THook, TValue>(
         ICombatState? combatState,
@@ -222,7 +269,17 @@ public static class HookUtils
         foreach (var model in Hook.IterateCombatHookListeners(combatState).OfType<THook>())
         {
             var previous = amount;
-            amount = amountModifier.Invoke(model, amount);
+            try
+            {
+                amount = amountModifier.Invoke(model, amount);
+            }
+            catch (Exception e) when (e is not OperationCanceledException)
+            {
+                // A listener that throws leaves the accumulated value untouched and is not recorded
+                // as a modifier, so AfterModifying will not call it back.
+                LogListenerFailure(model, e);
+                continue;
+            }
             if (!previous.Equals(amount))
                 abstractModelList.Add(model);
         }
@@ -237,8 +294,9 @@ public static class HookUtils
     ///     order of <paramref name="modifiers" />). Listeners no longer present in the combat
     ///     state's iteration are silently skipped.
     ///     <see cref="AbstractModel.InvokeExecutionFinished" /> is raised after each action for
-    ///     listeners that are <see cref="AbstractModel" /> instances; implementations should not
-    ///     raise it themselves.
+    ///     listeners that are <see cref="AbstractModel" /> instances, including actions that threw
+    ///     (the throw is logged and swallowed, see <see cref="HookUtils" />); implementations should
+    ///     not raise it themselves.
     /// </summary>
     /// <typeparam name="THook">The hook interface to filter listeners by.</typeparam>
     /// <param name="cs">The current combat state to iterate listeners from.</param>
@@ -255,7 +313,7 @@ public static class HookUtils
         foreach (var iterateHookListener in Hook.IterateCombatHookListeners(cs).OfType<THook>())
         {
             if (!modifierSet.Contains(iterateHookListener)) continue;
-            await action(iterateHookListener);
+            await InvokeSafely(iterateHookListener, action);
             if (iterateHookListener is AbstractModel model)
                 model.InvokeExecutionFinished();
         }
@@ -264,7 +322,7 @@ public static class HookUtils
     /// <summary>
     ///     Presents a mutable <paramref name="value" /> to all hook listeners of type
     ///     <typeparamref name="THook" /> for in-place modification. Every listener is invoked
-    ///     exactly once (the enumeration is fully materialized); each returns
+    ///     exactly once, in order, with no short-circuiting; each returns
     ///     <see langword="true" /> to declare that it modified the value.
     ///     <para>
     ///         Unlike <see cref="Modify{THook,TValue}" />, modification tracking is
@@ -272,6 +330,11 @@ public static class HookUtils
     ///         must return honestly or the <see cref="AfterModifying{THook}" /> follow-up will
     ///         target the wrong set. The same <paramref name="value" /> instance is returned;
     ///         it is passed back for call-site fluency, not copied.
+    ///     </para>
+    ///     <para>
+    ///         A listener that throws is logged and treated as "did not modify": it is not added to
+    ///         <paramref name="modifiers" />. Any mutation it made to the shared instance before
+    ///         throwing cannot be rolled back.
     ///     </para>
     /// </summary>
     /// <typeparam name="THook">The hook interface to filter listeners by.</typeparam>
@@ -290,9 +353,92 @@ public static class HookUtils
         out IEnumerable<THook> modifiers)
         where THook : class
     {
-        var list = Hook.IterateCombatHookListeners(combatState).OfType<THook>()
-            .Where(model => amountModifier.Invoke(model, value)).ToList();
+        var list = new List<THook>();
+        foreach (var model in Hook.IterateCombatHookListeners(combatState).OfType<THook>())
+        {
+            try
+            {
+                if (amountModifier.Invoke(model, value))
+                    list.Add(model);
+            }
+            catch (Exception e) when (e is not OperationCanceledException)
+            {
+                // A listener that throws is treated as "did not modify": it is not registered, so
+                // AfterModifying will not call it back. Any partial mutation it already made to the
+                // shared instance stays, which is why the log has to name it.
+                LogListenerFailure(model, e);
+            }
+        }
+
         modifiers = list;
         return value;
+    }
+
+    /// <summary>
+    ///     Invokes <paramref name="action" /> for a single listener, isolating it from the rest of
+    ///     the dispatch: a listener that throws is logged and skipped instead of aborting the hook.
+    ///     <para>
+    ///         The exception is deliberately <b>not</b> rethrown: one mod's bug must not stop the
+    ///         remaining listeners, abort the dispatch, or crash the run. The trade-off is that a
+    ///         broken listener silently does less than it intends; the error log (naming the
+    ///         listener and its mod) is the only signal, so it must stay loud and specific.
+    ///     </para>
+    ///     <para>
+    ///         <see cref="OperationCanceledException" /> is the single exception that is rethrown:
+    ///         it means the game is tearing the action down, not that a listener is buggy, and
+    ///         continuing to run listeners on a cancelled combat would act on dead state.
+    ///     </para>
+    /// </summary>
+    private static async Task InvokeSafely<THook>(THook listener, Func<THook, Task> action)
+        where THook : class
+    {
+        try
+        {
+            await action(listener);
+        }
+        catch (Exception e) when (e is not OperationCanceledException)
+        {
+            LogListenerFailure(listener, e);
+        }
+    }
+
+    /// <summary>
+    ///     Logs a listener exception swallowed by <see cref="InvokeSafely{THook}" />, naming the hook
+    ///     interface, the listener's full type name and the mod that defined it, and stating
+    ///     explicitly that the exception was swallowed on purpose.
+    /// </summary>
+    private static void LogListenerFailure<THook>(THook listener, Exception e)
+        where THook : class
+    {
+        var type = listener.GetType();
+        BaseLibMain.Logger.Error(
+            $"[HookUtils] Swallowed an exception thrown by {HookName<THook>()} listener " +
+            $"{type.FullName ?? type.Name} from {DescribeOwner(type)}. " +
+            "The remaining listeners still run and the exception is not rethrown, so one mod's bug " +
+            $"cannot abort the hook or the run.\n{e}");
+    }
+
+    /// <summary>
+    ///     Human-readable owner of a listener type for error logs: the defining mod's id when it is
+    ///     mod content, otherwise the defining assembly.
+    /// </summary>
+    private static string DescribeOwner(Type type)
+    {
+        var modId = WhatMod.FindMod(type)?.manifest?.id;
+        return string.IsNullOrWhiteSpace(modId)
+            ? $"assembly '{type.Assembly.GetName().Name ?? "<unknown>"}'"
+            : $"mod '{modId}'";
+    }
+
+    /// <summary>
+    ///     The hook interface's short name for error logs; strips the generic arity suffix so
+    ///     <c>IAfterSpendResource&lt;T&gt;</c> logs as <c>IAfterSpendResource</c>.
+    /// </summary>
+    private static string HookName<THook>()
+        where THook : class
+    {
+        var name = typeof(THook).Name;
+        var aritySeparator = name.IndexOf('`');
+        return aritySeparator < 0 ? name : name[..aritySeparator];
     }
 }

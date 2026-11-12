@@ -20,15 +20,10 @@ public class DisplayVar<T> : DynamicVar where T : class
         base.SetOwner(owner);
         _tOwner = owner as T;
     }
-    
-    protected override decimal GetBaseValueForIConvertible()
-    {
-        return NumericValue;
-    }
 
     public override void UpdateCardPreview(CardModel card, CardPreviewMode previewMode, Creature? target, bool runGlobalHooks)
     {
-        PreviewValue = NumericValue;
+        BaseValue = NumericValue;
     }
 
     public decimal NumericValue => _tOwner != null && decimal.TryParse(_displayText(_tOwner), out decimal result) ? result : BaseValue;
