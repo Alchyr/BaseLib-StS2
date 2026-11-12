@@ -42,19 +42,21 @@ public static class BaseLibCardSelectCmd
         if (CombatManager.Instance.IsEnding) return [];
         if (!pile.IsCombatPile) throw new InvalidOperationException("Cannot perform on a non combat pile");
 
+        //TODO on next beta->main merge: Swap to calling CardSelectCmd.UndoEndTurnIfNecessary
         if (CombatManager.Instance.IsPlayerReadyToEndTurn(player)
             && player.Creature.CombatState is { CurrentSide: CombatSide.Player })
         {
-            CombatManager.Instance.UndoReadyToEndTurn(player);
+            CombatManager.Instance.UndoEndTurnReadyForCardSelect(player);
         }
 
         uint? choiceId = null;
-        if (CardSelectCmd.Selector == null)
+        if (BetaMainCompatibility.CurrentCardSelector(player) == null)
         {
             choiceId = RunManager.Instance.PlayerChoiceSynchronizer.ReserveChoiceId(player);
             await context.SignalPlayerChoiceBegunCompatibility(player, PlayerChoiceOptions.None);
         }
 
+        var selector = BetaMainCompatibility.CurrentCardSelector(player);
         var cards = (filter == null ? pile.Cards : pile.Cards.Where(filter)).ToList();
         IEnumerable<CardModel> result;
         if (cards.Count == 0)
@@ -65,9 +67,9 @@ public static class BaseLibCardSelectCmd
         {
             result = cards;
         }
-        else if (CardSelectCmd.Selector != null)
+        else if (selector != null)
         {
-            result = (await CardSelectCmd.Selector.GetSelectedCards(cards, prefs.MinSelect, prefs.MaxSelect)).ToList();
+            result = (await selector.GetSelectedCards(cards, prefs.MinSelect, prefs.MaxSelect)).ToList();
         }
         else if (TestMode.IsOn)
         {

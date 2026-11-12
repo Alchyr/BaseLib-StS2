@@ -2,6 +2,8 @@
 using System.Reflection;
 using BaseLib.Extensions;
 using HarmonyLib;
+using MegaCrit.Sts2.Core.Combat;
+using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Commands.Builders;
 using MegaCrit.Sts2.Core.Debug;
 using MegaCrit.Sts2.Core.Entities.Cards;
@@ -15,6 +17,8 @@ using MegaCrit.Sts2.Core.Modding;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Multiplayer.Game.Lobby;
 using MegaCrit.Sts2.Core.Nodes.CommonUi;
+using MegaCrit.Sts2.Core.Runs;
+using MegaCrit.Sts2.Core.TestSupport;
 using MegaCrit.Sts2.Core.ValueProps;
 
 namespace BaseLib.Utils;
@@ -50,6 +54,45 @@ public static class BetaMainCompatibility
         
         return version;
     }
+
+
+    /// <summary>
+    /// Compatibility for versions above 111, where this method was adjusted
+    /// </summary>
+    public static void UndoEndTurnReadyForCardSelect(this CombatManager combatManager, Player player)
+    {
+        _undoEndTurn.Invoke(combatManager, player);
+    }
+    private static VariableMethod _undoEndTurn = new(
+        (typeof(CombatManager), "UndoReadyToEndTurn",
+            [typeof(Player)],
+            [0]),
+        (typeof(CardSelectCmd), "UndoEndTurnIfNecessary",
+            [typeof(Player)],
+            [0])
+    );
+    
+
+    /// <summary>
+    /// Compatibility for versions above 111, where card selector stack was moved to RunManager
+    /// </summary>
+    public static ICardSelector? CurrentCardSelector(Player player)
+    {
+        if (_cardSelectorStack != null)
+        {
+            if (RunManager.Instance == null) return null;
+            var stack = _cardSelectorStack.Invoke(RunManager.Instance, null);
+            if (stack == null) return null;
+            _getSelector ??= stack.GetType().GetMethod("GetSelector");
+            return _getSelector?.Invoke(stack, [player]) as ICardSelector;
+        }
+
+        return _oldSelector?.Invoke(null, null) as ICardSelector;
+    }
+
+    private static MethodInfo? _cardSelectorStack = typeof(RunManager).PropertyGetter("CardSelectorStack");
+    private static MethodInfo? _getSelector = null;
+    private static MethodInfo? _oldSelector = typeof(CardSelectCmd).PropertyGetter("Selector");
 
     /// <summary>
     /// Compatibility extension for RelicOption for versions above 111
