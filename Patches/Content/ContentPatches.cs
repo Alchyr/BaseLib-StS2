@@ -197,8 +197,9 @@ class AddCustomAncientsToPool
     [HarmonyPrefix]
     static void AddToModelPool(ActModel __instance)
     {
-        if (CurrentGeneratingRunState.State?.Modifiers.Count > 0 &&
-            __instance.Index == 0)
+        if (__instance.Index == 0 && //Act 1
+            (CurrentGeneratingRunState.State?.Modifiers.Count > 0 || //Modified run
+             CurrentGeneratingRunState.State?.GameMode == (GameMode)5)) //Blitz, avoiding referencing specific enum value
         {
             //Disabled for runs with modifiers.
             return;
