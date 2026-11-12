@@ -1,10 +1,31 @@
 using System.Reflection;
 using BaseLib.Abstracts;
 using HarmonyLib;
+using MegaCrit.Sts2.Core.Multiplayer;
 using MegaCrit.Sts2.Core.Multiplayer.Serialization;
 using MegaCrit.Sts2.Core.Runs;
 
 namespace BaseLib.Patches.Networking;
+
+[HarmonyPatch(typeof(NetHostGameService), MethodType.Constructor, typeof(PeerVersionInfo))]
+internal static class NetHostCustomMessagePatches
+{
+    [HarmonyPostfix]
+    private static void RegisterCustomMessageHandler(NetHostGameService __instance)
+    {
+        CustomMessageWrapper.Register(__instance);
+    }
+}
+
+[HarmonyPatch(typeof(NetClientGameService), MethodType.Constructor, typeof(PeerVersionInfo))]
+internal static class NetClientCustomMessagePatches
+{
+    [HarmonyPostfix]
+    private static void RegisterCustomMessageHandler(NetClientGameService __instance)
+    {
+        CustomMessageWrapper.Register(__instance);
+    }
+}
 
 [HarmonyPatch(typeof(RunManager))]
 internal static class RunManagerPatches
@@ -13,6 +34,8 @@ internal static class RunManagerPatches
     [HarmonyPostfix]
     private static void InitializeCustomMessageHandlers(RunManager __instance)
     {
+        // Multiplayer services already have this handler during the lobby.
+        CustomMessageWrapper.Unregister(__instance.NetService);
         CustomMessageWrapper.Register(__instance.NetService);
         CustomTargetedMessageWrapper.Register(__instance.RunLocationTargetedBuffer);
     }
