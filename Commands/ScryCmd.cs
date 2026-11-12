@@ -73,21 +73,24 @@ public static class ScryCmd
         var discardPile = PileType.Discard.GetPile(player);
         var combatState = player.Creature.CombatState;
         if (combatState == null) return default;
-        var cardsToScry = drawPile.Cards.Take(modifiedAmount).ToList();
-        if (cardsToScry.Count == 0) return default;
         var prefs = new CardSelectorPrefs(
             CardSelectorPrefs.DiscardSelectionPrompt,
             0,
-            cardsToScry.Count
+            modifiedAmount
         );
 
-        var cardsToDiscard = (await CardSelectCmd.FromSimpleGrid(
+        // we need FromCombatPile instead of FromChooseACardScreen so it gets updated when other people let us draw (e.g., HuddleUp)
+        // FromCombatPile orders cards in Draw Pile by rarity, we need our own thing that doesn't hide order.
+        var cardsToDiscard = (await BaseLibCardSelectCmd.FromCombatPileInOrder(
             choiceContext,
-            cardsToScry,
+            drawPile,
             player,
-            prefs
+            prefs,
+            card => drawPile.Cards.Take(modifiedAmount).Contains(card)
         )).ToList();
-       
+        
+        var cardsToScry = drawPile.Cards.Take(modifiedAmount).ToList();
+
         // we don't want sly, so can't use CardCmd.Discard.
         foreach (var card in cardsToDiscard)
         {
