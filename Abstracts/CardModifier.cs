@@ -459,7 +459,7 @@ public abstract class CardModifier : AbstractModel, IComparable<CardModifier>
     /// <param name="props">ValueProp for damage.</param>
     /// <returns>Amount that the damage should be multiplied by.</returns>
     public virtual decimal ModifyBaseDamageMultiplicative(decimal originalDamage, ValueProp props) => 1;
-    
+
     /// <summary>
     /// Functions like an EnchantmentModel's EnchantBlockAdditive.
     /// Add to the amount of block that this modifier's card gains.
@@ -467,8 +467,8 @@ public abstract class CardModifier : AbstractModel, IComparable<CardModifier>
     /// NOT YET FUNCTIONAL.
     /// </summary>
     /// <param name="originalBlock">The original amount of block that would be gained.</param>
+    /// <param name="props">The block's properties.</param>
     /// <returns>The amount to add to the block gain.</returns>
-    [Obsolete("Not currently functional.")]
     public virtual decimal ModifyBaseBlockAdditive(decimal originalBlock, ValueProp props) => 0M;
 
     /// <summary>
@@ -478,8 +478,8 @@ public abstract class CardModifier : AbstractModel, IComparable<CardModifier>
     /// NOT YET FUNCTIONAL.
     /// </summary>
     /// <param name="originalBlock">The original amount of block that would be gained.</param>
+    /// <param name="props">The block's properties.</param>
     /// <returns>The amount to multiply the block gain by.</returns>
-    [Obsolete("Not currently functional.")]
     public virtual decimal ModifyBaseBlockMultiplicative(decimal originalBlock, ValueProp props) => 1M;
     
     /// <summary>
