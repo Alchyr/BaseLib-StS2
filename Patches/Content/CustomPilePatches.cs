@@ -16,7 +16,10 @@ using MegaCrit.Sts2.Core.Nodes.Cards;
 
 namespace BaseLib.Patches.Content;
 
-
+/// <summary>
+/// Support for creating custom combat card piles.
+/// Not intended for use with out-of-combat card piles.
+/// </summary>
 public class CustomPiles
 {
     public static readonly Dictionary<PileType, Func<CustomPile>> CustomPileProviders = [];
@@ -566,21 +569,21 @@ public class TheBigPatchToCardPileCmdAdd
     private static List<CodeInstruction> ReplaceCombatPileChecks(List<CodeInstruction> code)
     {
         var original = AccessTools.Method(typeof(PileTypeExtensions), nameof(PileTypeExtensions.IsCombatPile));
-        var replacement = AccessTools.Method(typeof(TheBigPatchToCardPileCmdAdd), nameof(IsCombatPileForTransition));
-        foreach (var instruction in code)
+        var extraCheck = AccessTools.Method(typeof(TheBigPatchToCardPileCmdAdd), nameof(IsCombatPileForTransition));
+
+        for (var i = 0; i < code.Count; i++)
         {
-            if (instruction.Calls(original))
-                instruction.operand = replacement;
+            if (!code[i].Calls(original)) continue;
+            
+            code.Insert(i++, new CodeInstruction(OpCodes.Dup)); //dup piletype
+            code.Insert(++i, new CodeInstruction(OpCodes.Call, extraCheck)); //pass piletype and original check result into additional check
         }
         return code;
     }
 
-    // These transpilers are installed before the IsCombatPile prefix in PatchAll.
-    // Check custom piles explicitly so an inlined vanilla enum check cannot prevent
-    // NCard creation. Read the registry at runtime: mods register their piles later.
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private static bool IsCombatPileForTransition(PileType pileType) =>
-        CustomPiles.IsCustomPile(pileType) || pileType.IsCombatPile();
+    private static bool IsCombatPileForTransition(PileType pileType, bool wasCombatPile) =>
+        CustomPiles.IsCustomPile(pileType) || wasCombatPile;
 
     //Making the actual tween
     [Obsolete("For old beta version 1.111.0")]
