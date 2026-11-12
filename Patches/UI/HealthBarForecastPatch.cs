@@ -277,7 +277,7 @@ public static class HealthBarForecastPatch
             return;
 
         var creature = healthBar._creature;
-        if (creature.CurrentHp <= 0 || BetaMainCompatibility.Creature_.ShowsInfiniteHp(creature))
+        if (creature.CurrentHp <= 0 || creature.HpDisplay.IsInfinite())
             return;
 
         var targetOffsetRight = state.LastRender.RightForecastEdgeOffsetRight;
