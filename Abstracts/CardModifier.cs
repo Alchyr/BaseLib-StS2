@@ -89,7 +89,7 @@ public abstract class CardModifier : AbstractModel, IComparable<CardModifier>
     
     private static void LoadModifierSaves(CardModel card, List<ModifierSave>? modifiers)
     {
-        _modifiers[card] = modifiers?.Select(mod => mod.ToRealMod(card)).ToList() ?? [];
+        _modifiers[card] = modifiers?.Select(mod => mod.ToRealMod(card)).OfType<CardModifier>().ToList() ?? [];
     }
 
     public sealed class ModifierSave : IPacketSerializable
@@ -105,9 +105,31 @@ public abstract class CardModifier : AbstractModel, IComparable<CardModifier>
             return save;
         }
 
-        public CardModifier ToRealMod(CardModel owner)
+        public CardModifier? ToRealMod(CardModel owner)
         {
-            var mod = (CardModifier) ModelDb.GetById<CardModifier>(Id!).MutableClone();
+            // GetById throws ModelNotFoundException when the id belongs to a mod the player has
+            // since removed, which would abort the whole save load. The engine's SaveUtil.*OrDeprecated
+            // helpers do not drop in that case, though: they substitute a Deprecated* placeholder
+            // model (CardModel.FromSerializable -> SaveUtil.CardOrDeprecated -> DeprecatedCard).
+            // CardModifier has no deprecated placeholder of its own, so dropping just this modifier
+            // and keeping the rest of the card is the closest degradation available.
+            if (Id == null)
+            {
+                BaseLibMain.Logger.Warn("Dropping card modifier - saved modifier id is null");
+                return null;
+            }
+
+            // Look up as AbstractModel: GetByIdOrNull<T> casts to T internally, so a saved id that
+            // resolves to another model type would throw InvalidCastException instead of returning
+            // null. `as` keeps this path a clean drop.
+            var proto = ModelDb.GetByIdOrNull<AbstractModel>(Id) as CardModifier;
+            if (proto == null)
+            {
+                BaseLibMain.Logger.Warn($"Dropping card modifier '{Id}' - no such model is loaded (mod removed?)");
+                return null;
+            }
+
+            var mod = (CardModifier)proto.MutableClone();
             mod.Owner = owner;
             mod.Amount = Amount;
             mod.LoadSaveData(this);
