@@ -7,6 +7,7 @@ using BaseLib.Patches.Content;
 using BaseLib.Patches.Saves;
 using BaseLib.Patches.Utils;
 using BaseLib.Utils;
+using BaseLib.Utils.ModInterop.DynamicWrappers;
 using BaseLib.Utils.NodeFactories;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Modding;
@@ -71,6 +72,8 @@ public static class BaseLibMain
         ModCredits.Register(ModId, 
             new ModCredits.Section("TEAM"),
             new ModCredits.Section("CONTRIBUTORS"));
+
+        DynamicWrapper.RegisterDynamicAssembly();
     }
 
     //Hopefully temporary fix for linux

@@ -5,6 +5,7 @@ using BaseLib.Patches.Features;
 using BaseLib.Patches.Saves;
 using BaseLib.Patches.Utils;
 using BaseLib.Utils;
+using BaseLib.Utils.ModInterop.DynamicWrappers;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Helpers;
 using MegaCrit.Sts2.Core.Localization;
@@ -190,8 +191,11 @@ class PostModInitPatch
                 BetaMainCompatibility.CacheSavedProperties(type);
                 //SavedPropertiesTypeCache.InjectTypeIntoCache(type);
             }
+
+            DynamicWrapper.ProcessType(type);
         }
         SavedSpireFieldPatch.AddFieldsSorted();
+        DynamicWrapper.FinalizeTypeProcessing(); // Anytime after AssemblyInfo.Init()
     }
 
     private static void CheckSpecialSpireField(FieldInfo field)

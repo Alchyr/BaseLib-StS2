@@ -1,0 +1,32 @@
+﻿namespace BaseLib.Utils.ModInterop.DynamicWrappers;
+
+/// <summary>
+/// A wrapper object for seamless inter-mod communication via interfaces.
+/// </summary>
+public interface IDynamicWrapper
+{
+    /// <summary>
+    /// The mod that this wrapper belongs to.
+    /// </summary>
+    public string WrapperModId { get; }
+
+    /// <summary>
+    /// The mod that the instance object belongs to.
+    /// </summary>
+    public string InstanceModId { get; }
+
+    /// <summary>
+    /// The underlying object that this wrapper encapsulates.
+    /// </summary>
+    public object Instance { get; }
+
+    /// <summary>
+    /// The interface that the wrapper implements.
+    /// </summary>
+    public Type WrapperInterface { get; }
+
+    /// <summary>
+    /// The interface that the instance object implements.
+    /// </summary>
+    public Type InstanceInterface { get; }
+}
