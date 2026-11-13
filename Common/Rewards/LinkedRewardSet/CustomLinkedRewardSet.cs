@@ -60,8 +60,10 @@ public class CustomLinkedRewardSet : CustomReward
     protected override RewardType RewardType  => CustomLinkedRewardType;
     public LinkedRewardType LinkedRewardType => _linkedRewardType;
 
+    // Empty until RestoreRewards runs (missing save key, third party prefix on Reward.FromSerializable, direct use of
+    // the empty public constructor). Max() would throw there; fall back to the plain CustomReward index instead.
     /// <inheritdoc />
-    public override int RewardsSetIndex  => Rewards.Max(r => r.RewardsSetIndex);
+    public override int RewardsSetIndex  => _rewards.Count == 0 ? base.RewardsSetIndex : _rewards.Max(r => r.RewardsSetIndex);
 
     /// <inheritdoc />
     public override bool IsPopulated  => _rewards.All(r => r.IsPopulated);
@@ -282,9 +284,31 @@ public static class CustomLinkedRewardSet_MultiplayerPatches
             // so all clients must resolve in the same order).
             // Using a custom message to bypass base games RewardsSetSynchronizer completely.
             var rewardStateForPlayer = __instance.GetRewardStateForPlayer(__instance.LocalPlayer);
-            var rewardsSetState = rewardStateForPlayer.rewardsStack.Last();
+            // Do not assume the set is on top of the stack: every client builds its own stack, and a sibling selection
+            // may already have pushed another one (NCustomLinkedRewardSet clicks all bundled buttons in one go).
+            var rewardsSetState = rewardStateForPlayer.rewardsStack.LastOrDefault(state => state.set.Rewards.Contains(parent));
+            if (rewardsSetState is null)
+            {
+                BaseLibMain.Logger.Error($"CustomLinkedRewardSet: no rewards set of the local player contains {parent.GetType().Name} " +
+                        $"(stack depth {rewardStateForPlayer.rewardsStack.Count}, set ids [{string.Join(", ", rewardStateForPlayer.rewardsStack.Select(state => state.set.Id))}]). " +
+                        "Applying the pick locally only; other players will not receive it.");
+                parent.SetPendingSelection(reward);
+                __result = parent.SelectUnsynchronized();
+                return false;
+            }
+
             var containerIndex = rewardsSetState.set.Rewards.IndexOf(parent);
-            var nestedIndex = parent.Rewards.ToList().IndexOf(reward);
+            var nestedRewards = parent.Rewards.ToList();
+            var nestedIndex = nestedRewards.IndexOf(reward);
+            if (nestedIndex < 0)
+            {
+                BaseLibMain.Logger.Error($"CustomLinkedRewardSet: {reward.GetType().Name} is not one of the {nestedRewards.Count} linked reward(s) " +
+                        $"of set {rewardsSetState.set.Id} (container index {containerIndex}, stack depth {rewardStateForPlayer.rewardsStack.Count}). " +
+                        "Applying the pick locally only; other players will not receive it.");
+                parent.SetPendingSelection(reward);
+                __result = __instance.SelectRewardForPlayer(rewardsSetState, parent);
+                return false;
+            }
 
             parent.SetPendingSelection(reward);
             __result = __instance.SelectRewardForPlayer(rewardsSetState, parent); // apply locally immediately
