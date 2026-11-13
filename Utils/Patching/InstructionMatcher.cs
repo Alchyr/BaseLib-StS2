@@ -9,6 +9,12 @@ namespace BaseLib.Utils.Patching;
 /// Matches a consecutive list of instructions, requiring a matching opcode and operand.
 /// If the operand to check for is null, it will be ignored and only the opcode will need to match.
 /// </summary>
+/// <remarks>
+/// A null operand must always be deliberate: pass null to one of the overloads that takes a
+/// <see cref="MethodInfo"/> or <see cref="FieldInfo"/>. The overloads that take a member name resolve that member
+/// when the matcher is built and throw when it cannot be found, so a member the game renamed or removed can never
+/// silently turn a step into an opcode-only wildcard that matches the wrong instruction.
+/// </remarks>
 public class InstructionMatcher() : IMatcher
 {
     private readonly List<InstructionMatch> _target = [];
@@ -139,8 +145,9 @@ public class InstructionMatcher() : IMatcher
 
         public override string ToString()
         {
-            return CustomMatchPredicate != null ? "[Custom Match]" 
-                : $"[{Opcodes.AsReadable()}] {(OperandMatchPredicate == null ? Operand?.ToString() : "Operand Predicate")}";
+            if (CustomMatchPredicate != null) return "[Custom Match]";
+            string operand = OperandMatchPredicate != null ? "Operand Predicate" : Operand?.ToString() ?? "any operand";
+            return $"[{Opcodes.AsReadable()}] {operand}";
         }
 
         public bool Test(CodeInstruction matchTest, List<string> log)
@@ -172,7 +179,12 @@ public class InstructionMatcher() : IMatcher
     {
         if (_target.Count == 0)
             throw new InvalidOperationException("Cannot apply stored operand without adding any instructions");
-        _target[^1].OperandFunc = () => _operandDict[storeKey];
+        _target[^1].OperandFunc = () => _operandDict.TryGetValue(storeKey, out object? stored) && stored != null
+            ? stored
+            : throw new InvalidOperationException(
+                $"InstructionMatcher: stored operand '{storeKey}' is missing or null. A null operand matches any "
+                + "operand, so this step would silently become an opcode-only wildcard. Store an operand that is "
+                + "always present, or use the MethodInfo/FieldInfo overload with an explicit null for a wildcard.");
         return this;
     }
     public InstructionMatcher StoreOperand(string storeKey)
@@ -205,7 +217,41 @@ public class InstructionMatcher() : IMatcher
 
     //Building
     //https://learn.microsoft.com/en-us/dotnet/api/system.reflection.emit.opcodes.add?view=net-10.0
-    
+
+    /// <summary>
+    /// Resolves the method named by a matcher step, throwing when it cannot be found.
+    /// Falling back to "any instruction with this opcode" would patch the wrong instruction with no log and no
+    /// exception, so a step that names a member must either resolve or fail loudly. Use the
+    /// <see cref="MethodInfo"/> overload with an explicit <see langword="null"/> operand for a deliberate wildcard.
+    /// </summary>
+    private static MethodInfo ResolveMethod(Type declaringType, string methodName, Type[]? parameters, Type[]? generics)
+    {
+        return AccessTools.Method(declaringType, methodName, parameters, generics)
+               ?? throw new MissingMethodException(
+                   $"InstructionMatcher: cannot find method {declaringType.FullName}.{methodName}"
+                   + FormatParameters(parameters)
+                   + ". Pass a MethodInfo instead to match any call without checking the called method.");
+    }
+
+    /// <summary>
+    /// Resolves the field named by a matcher step, throwing when it cannot be found.
+    /// A failed lookup would otherwise match any ldfld/stfld instruction of the same opcode, silently patching a
+    /// different field. Use the <see cref="FieldInfo"/> overload with an explicit <see langword="null"/> operand for
+    /// a deliberate wildcard.
+    /// </summary>
+    private static FieldInfo ResolveField(Type declaringType, string fieldName)
+    {
+        return AccessTools.Field(declaringType, fieldName)
+               ?? throw new MissingFieldException(
+                   $"InstructionMatcher: cannot find field {declaringType.FullName}.{fieldName}. Pass a FieldInfo "
+                   + "instead to match any field access without checking the accessed field.");
+    }
+
+    private static string FormatParameters(Type[]? parameters)
+    {
+        return parameters == null ? "" : $"({string.Join(", ", parameters.Select(parameter => parameter.Name))})";
+    }
+
     /// <summary>
     /// Match a full code instruction using a custom check.
     /// </summary>
@@ -273,7 +319,7 @@ public class InstructionMatcher() : IMatcher
     }
     public InstructionMatcher call_any(Type declaringType, string methodName, Type[]? parameters = null, Type[]? generics = null)
     {
-        return call_any(AccessTools.Method(declaringType, methodName, parameters, generics));
+        return call_any(ResolveMethod(declaringType, methodName, parameters, generics));
     }
     public InstructionMatcher call_any(MethodInfo? method)
     {
@@ -526,7 +572,7 @@ public class InstructionMatcher() : IMatcher
     //Jmp = 0x27,
     public InstructionMatcher call(Type declaringType, string methodName, Type[]? parameters = null, Type[]? generics = null)
     {
-        return call(AccessTools.Method(declaringType, methodName, parameters, generics));
+        return call(ResolveMethod(declaringType, methodName, parameters, generics));
     }
     public InstructionMatcher call(MethodInfo? method)
     {
@@ -683,7 +729,7 @@ public class InstructionMatcher() : IMatcher
     Conv_U8 = 0x6e,*/
     public InstructionMatcher callvirt(Type declaringType, string methodName, Type[]? parameters = null, Type[]? generics = null)
     {
-        return callvirt(AccessTools.Method(declaringType, methodName, parameters, generics));
+        return callvirt(ResolveMethod(declaringType, methodName, parameters, generics));
     }
     public InstructionMatcher callvirt(MethodInfo? method)
     {
@@ -709,7 +755,7 @@ public class InstructionMatcher() : IMatcher
     Throw = 0x7a,*/
     public InstructionMatcher ldfld(Type declaringType, string fieldName)
     {
-        return ldfld(AccessTools.Field(declaringType, fieldName));
+        return ldfld(ResolveField(declaringType, fieldName));
     }
     public InstructionMatcher ldfld(FieldInfo? field = null)
     {
@@ -718,7 +764,7 @@ public class InstructionMatcher() : IMatcher
     }
     public InstructionMatcher ldflda(Type declaringType, string fieldName) /*Ldflda = 0x7c,*/
     {
-        return ldflda(AccessTools.Field(declaringType, fieldName));
+        return ldflda(ResolveField(declaringType, fieldName));
     }
     public InstructionMatcher ldflda(FieldInfo? field = null)
     {
@@ -730,7 +776,7 @@ public class InstructionMatcher() : IMatcher
     
     public InstructionMatcher stfld(Type declaringType, string fieldName)
     {
-        return stfld(AccessTools.Field(declaringType, fieldName));
+        return stfld(ResolveField(declaringType, fieldName));
     }
     public InstructionMatcher stfld(FieldInfo? field)
     {
