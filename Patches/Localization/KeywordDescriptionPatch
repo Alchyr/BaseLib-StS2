@@ -1,0 +1,93 @@
+using System.Reflection;
+using System.Reflection.Emit;
+using HarmonyLib;
+using MegaCrit.Sts2.Core.Entities.Cards;
+using MegaCrit.Sts2.Core.Entities.Creatures;
+using MegaCrit.Sts2.Core.Models;
+
+namespace BaseLib.Patches.Localization;
+
+public static class KeywordDescriptionPatch
+{
+    private static string GetKeywordText(CardKeyword keyword)
+    {
+        var extensionType = typeof(CardModel).Assembly.GetTypes().FirstOrDefault(t => t.Name == "CardKeywordExtensions");
+        if (extensionType == null)
+            throw new Exception("Could not find CardKeywordExtensions type");
+        var method = extensionType.GetMethod("GetCardText", BindingFlags.Static | BindingFlags.Public);
+        if (method == null)
+            throw new Exception("Could not find CardKeywordExtensions.GetCardText");
+        return (string)method.Invoke(null, [keyword])!;
+    }
+
+    private static bool MergeKeywordOnlyCards = false; // If set to false, cards without text such as Ascender's Bane don't see these changes.
+    private static HashSet<string>? _keywordTexts;
+    private static HashSet<string> KeywordTexts
+    {
+        get
+        {
+            return _keywordTexts ??= [.. Enum.GetValues<CardKeyword>().Where(k => k != CardKeyword.None).Select(GetKeywordText)];
+        }
+    }
+    
+    public static string MergeKeywordJoin(char separator, IEnumerable<string> lines)
+    {
+        var list = lines.Where(l => !string.IsNullOrEmpty(l)).ToList();
+        var keywordCount = 0;
+        foreach (var line in list)
+        {
+            if (KeywordTexts.Contains(line))
+                keywordCount++;
+            else
+                break;
+        }
+        if (keywordCount <= 1 || !MergeKeywordOnlyCards && keywordCount == list.Count)
+            return string.Join("\n", list.ToArray());
+        var mergedKeywords = string.Join(" ", list.Take(keywordCount).ToArray());
+        list.RemoveRange(0, keywordCount);
+        list.Insert(0, mergedKeywords);
+        return string.Join("\n", list.ToArray());
+    }
+    
+    // Add a [HarmonyPatchCategory("Card Spacing Fix")] to make this a Mod Configuration toggle.
+    [HarmonyPatch(typeof(CardModel))]
+    public static class CardDescriptionPatch
+    {
+        private static MethodBase TargetMethod()
+        {
+            return AccessTools.Method(typeof(CardModel), "GetDescriptionForPile", [typeof(PileType), AccessTools.Inner(typeof(CardModel), "DescriptionPreviewType"), typeof(Creature)]);
+        }
+
+        private static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+        {
+            var replacement = AccessTools.Method(typeof(KeywordDescriptionPatch), nameof(MergeKeywordJoin));
+            var codes = instructions.ToList();
+            var matches = new List<int>();
+            
+            for (var i = 0; i < codes.Count; i++)
+            {
+                if (codes[i].operand is not MethodInfo method || method.DeclaringType != typeof(string) || method.Name != nameof(string.Join))
+                    continue;
+                var parameters = method.GetParameters();
+                if (method.ReturnType != typeof(string) || parameters.Length != 2 || parameters[0].ParameterType != typeof(char) || parameters[1].ParameterType != typeof(IEnumerable<string>))
+                    continue;
+                matches.Add(i);
+            }
+
+            switch (matches.Count)
+            {
+                case 0:
+                    Console.WriteLine("[KeywordDescriptionPatch] WARNING: Could not find " + "string.Join(char, IEnumerable<string>) in " + "CardModel.GetDescriptionForPile().");
+                    return codes;
+                case > 1:
+                    Console.WriteLine($"[KeywordDescriptionPatch] WARNING: Found " + $"{matches.Count} matching string.Join instructions. " + "Using the final match.");
+                    break;
+            }
+
+            var index = matches[^1];
+            codes[index].operand = replacement;
+            Console.WriteLine($"[KeywordDescriptionPatch] Successfully patched " + $"string.Join at IL index {index}.");
+            return codes;
+        }
+    }
+}
