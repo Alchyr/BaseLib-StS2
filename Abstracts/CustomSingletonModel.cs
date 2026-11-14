@@ -14,7 +14,8 @@ public abstract class CustomSingletonModel : AbstractModel, ICustomModel
     {
         None,
         Combat,
-        Run
+        Run,
+        All
     }
     
     /// <summary>
@@ -38,6 +39,11 @@ public abstract class CustomSingletonModel : AbstractModel, ICustomModel
                 ModHelper.SubscribeForCombatStateHooks(Id.Entry, CombatSubModels);
                 break;
             case HookType.Run:
+                ModHelper.SubscribeForRunStateHooks(Id.Entry, RunSubModels);
+                break;
+            case HookType.All:
+                ShouldReceiveCombatHooks = true;
+                ModHelper.SubscribeForCombatStateHooks(Id.Entry, CombatSubModels);
                 ModHelper.SubscribeForRunStateHooks(Id.Entry, RunSubModels);
                 break;
         }
