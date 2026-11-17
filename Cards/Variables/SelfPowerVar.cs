@@ -10,7 +10,7 @@ namespace BaseLib.Cards.Variables;
 /// </summary>
 public class SelfPowerVar<T> : PowerVar<T> where T : PowerModel
 {
-    public SelfPowerVar(decimal powerAmount) : base($"Self{typeof(T).Name}", powerAmount) { }
+    public SelfPowerVar(decimal powerAmount) : base(typeof(T).Name, powerAmount) { }
 
     public SelfPowerVar(string name, decimal powerAmount) : base(name, powerAmount) { }
 
