@@ -144,6 +144,7 @@ public static class AsyncMethodCall
     /// The original method itself can be passed to beforeState or afterState. If so, the target position will be the first or last state.
     /// 
     /// Parameters of the method will attempt to be found by name. If a parameter cannot be determined an exception will be thrown.
+    /// __instance can be used similarly to other patch types to access "this" for non-static async methods.
     /// 
     /// If resultName is provided and the method to call returns a value, it will be stored in a variable of this name using
     /// an external dictionary, and can be passed into subsequent calls by defining a parameter with this name.
@@ -317,6 +318,7 @@ public static class AsyncMethodCall
         
         context = new AsyncMethodContext
         {
+            OriginalMethod = original,
             Generator = generator,
             BuilderField = stateMachineType.FindStateMachineField("t__builder"),
             StateField = stateMachineType.FindStateMachineField("__state"),
@@ -382,24 +384,36 @@ public static class AsyncMethodCall
         }
         else
         {
-            var field = context.StateMachineType.FindStateMachineField(param.Name);
-            if (!field.FieldType.IsAssignableTo(param.ParameterType))
+            if (context.StateMachineType.TryFindStateMachineField(param.Name, out var field))
             {
-                throw new ArgumentException(
-                    $"Unable to pass field {field.Name} of type {field.FieldType} to parameter {param.Name} of type {param.ParameterType}");
-            }
+                if (!field.FieldType.IsAssignableTo(param.ParameterType))
+                {
+                    throw new ArgumentException(
+                        $"Unable to pass field {field.Name} of type {field.FieldType} to parameter {param.Name} of type {param.ParameterType}");
+                }
             
-            addLoadInstructions = list =>
+                addLoadInstructions = list =>
+                {
+                    list.Add(CodeInstruction.LoadArgument(0));
+                    list.Add(field.Ldfld());
+                };
+                addStoreInstructions = list =>
+                {
+                    //Last two instructions of list should be get awaiter and get result
+                    list.Insert(list.Count - 2, CodeInstruction.LoadArgument(0));
+                    list.Add(field.Stfld());
+                };
+            }
+            else
             {
-                list.Add(CodeInstruction.LoadArgument(0));
-                list.Add(field.Ldfld());
-            };
-            addStoreInstructions = list =>
-            {
-                //Last two instructions of list should be get awaiter and get result
-                list.Insert(list.Count - 2, CodeInstruction.LoadArgument(0));
-                list.Add(field.Stfld());
-            };
+                if (!context.OriginalMethod.IsStatic
+                    && param.ParameterType == context.OriginalMethod.DeclaringType)
+                {
+                    throw new ArgumentException($"No matching field found in type {context.StateMachineType} for name {param.Name}. " +
+                                                $"If attempting to access 'this' name the parameter '__instance' instead.");
+                }
+                throw new ArgumentException($"No matching field found in type {context.StateMachineType} for name {param.Name}");
+            }
         }
         
         return new StateParamInfo(param, addLoadInstructions, addStoreInstructions);

@@ -5,6 +5,7 @@ namespace BaseLib.Utils.Patching.AsyncMethodSections;
 
 public class AsyncMethodContext
 {
+    public required MethodBase OriginalMethod;
     public required ILGenerator Generator;
     public required FieldInfo StateField;
     public required FieldInfo BuilderField;
