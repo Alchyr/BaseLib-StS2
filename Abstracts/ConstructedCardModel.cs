@@ -86,6 +86,15 @@ public abstract class ConstructedCardModel(
         _constructedDynamicVars.Add(new DamageVar(baseVal, ValueProp.Move).WithUpgrade(upgrade));
         return this;
     }
+    
+    /// <summary>
+    /// Generates a <seealso cref="DamageVar"/>DamageVar with given base value and props.
+    /// </summary>
+    protected ConstructedCardModel WithDamage(int baseVal, ValueProp props, int upgrade = 0)
+    {
+        _constructedDynamicVars.Add(new DamageVar(baseVal, props).WithUpgrade(upgrade));
+        return this;
+    }
 
     /// <summary>
     /// Generates a <seealso cref="CardsVar"/>CardsVar with given base value.
