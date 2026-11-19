@@ -19,7 +19,7 @@ public static class TypeExtensions
     /// <exception cref="ArgumentException"></exception>
     public static FieldInfo FindStateMachineField(this Type type, string originalFieldName)
     {
-        string stateMachineFieldName = $"<{originalFieldName}>";
+        var stateMachineFieldName = $"<{originalFieldName}>";
         if (!_declaredFields.TryGetValue(type, out var declaredFields))
         {
             declaredFields = type.GetDeclaredFields();
@@ -43,6 +43,43 @@ public static class TypeExtensions
             }
         }
         throw new ArgumentException($"No matching field found in type {type} for name {originalFieldName}");
+    }
+    
+    /// <summary>
+    /// Attempts to find a field in a generated state machine class for an async method, given the
+    /// state machine type and a name that the field's name should contain.
+    /// </summary>
+    public static bool TryFindStateMachineField(this Type type, string originalFieldName, [NotNullWhen(true)] out FieldInfo? fieldInfo)
+    {
+        var stateMachineFieldName = $"<{originalFieldName}>";
+        if (!_declaredFields.TryGetValue(type, out var declaredFields))
+        {
+            declaredFields = type.GetDeclaredFields();
+        }
+        foreach (var field in declaredFields)
+        {
+            if (field.Name.StartsWith(stateMachineFieldName))
+            {
+                fieldInfo = field;
+                return true;
+            }
+            if (field.Name.Equals(originalFieldName)) //local variables may have their name kept as-is
+            {
+                fieldInfo = field;
+                return true;
+            }
+        }
+        foreach (var field in declaredFields)
+        {
+            if (field.Name.Contains(originalFieldName))
+            {
+                fieldInfo = field;
+                return true;
+            }
+        }
+
+        fieldInfo = null;
+        return false;
     }
     
     
