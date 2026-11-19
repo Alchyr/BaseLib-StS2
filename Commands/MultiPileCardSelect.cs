@@ -17,6 +17,7 @@ using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Nodes.Cards;
 using MegaCrit.Sts2.Core.Nodes.Cards.Holders;
 using MegaCrit.Sts2.Core.Nodes.Combat;
+using MegaCrit.Sts2.Core.Nodes.Screens.CardLibrary;
 using MegaCrit.Sts2.Core.Nodes.Screens.CardSelection;
 using MegaCrit.Sts2.Core.Nodes.Screens.Overlays;
 using MegaCrit.Sts2.Core.Runs;
@@ -62,6 +63,8 @@ public static class MultiPileCardSelect
     
     /// <summary>
     /// Opens a card selection screen where a specific number of cards must be selected from specified card piles and returns the selection result.
+    /// If all piles are combat piles, the screen stays up to date when the piles change while it is open
+    /// (e.g. another player makes you draw a card).
     /// </summary>
     /// <param name="filter">A predicate that takes a card and returns true</param>
     /// <param name="pileTypes">The card pile types from which the player can select cards. Shown cards will be sorted by pile type in the order you supply them.</param>
@@ -71,6 +74,13 @@ public static class MultiPileCardSelect
     public static async Task<IEnumerable<CardModel>> Select(PlayerChoiceContext context, Player player, CardSelectorPrefs prefs, Func<CardModel, bool>? filter = null, params PileType[] pileTypes)
     {
         if (CombatManager.Instance.IsEnding) return [];
+        var isLive = pileTypes.All(static p => p.IsCombatPile());
+        return await Select(context, player, prefs, GatherCards(player, filter, pileTypes), pileTypes,
+            isLive ? () => GatherCards(player, filter, pileTypes) : null);
+    }
+
+    private static List<CardModel> GatherCards(Player player, Func<CardModel, bool>? filter, PileType[] pileTypes)
+    {
         var enumerable = pileTypes.SelectMany(p => {
             IEnumerable<CardModel> cards = p.GetPile(player).Cards;
             if (p == PileType.Draw)
@@ -78,46 +88,118 @@ public static class MultiPileCardSelect
             return cards;
         });
         if (filter != null) enumerable = enumerable.Where(filter);
-        List<CardModel> cards = [..enumerable];
-        return await Select(context, player, prefs, cards, pileTypes);
+        return [..enumerable];
     }
 
     /// <summary>
     /// Opens a card selection screen where a specific number of cards must be selected from an array of cards and returns the selection result. The cards will be displayed with an icon denoting which card pile they currently reside in.
+    /// The shown cards are fixed; they are not updated if the piles change while the screen is open.
     /// </summary>
     /// <param name="cards">The cards to select from</param>
     /// <param name="pileTypes">Shown cards will be sorted by pile type in the order they appear in this array.</param>
     /// <returns>
     /// The selected cards
     /// </returns>
-    public static async Task<IEnumerable<CardModel>> Select(PlayerChoiceContext context, Player player, CardSelectorPrefs prefs, List<CardModel> cards, PileType[]? pileTypes = null)
+    public static Task<IEnumerable<CardModel>> Select(PlayerChoiceContext context, Player player, CardSelectorPrefs prefs, List<CardModel> cards, PileType[]? pileTypes = null)
+        => Select(context, player, prefs, cards, pileTypes, null);
+
+    /// <param name="getCurrentCards">
+    /// If set, the screen is rebuilt from this whenever one of the piles changes, and the choice is synced as combat cards
+    /// instead of indexes into <paramref name="cards"/> (which would be outdated by then).
+    /// </param>
+    private static async Task<IEnumerable<CardModel>> Select(PlayerChoiceContext context, Player player, CardSelectorPrefs prefs, List<CardModel> cards, PileType[]? pileTypes, Func<List<CardModel>>? getCurrentCards)
     {
         if (CombatManager.Instance.IsEnding || cards.Count == 0) return [];
         List<CardModel> result;
         if (!prefs.RequireManualConfirmation && cards.Count <= prefs.MinSelect)
             result = cards;
         else {
-            uint choiceId = RunManager.Instance.PlayerChoiceSynchronizer.ReserveChoiceId(player);
+            var choiceId = RunManager.Instance.PlayerChoiceSynchronizer.ReserveChoiceId(player);
             await context.SignalPlayerChoiceBegunCompatibility(player, PlayerChoiceOptions.None);
+            var isLive = getCurrentCards != null;
             if ((bool)AccessTools.Method(typeof(CardSelectCmd), nameof(CardSelectCmd.ShouldSelectLocalCard)).Invoke(null, [player])!) {
-                NPlayerHand.Instance?.CancelAllCardPlay();
-                NSimpleCardSelectScreen nSimpleCardSelectScreen = NSimpleCardSelectScreen.Create(cards, prefs);
-                //IsMultiPile.Set(nSimpleCardSelectScreen, true);
-                var grid = nSimpleCardSelectScreen.GetNode<NCardGrid>("%CardGrid");
-                IsGridMultiPile.Set(grid, true);
-                PileTypes.Set(grid, pileTypes ?? []);
-                NOverlayStack.Instance!.Push(nSimpleCardSelectScreen);
-                result = [..await nSimpleCardSelectScreen.CardsSelected()];
-                //cleanup cus nodes r pooled
-                nSimpleCardSelectScreen._grid._cardRows.ForEach(static r => r.ForEach(static n => ClearHolderIndicatorNodes(n)));
-                List<int> indexes = [..result.Select(c => cards.IndexOf(c))];
-                RunManager.Instance.PlayerChoiceSynchronizer.SyncLocalChoice(player, choiceId, PlayerChoiceResult.FromIndexes(indexes));
-            } else
-                result = [..(await RunManager.Instance.PlayerChoiceSynchronizer.WaitForRemoteChoice(player, choiceId)).AsIndexes().Select(i => cards[i])];
+                result = await ShowScreen(player, prefs, cards, pileTypes ?? [], getCurrentCards);
+                RunManager.Instance.PlayerChoiceSynchronizer.SyncLocalChoice(player, choiceId, ToChoiceResult(result, cards, isLive));
+            } else {
+                var remoteChoice = await RunManager.Instance.PlayerChoiceSynchronizer.WaitForRemoteChoice(player, choiceId);
+                result = FromChoiceResult(remoteChoice, cards, isLive);
+            }
             await context.SignalPlayerChoiceEnded();
         }
         AccessTools.Method(typeof(CardSelectCmd), nameof(CardSelectCmd.LogChoice)).Invoke(null, [player, result]);
         return result;
+    }
+
+    private static async Task<List<CardModel>> ShowScreen(Player player, CardSelectorPrefs prefs, List<CardModel> cards, PileType[] pileTypes, Func<List<CardModel>>? getCurrentCards)
+    {
+        NPlayerHand.Instance?.CancelAllCardPlay();
+        var screen = NSimpleCardSelectScreen.Create(cards, prefs);
+        var grid = screen.GetNode<NCardGrid>("%CardGrid");
+        IsGridMultiPile.Set(grid, true);
+        PileTypes.Set(grid, pileTypes);
+        NOverlayStack.Instance!.Push(screen);
+        var stopUpdating = getCurrentCards == null ? null : KeepUpdated(screen, player, pileTypes, getCurrentCards);
+        try {
+            return [..await screen.CardsSelected()];
+        } finally {
+            stopUpdating?.Invoke();
+            //cleanup cus nodes r pooled
+            screen._grid._cardRows.ForEach(static r => r.ForEach(static n => ClearHolderIndicatorNodes(n)));
+        }
+    }
+
+    private static PlayerChoiceResult ToChoiceResult(List<CardModel> result, List<CardModel> cards, bool isLive) =>
+        isLive
+            ? PlayerChoiceResult.FromMutableCombatCards(result)
+            : PlayerChoiceResult.FromIndexes([..result.Select(c => cards.IndexOf(c))]);
+
+    private static List<CardModel> FromChoiceResult(PlayerChoiceResult choice, List<CardModel> cards, bool isLive) =>
+        isLive
+            ? [..choice.AsCombatCards()]
+            : [..choice.AsIndexes().Select(i => cards[i])];
+
+    /// <summary>
+    /// Rebuilds the screen's cards whenever one of the piles changes: cards that left the piles are dropped from the
+    /// selection, and the screen closes once nothing is left to choose from. Returns an action which stops this.
+    /// </summary>
+    private static Action KeepUpdated(NSimpleCardSelectScreen screen, Player player, PileType[] pileTypes, Func<List<CardModel>> getCurrentCards)
+    {
+        var piles = pileTypes.Select(p => p.GetPile(player)).Distinct().ToList();
+        var updateQueued = false;
+        var stopped = false;
+        foreach (var pile in piles) pile.ContentsChanged += QueueUpdate;
+        return () => {
+            stopped = true;
+            foreach (var pile in piles) pile.ContentsChanged -= QueueUpdate;
+        };
+        
+        void QueueUpdate()
+        {
+            if (updateQueued) return;
+            updateQueued = true;
+            Callable.From(Update).CallDeferred();
+        }
+
+        void Update()
+        {
+            updateQueued = false;
+            if (stopped || !GodotObject.IsInstanceValid(screen) || screen._completionSource.Task.IsCompleted) return;
+            var cards = getCurrentCards();
+            if (cards.SequenceEqual(screen._cards)) return;
+            screen._selectedCards.RemoveWhere(c => !cards.Contains(c));
+            if (cards.Count == 0 || cards.Count == screen._selectedCards.Count) {
+                screen.CompleteSelection();
+                return;
+            }
+
+            screen._cards = cards;
+            screen._grid.SetCards(cards, PileType.None, [SortingOrders.Ascending]);
+            foreach (var card in screen._selectedCards) screen._grid.HighlightCard(card);
+            if (screen._selectedCards.Count >= screen._prefs.MinSelect && screen._prefs.RequireManualConfirmation)
+                screen._confirmButton.Enable();
+            else
+                screen._confirmButton.Disable();
+        }
     }
 
     private static void ClearHolderIndicatorNodes(NGridCardHolder holder)
@@ -174,15 +256,11 @@ public static class MultiPileCardSelect
     {
         static void Postfix(NCardGrid __instance)
         {
-            if (!IsGridMultiPile.Get(__instance)) return;
-            var pileTypes = PileTypes.Get(__instance)!;
+            if (!IsGridMultiPile.Get(__instance) || PileTypes.Get(__instance) is not { } pileTypes) return;
             var field = AccessTools.Field(typeof(NCardGrid), nameof(NCardGrid._cards));
             var cards = (List<CardModel>)field.GetValue(__instance)!;
-            cards.Sort(delegate(CardModel a, CardModel b) {
-                return PileOrder(a).CompareTo(PileOrder(b));
-            });
-            PileTypes.Set(__instance, null);
-            
+            cards.Sort((a, b) => PileOrder(a).CompareTo(PileOrder(b)));
+            return;
             int PileOrder(CardModel c) => c.Pile == null || !pileTypes.Contains(c.Pile.Type) ? int.MaxValue - 1 : pileTypes.IndexOf(c.Pile.Type);
         }
     }
