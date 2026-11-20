@@ -28,7 +28,10 @@ public partial class NModListButton : NButton
     private readonly Color _bgHover = new(0.15f, 0.15f, 0.15f, 0.5f);
     private readonly Color _bgPressed = new(0.2f, 0.2f, 0.2f, 0.7f);
 
-    private TextureRect? _controllerIconRect;
+    // NButton has _hotkeyIcon, but it's fairly tightly coupled to having one hotkey per button; we need multiple
+    // buttons that share a hotkey, one at a time, so we create our own instance.
+    private NHotkeyIcon _customHotkeyIcon;
+    private readonly StringName _targetHotkey = MegaInput.cancel;
     private bool _isHotkeyIconVisible = false;
 
     public NModListButton(string modName)
@@ -78,25 +81,22 @@ public partial class NModListButton : NButton
 
         AddChild(_label);
 
-        const float size = 48;
-        _controllerIconRect = new TextureRect
-        {
-            CustomMinimumSize = Vector2.One * size,
-            Size = Vector2.One * size,
-            ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
-            StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
-            Visible = false
-        };
-        AddChild(_controllerIconRect);
-        _controllerIconRect.SetAnchorsPreset(LayoutPreset.CenterRight);
-        _controllerIconRect.Position = new Vector2(-size, -size/2);
+        const float iconSize = 48;
+        var iconScene = PreloadManager.Cache.GetAsset<PackedScene>(SceneHelper.GetScenePath("ui/hotkey_icon"));
+
+        _customHotkeyIcon = iconScene.Instantiate<NHotkeyIcon>();
+        _customHotkeyIcon.CustomMinimumSize = Vector2.One * iconSize;
+        _customHotkeyIcon.Size = Vector2.One * iconSize;
+        _customHotkeyIcon.Visible = false;
+        _customHotkeyIcon.SetAnchorsPreset(LayoutPreset.CenterRight);
+        _customHotkeyIcon.Position = new Vector2(-iconSize, -iconSize / 2);
+
+        AddChild(_customHotkeyIcon);
     }
 
     public override void _Ready()
     {
         ConnectSignals();
-
-        UpdateVisualState(instant: true);
 
         if (NControllerManager.Instance != null)
         {
@@ -109,6 +109,7 @@ public partial class NModListButton : NButton
         }
 
         RefreshIconVisibility();
+        UpdateVisualState(instant: true);
     }
 
     public void SetHotkeyIconVisible(bool enabled)
@@ -119,13 +120,11 @@ public partial class NModListButton : NButton
 
     private void RefreshIconVisibility()
     {
-        if (_controllerIconRect == null) return;
+        var isDirectionNavActive = NControllerManager.Instance?.IsUsingDirectionalNavigation ?? false;
+        _customHotkeyIcon.Visible = _isHotkeyIconVisible && isDirectionNavActive;
 
-        var isController = NControllerManager.Instance?.IsUsingButtonInputsCompatibility() ?? false;
-        _controllerIconRect.Visible = _isHotkeyIconVisible && isController;
-
-        if (_controllerIconRect.Visible)
-            _controllerIconRect.Texture = NInputManager.Instance?.GetHotkeyIcon(MegaInput.cancel);
+        if (_customHotkeyIcon.Visible)
+            _customHotkeyIcon.UpdateInput(_targetHotkey);
     }
 
     public void SetActiveState(bool isActive)
