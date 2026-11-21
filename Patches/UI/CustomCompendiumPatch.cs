@@ -12,6 +12,7 @@ using BaseLib.Abstracts;
 using BaseLib.Patches.Content;
 using BaseLib.Utils;
 using BaseLib.Utils.Patching;
+using MegaCrit.Sts2.Core.Saves;
 
 namespace BaseLib.Patches.UI;
 
@@ -23,10 +24,9 @@ public class CustomPoolFilters
     {
         return new InstructionPatcher(instructions)
             .Match(new InstructionMatcher()
-                .ldfld(AccessTools.DeclaredField(typeof(NCardLibrary), "_regentFilter"))
-                .callvirt(null)
+                .call_any(typeof(SaveManager).PropertyGetter(nameof(SaveManager.Instance)))
             )
-            .Insert([
+            .InsertBeforeMatch([
                 CodeInstruction.LoadArgument(0),
                 CodeInstruction.LoadArgument(0),
                 new CodeInstruction(OpCodes.Ldfld, AccessTools.DeclaredField(typeof(NCardLibrary), "_poolFilters")),
@@ -53,7 +53,15 @@ public class CustomPoolFilters
             return newCondition || oldFilter(c);
         };
         
-        Node lastfilter = characterFilters[ModelDb.Character<Defect>()];
+        Node lastFilter = characterFilters[ModelDb.Character<Defect>()];
+        foreach (var character in BaseContent.BaseCharacters())
+        {
+            var filter = characterFilters[character];
+            if (filter.IsGreaterThan(lastFilter))
+            {
+                lastFilter = filter;
+            }
+        }
 
         FieldInfo lastHovered = AccessTools.DeclaredField(typeof(NCardLibrary), "_lastHoveredControl");
         foreach (var model in CustomContentDictionary.CustomCharacters)
@@ -63,8 +71,8 @@ public class CustomPoolFilters
             NCardPoolFilter filter = GenerateFilter(model);
 
             //Add Filter to UI
-            lastfilter.AddSibling(filter, forceReadableName: true);
-            lastfilter = filter;
+            lastFilter.AddSibling(filter, forceReadableName: true);
+            lastFilter = filter;
 
             //Add filter to filter list
             characterFilters.Add(model, filter);
