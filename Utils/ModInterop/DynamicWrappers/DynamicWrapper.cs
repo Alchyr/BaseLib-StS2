@@ -51,11 +51,13 @@ public class DynamicWrapper
     private static readonly SortedDictionary<Type, string> ModIdsByRegisteredInterface = new(Comparer<Type>.Create((x, y) => (x.Name + x.FullName).CompareTo(y.Name + y.FullName)));
     private static readonly SortedDictionary<InteropKey, InteropData?> InteropLookup = new(Comparer<InteropKey>.Create((x, y) => (ModIdFromTypeOrDefault(x.TargetInterface, "zzzzz") + x.TargetInterface.Name + x.TargetInterface.FullName + ModIdFromTypeOrDefault(x.SourceType, "zzzzz") + x.SourceType.Name + x.SourceType.FullName).CompareTo(ModIdFromTypeOrDefault(y.TargetInterface, "zzzzz") + y.TargetInterface.Name + y.TargetInterface.FullName + ModIdFromTypeOrDefault(y.SourceType, "zzzzz") + y.SourceType.Name + y.SourceType.FullName)));
     private static readonly SortedDictionary<AltKey, InteropData?> AltLookup = new(Comparer<AltKey>.Create((x, y) => (x.TargetModId + ModIdFromTypeOrDefault(x.SourceType, "zzzzz") + x.SourceType.Name + x.SourceType.FullName).CompareTo(y.TargetModId + ModIdFromTypeOrDefault(y.SourceType, "zzzzz") + y.SourceType.Name + y.SourceType.FullName)));
+    private static readonly ConditionalWeakTable<object, Dictionary<InteropKey, IDynamicWrapper>> WrapperInstances = [];
 #else
     private static readonly Dictionary<Declaration, Type> MirroredInterfaces = [];
     private static readonly Dictionary<Type, string> ModIdsByRegisteredInterface = [];
     private static readonly Dictionary<InteropKey, InteropData?> InteropLookup = [];
     private static readonly Dictionary<AltKey, InteropData?> AltLookup = [];
+    private static readonly ConditionalWeakTable<object, Dictionary<InteropKey, IDynamicWrapper>> WrapperInstances = [];
 #endif
 
     /// <summary>
@@ -671,7 +673,22 @@ public class DynamicWrapper
             {
                 return objectToWrap;
             }
-            return data.Wrap(objectToWrap); // Apply wrapper
+
+            // Use one wrapper instance per object per mod.
+            // Important for maintaining the expected ref equality when using == operator on wrappers (overloading == itself is no good because it is resolved at compile time).
+            // There will be some edge cases where == wont behave as expected (eg. wrapper == instanceObject, or two wrappers from different source mods).
+            // Using DynamicWrapper.AreEqual() is more robust (or to a lesser extent, the overridden wrapper.Equals()), since they properly handle wrappers.
+
+            var wrapperLookup = WrapperInstances.GetOrCreateValue(objectToWrap);
+            InteropKey key = new(data.TargetInterface, data.SourceInterface);
+
+            if (!wrapperLookup.TryGetValue(key, out IDynamicWrapper? wrapper))
+            {
+                wrapper = data.Wrap(objectToWrap);
+                wrapperLookup[key] = wrapper;
+            }
+
+            return wrapper;
         }
 
         if (returnNullIfNotWrapped)
@@ -878,6 +895,30 @@ public class DynamicWrapper
         }
     }
 
+    /// <summary>
+    /// Determines whether two objects are equal. If either object is an <see cref="IDynamicWrapper"/>, their instance object is compared instead.
+    /// </summary>
+    /// <param name="x">The first object to compare.</param>
+    /// <param name="y">The second object to compare</param>
+    /// <returns><see langword="true"/> if the objects are equal, otherwise <see langword="false"/>.</returns>
+    public static bool AreEqual(object? x, object? y)
+    {
+        object? a = x is IDynamicWrapper wrapperX ? wrapperX.Instance : x;
+        object? b = y is IDynamicWrapper wrapperY ? wrapperY.Instance : y;
+        return object.Equals(a, b);
+    }
+
+    /// <summary>
+    /// Gets the hashcode of an object. If it is an <see cref="IDynamicWrapper"/>, returns the hashcode of the instance object instead.
+    /// </summary>
+    /// <param name="obj">The object to get the hashcode for.</param>
+    /// <returns>The hashcode of the object.</returns>
+    public static int GetWrappedHashCode(object obj)
+    {
+        object o = obj is IDynamicWrapper wrapper ? wrapper.Instance : obj;
+        return o.GetHashCode();
+    }
+
     internal static void RegisterDynamicAssembly()
     {
         // Unsure about this...if any caller wants to know, I think "BaseLib" is the wrong answer...
@@ -930,6 +971,9 @@ public class DynamicWrapper
 
     // WARNING: If you change the signature of either Wrap<T>(string, object?, Type?) or Wrap(string, object?, Type?), make sure the below two fields can still find them
     // Also make sure to adjust the IL in CreateWrapperFactory() accordingly
+
+    private static readonly MethodInfo equals = ((Func<object?, object?, bool>)AreEqual).Method;
+    private static readonly MethodInfo getHashCode = ((Func<object, int>)GetWrappedHashCode).Method;
     private static readonly MethodInfo wrapNonGeneric = ((Func<string, object?, Type?, object?>)Wrap).Method;
     private static readonly MethodInfo wrapOpenGeneric = ((Func<string, object?, Type?, object?>)Wrap<object>).Method.GetGenericMethodDefinition();
     private static readonly MethodInfo getTypeFromHandle = ((Func<RuntimeTypeHandle, Type?>)Type.GetTypeFromHandle).Method;
@@ -1169,6 +1213,28 @@ public class DynamicWrapper
             il.Emit(OpCodes.Castclass, instanceInterface);
             il.Emit(OpCodes.Stfld, instanceField);
 
+            il.Emit(OpCodes.Ret);
+        }
+
+        // Override object.Equals (overriding == operator is no use, since that is resolved at compile time)
+        {
+            MethodBuilder methodBuilder = typeBuilder.DefineMethod("Equals", MethodAttributes.Public | MethodAttributes.Virtual | MethodAttributes.ReuseSlot, CallingConventions.HasThis, typeof(bool), [typeof(object)]);
+            methodBuilder.DefineParameter(1, ParameterAttributes.None, "other");
+
+            ILGenerator il = methodBuilder.GetILGenerator();
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Ldarg_1);
+            il.Emit(OpCodes.Call, equals);
+            il.Emit(OpCodes.Ret);
+        }
+
+        // Override GetHashCode
+        {
+            MethodBuilder methodBuilder = typeBuilder.DefineMethod("GetHashCode", MethodAttributes.Public | MethodAttributes.Virtual | MethodAttributes.ReuseSlot, CallingConventions.HasThis, typeof(int), null);
+
+            ILGenerator il = methodBuilder.GetILGenerator();
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Call, getHashCode);
             il.Emit(OpCodes.Ret);
         }
 
