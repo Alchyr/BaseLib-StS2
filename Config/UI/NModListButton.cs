@@ -128,10 +128,10 @@ public partial class NModListButton : NButton
             _controllerIconRect.Texture = NInputManager.Instance?.GetHotkeyIcon(MegaInput.cancel);
     }
 
-    public void SetActiveState(bool isActive)
+    public void SetActiveState(bool isActive, bool instant = false)
     {
         IsSelectedMod = isActive;
-        UpdateVisualState();
+        UpdateVisualState(instant);
     }
 
     protected override void OnFocus() { base.OnFocus(); UpdateVisualState(); }
