@@ -15,5 +15,9 @@
         <!-- <Sts2DataDir>$(Sts2Path)\data_sts2_windows_x86_64</Sts2DataDir> -->
         <!-- Optional: MegaDot / Godot 4.5.1 mono executable used for --export-pack -->
         <!-- <GodotPath>Z:\Projects\sts2\megadot\MegaDot_v4.5.1-stable_mono_win64.exe</GodotPath> -->
+
+        <!-- Optional: only needed if BaseLibCompatibilityHelper source isn't checked out next to this repo
+             and the DLL isn't at libs/BaseLibCompatibilityHelper.dll -->
+        <!-- <CompatHelperDll>C:\path\to\BaseLibCompatibilityHelper.dll</CompatHelperDll> -->
     </PropertyGroup>
 </Project>

@@ -38,6 +38,12 @@
         <DocumentationFile>$(MSBuildProjectDirectory)/$(OutputPath)$(MSBuildProjectName).xml</DocumentationFile>
     </PropertyGroup>
 
+    <PropertyGroup>
+        <CompatHelperProject>..\BaseLibCompatibilityHelper\BaseLibCompatibilityHelper.csproj</CompatHelperProject>
+        <!-- Contributors without the helper set up: set CompatHelperDll in local.props, or drop the DLL in libs/ -->
+        <CompatHelperDll Condition="'$(CompatHelperDll)' == ''">$(MSBuildProjectDirectory)\libs\BaseLibCompatibilityHelper.dll</CompatHelperDll>
+    </PropertyGroup>
+
     <!-- Sts2Path / Sts2DataDir: Sts2PathDiscovery.props (+ optional local.props). GodotPath in local.props for .pck export. -->
 
     <ItemGroup>
@@ -60,8 +66,15 @@
         <PackageReference Include="Krafs.Publicizer" Version="2.3.0" PrivateAssets="All"/>
     </ItemGroup>
 
-    <ItemGroup>
-        <ProjectReference Include="..\BaseLibCompatibilityHelper\BaseLibCompatibilityHelper.csproj" Private="false"/>
+    <ItemGroup Condition="Exists('$(CompatHelperProject)')">
+        <ProjectReference Include="$(CompatHelperProject)" Private="false"/>
+    </ItemGroup>
+
+    <ItemGroup Condition="!Exists('$(CompatHelperProject)') and Exists('$(CompatHelperDll)')">
+        <Reference Include="BaseLibCompatibilityHelper">
+            <HintPath>$(CompatHelperDll)</HintPath>
+            <Private>false</Private>
+        </Reference>
     </ItemGroup>
 
     <ItemGroup>
@@ -90,7 +103,11 @@
         <Content Condition="Exists('build\BaseLib.pck')" Include="build\$(MSBuildProjectName).pck" PackagePath="/Content/" />
         <Content Include="$(MSBuildProjectName).json" PackagePath="/Content/" />
     </ItemGroup>
-    
+
+    <Target Name="CheckCompatHelper" BeforeTargets="BeforeBuild" Condition="!Exists('$(CompatHelperProject)') and !Exists('$(CompatHelperDll)')">
+        <Error Text="BaseLibCompatibilityHelper project not found (expected in ..\BaseLibCompatibilityHelper). Add it, or place the compiled DLL (download from the BaseLib GitHub releases page) at libs/BaseLibCompatibilityHelper.dll, or set CompatHelperDll in local.props. See local.props.template." />
+    </Target>
+
     <Target Name="UpdateManifestVersion" BeforeTargets="BeforeBuild">
         <PropertyGroup>
             <ManifestPath>$(MSBuildProjectName).json</ManifestPath>
