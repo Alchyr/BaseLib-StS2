@@ -111,11 +111,15 @@ public partial class NModConfigSubmenu : NSubmenu
         _contentPanel.SetAnchorsPreset(LayoutPreset.TopLeft);
         AddChild(_rightScrollArea);
 
-        _modListTitle = CreateTitleControl("ModListTitle", "[center]Mods[/center]", 0f);
+        var modsText = LocString.GetIfExists("settings_ui", "BASELIB-MOD_CONFIG_MODS_TITLE")
+            ?.GetFormattedText() ?? "Mods";
+        _modListTitle = CreateTitleControl("ModListTitle", $"[center]{modsText}[/center]", 0f);
         _modListTitle.OffsetLeft = ModListPosition;
         _modListTitle.OffsetRight = ModListPosition + ModListWidth - NNativeScrollableContainer.ScrollbarGutterWidth;
 
-        _modTitle = CreateTitleControl("ModTitle", "[center]Unknown mod name[/center]", 0f);
+        var unknownModText = LocString.GetIfExists("settings_ui", "BASELIB-UNKNOWN_MOD_NAME")
+            ?.GetFormattedText() ?? "Unknown mod name";
+        _modTitle = CreateTitleControl("ModTitle", $"[center]{unknownModText}[/center]", 0f);
         _modListVbox = new VBoxContainer();
     }
 

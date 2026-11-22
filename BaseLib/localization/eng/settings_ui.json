@@ -4,6 +4,7 @@
   "BASELIB.MOD_CONFIG_SETTINGS_ROW.button": "Open Config",
 
   "BASELIB-UNKNOWN_MOD_NAME": "Unknown mod name",
+  "BASELIB-MOD_CONFIG_MODS_TITLE": "Mods",
   "BASELIB-MOD_CONFIG_SEARCH_PLACEHOLDER": "Search mods...",
 
   "BASELIB-RESTORE_DEFAULTS_BUTTON.title": "Restore defaults",
