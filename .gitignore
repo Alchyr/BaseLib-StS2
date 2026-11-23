@@ -1,5 +1,6 @@
 local.props
 !local.props.template
+/libs/
 
 .godot/
 /android/
