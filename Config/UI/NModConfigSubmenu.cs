@@ -16,6 +16,7 @@ public partial class NModConfigSubmenu : NSubmenu
 {
     private new NBackButton? _backButton;
     private NNativeScrollableContainer _leftScrollArea;
+    private NMegaLineEdit _modListFilter;
     private VBoxContainer _modListVbox;
     private Control _modListPanel;
     private MegaRichTextLabel _modListTitle;
@@ -32,6 +33,9 @@ public partial class NModConfigSubmenu : NSubmenu
     private bool _lastFocusOnModList = true;
     private const double AutosaveDelay = 5;
 
+    // Every entry that can appear in the list. Filtering rebuilds the buttons from this list.
+    private readonly Dictionary<string, ModConfig?> _modEntries = [];
+
     private bool _isUsingController;
     private double _navRepeatTimer;
     private StringName? _heldNavAction;
@@ -44,13 +48,18 @@ public partial class NModConfigSubmenu : NSubmenu
     private const float ModListPosition = 180f;
     private const float ModListWidth = 360f;
 
+    // The filter sits between the title and the scrolling list; the list's clipped area starts below it.
+    private const float FilterHeight = 64f;
+    private const float FilterInset = 8f; // Horizontal room so the focus border isn't cut off at the sides
+    private const float ListTopOffset = TopOffset + FilterHeight;
+
     private const float MaxRightSideWidth = 1200f; // Dynamically sized, but not above this (hurts UW readability)
     private const int ModConfigPadding = 16; // Padding between the clipper and the mod config content
 
     // Read when the screen is shown *and* after a modal (e.g. confirm Restore Defaults). Ensure we return
     // to the same side that was active prior.
     protected override Control? InitialFocusedControl =>
-        _lastFocusOnModList ? GetActiveModButton() : _optionContainer?.FindFirstFocusable();
+        _lastFocusOnModList ? GetModListFocusTarget() : _optionContainer?.FindFirstFocusable();
 
     public NModConfigSubmenu()
     {
@@ -58,7 +67,7 @@ public partial class NModConfigSubmenu : NSubmenu
         GrowHorizontal = GrowDirection.Both;
         GrowVertical = GrowDirection.Both;
 
-        _leftScrollArea = new NNativeScrollableContainer(TopOffset);
+        _leftScrollArea = new NNativeScrollableContainer(ListTopOffset);
         _modListPanel = new Control
         {
             Name = "ModListContent",
@@ -66,6 +75,32 @@ public partial class NModConfigSubmenu : NSubmenu
         };
         _modListPanel.SetAnchorsPreset(LayoutPreset.FullRect);
         AddChild(_leftScrollArea);
+
+        // Aligned with the title's left/right edges, inset a little so the focus border isn't cut off
+        const float filterWidth = ModListWidth - NNativeScrollableContainer.ScrollbarGutterWidth - 2 * FilterInset;
+        _modListFilter = new NMegaLineEdit
+        {
+            Name = "ModListFilter",
+            CustomMinimumSize = new Vector2(filterWidth, FilterHeight),
+            PlaceholderText = LocString.GetIfExists("settings_ui", "BASELIB-MOD_CONFIG_SEARCH_PLACEHOLDER")
+                ?.GetFormattedText() ?? "Search mods...",
+            FocusMode = FocusModeEnum.All,
+            ClearButtonEnabled = true,
+        };
+        _modListFilter.SetAnchorsPreset(LayoutPreset.TopLeft);
+        _modListFilter.Position = new Vector2(ModListPosition + FilterInset, TopOffset);
+        _modListFilter.Size = new Vector2(filterWidth, FilterHeight);
+        _modListFilter.TextChanged += UpdateModFilter;
+        _modListFilter.TextSubmitted += _ =>
+        {
+            var topButton = _modListVbox?.GetChildren().OfType<NModListButton>().FirstOrDefault();
+            if (topButton == null) return;
+            if (_modEntries[topButton.ModName] is not { } config) return;
+
+            ModButtonClicked(topButton, config);
+            if (_modListFilter.HasFocus())
+                _modListFilter.ReleaseFocus();
+        };
 
         _rightScrollArea = new NNativeScrollableContainer(TopOffset);
         _contentPanel = new Control
@@ -76,11 +111,15 @@ public partial class NModConfigSubmenu : NSubmenu
         _contentPanel.SetAnchorsPreset(LayoutPreset.TopLeft);
         AddChild(_rightScrollArea);
 
-        _modListTitle = CreateTitleControl("ModListTitle", "[center]Mods[/center]", 0f);
+        var modsText = LocString.GetIfExists("settings_ui", "BASELIB-MOD_CONFIG_MODS_TITLE")
+            ?.GetFormattedText() ?? "Mods";
+        _modListTitle = CreateTitleControl("ModListTitle", $"[center]{modsText}[/center]", 0f);
         _modListTitle.OffsetLeft = ModListPosition;
         _modListTitle.OffsetRight = ModListPosition + ModListWidth - NNativeScrollableContainer.ScrollbarGutterWidth;
 
-        _modTitle = CreateTitleControl("ModTitle", "[center]Unknown mod name[/center]", 0f);
+        var unknownModText = LocString.GetIfExists("settings_ui", "BASELIB-UNKNOWN_MOD_NAME")
+            ?.GetFormattedText() ?? "Unknown mod name";
+        _modTitle = CreateTitleControl("ModTitle", $"[center]{unknownModText}[/center]", 0f);
         _modListVbox = new VBoxContainer();
     }
 
@@ -88,17 +127,21 @@ public partial class NModConfigSubmenu : NSubmenu
     {
         AddChild(_modTitle);
         AddChild(_modListTitle);
+        AddChild(_modListFilter); // Added after the scroll areas so it draws above them
 
         _modListPanel.AddChild(_modListVbox);
         _modListPanel.SetAnchorsPreset(LayoutPreset.TopLeft);
 
+        // The list must be in the tree before it's populated, so focus neighbor paths to the filter resolve
+        _leftScrollArea.AttachContent(_modListPanel);
         InitializeModList();
 
         _modListVbox.MinimumSizeChanged += () => {
-            _modListPanel.CustomMinimumSize = new Vector2(_leftScrollArea.AvailableContentWidth, _modListVbox.GetMinimumSize().Y);
+             var size = new Vector2(_leftScrollArea.AvailableContentWidth, _modListVbox.GetMinimumSize().Y);
+            _modListPanel.CustomMinimumSize = size;
+            _modListPanel.Size = size; // Not a container, so it doesn't shrink on its own when the content does
         };
 
-        _leftScrollArea.AttachContent(_modListPanel);
         _leftScrollArea.DisableScrollingIfContentFits();
         _rightScrollArea.AttachContent(_contentPanel);
         _rightScrollArea.DisableScrollingIfContentFits();
@@ -121,39 +164,102 @@ public partial class NModConfigSubmenu : NSubmenu
 
     private void InitializeModList()
     {
+        foreach (var modConfig in ModConfigRegistry.GetAll().Where(mod => mod.VisibleInModList()))
+            _modEntries.Add(GetModTitle(modConfig), modConfig);
+
+        PopulateModList();
+    }
+
+    /// <summary>
+    /// Rebuilds the mod list buttons from <see cref="_modEntries"/>, keeping only entries whose title contains
+    /// <paramref name="filterText"/> (case-insensitive), then rewires focus neighbors and the active highlight.
+    /// </summary>
+    private void PopulateModList(string filterText = "")
+    {
+        // Never free the node that currently has focus; move it to the filter first.
+        var focusOwner = GetViewport().GuiGetFocusOwner();
+        if (focusOwner != null && _modListVbox.IsAncestorOf(focusOwner))
+            _modListFilter.GrabFocus();
+
+        foreach (var child in _modListVbox.GetChildren())
+        {
+            _modListVbox.RemoveChild(child);
+            child.QueueFreeSafely();
+        }
+
+        // Spacer due to the fade effect at the top of the scroll area; also serves as the gap under the filter
+        _modListVbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 20) });
+
+        var filter = filterText.Trim();
+        var buttons = new List<NModListButton>();
         var selfNodePath = new NodePath(".");
 
-        foreach (var modConfig in ModConfigRegistry.GetAll().Where(mod => mod.VisibleInModList()))
+        foreach (var (modName, modConfig) in _modEntries)
         {
-            var modName = GetModTitle(modConfig);
+            if (filter.Length > 0 && !modName.Contains(filter, StringComparison.OrdinalIgnoreCase))
+                continue;
+
             var modButton = new NModListButton(modName);
             _modListVbox.AddChild(modButton);
+            buttons.Add(modButton);
 
-            modButton.Connect(NClickableControl.SignalName.Released, Callable.From<NModListButton>(button =>
-                ModButtonClicked(button, modConfig)));
+            if (modConfig != null)
+            {
+                modButton.Connect(NClickableControl.SignalName.Released, Callable.From<NModListButton>(button =>
+                    ModButtonClicked(button, modConfig)));
 
-            modButton.Connect(NClickableControl.SignalName.Focused,
-                Callable.From<NModListButton>(ModButtonFocused));
+                modButton.Connect(NClickableControl.SignalName.Focused,
+                    Callable.From<NModListButton>(ModButtonFocused));
+            }
 
             modButton.FocusNeighborLeft = selfNodePath;
             modButton.FocusNeighborRight = selfNodePath;
         }
 
-        // Set up dummies to test scrolling, etc.
-        // for (var i = 1; i <= 15; i++) { var btn = new NModListButton($"Test mod {i}"); _modListVbox.AddChild(btn); }
+        if (buttons.Count == 0)
+        {
+            var noResults = ModConfig.CreateRawLabelControl("[center]No mods found[/center]", 28);
+            noResults.Name = "NoResultsLabel";
+            noResults.FitContent = true;
+            noResults.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+            noResults.MouseFilter = MouseFilterEnum.Ignore;
+            _modListVbox.AddChild(noResults);
+        }
 
-        // Set up focus neighbors for controller navigation; connect top -> bottom and bottom -> top
-        var mods = _modListVbox.GetChildren();
-        var firstMod = mods.First() as NModListButton;
-        var lastMod = mods.Last() as NModListButton;
-        if (firstMod != null) firstMod.FocusNeighborTop   = firstMod.GetPathTo(lastMod);
-        if (lastMod != null)  lastMod.FocusNeighborBottom = lastMod.GetPathTo(firstMod);
-
-        // Add spacers due to the fade effect
-        var topSpacer = new Control { CustomMinimumSize = new Vector2(0, 20) };
-        _modListVbox.AddChild(topSpacer);
-        _modListVbox.MoveChild(topSpacer, 0);
+        // Add a spacer at the bottom due to the fade effect (the top one is added above)
         _modListVbox.AddChild(new Control { CustomMinimumSize = new Vector2(0, 24) });
+
+        // Focus neighbors for controller navigation. The filter is the top of the list as far as navigation goes:
+        // filter -> first mod ... last mod -> filter, and up from the first mod goes to the filter as well.
+        _modListFilter.FocusNeighborLeft = selfNodePath;
+        _modListFilter.FocusNeighborRight = selfNodePath;
+
+        if (buttons.Count > 0)
+        {
+            var firstMod = buttons[0];
+            var lastMod = buttons[^1];
+
+            firstMod.FocusNeighborTop = firstMod.GetPathTo(_modListFilter);
+            lastMod.FocusNeighborBottom = lastMod.GetPathTo(_modListFilter);
+
+            _modListFilter.FocusNeighborBottom = _modListFilter.GetPathTo(firstMod);
+            _modListFilter.FocusNeighborTop = _modListFilter.GetPathTo(lastMod);
+        }
+        else
+        {
+            _modListFilter.FocusNeighborBottom = selfNodePath;
+            _modListFilter.FocusNeighborTop = selfNodePath;
+        }
+
+        // The buttons are new, so the highlight has to be reapplied (the active mod may be filtered out; that's fine)
+        if (_currentConfig != null)
+            SetHighlightedModButton(_currentConfig, instant: true);
+    }
+
+    private void UpdateModFilter(string filterText)
+    {
+        PopulateModList(filterText);
+        _leftScrollArea.InstantlyScrollToTop();
     }
 
     private NModListButton? GetActiveModButton()
@@ -167,6 +273,15 @@ public partial class NModConfigSubmenu : NSubmenu
 
         return null;
     }
+
+    /// <summary>
+    /// Where focus should go when it enters the mod list side: the active mod's button, else the first visible
+    /// result, else the filter (e.g. when the active mod is filtered out, or nothing matches).
+    /// </summary>
+    private Control GetModListFocusTarget() =>
+        (Control?)GetActiveModButton()
+        ?? (Control?)_modListVbox.GetChildren().OfType<NModListButton>().FirstOrDefault()
+        ?? _modListFilter;
 
     private void ModButtonClicked(NModListButton button, ModConfig modConfig)
     {
@@ -187,7 +302,10 @@ public partial class NModConfigSubmenu : NSubmenu
 
     private void FocusActiveModButton()
     {
-        Callable.From(() => GetActiveModButton()?.TryGrabFocus()).CallDeferred();
+        // Don't pull focus out of the filter while the user is typing (e.g. when the input device changes)
+        if (GetViewport().GuiGetFocusOwner() == _modListFilter) return;
+
+        Callable.From(() => GetModListFocusTarget().TryGrabFocus()).CallDeferred();
     }
 
     private void SetBackButtonVisible(bool visible)
@@ -204,12 +322,12 @@ public partial class NModConfigSubmenu : NSubmenu
         }
     }
 
-    private void SetHighlightedModButton(ModConfig config)
+    private void SetHighlightedModButton(ModConfig config, bool instant = false)
     {
         foreach (var button in _modListPanel.GetChild(0).GetChildren())
         {
             if (button is NModListButton listButton)
-                listButton.SetActiveState(listButton.ModName == GetModTitle(config));
+                listButton.SetActiveState(listButton.ModName == GetModTitle(config), instant);
         }
     }
 
@@ -220,8 +338,26 @@ public partial class NModConfigSubmenu : NSubmenu
         FocusActiveModButton();
     }
 
+    private static bool IsBackEvent(InputEvent @event) =>
+        @event.IsAction(MegaInput.cancel) ||
+        @event.IsAction(MegaInput.pauseAndBack) ||
+        @event.IsAction(MegaInput.back);
+
     public override void _Input(InputEvent @event)
     {
+        // Back/Escape in the filter with text in it: clear the text instead of leaving the screen.
+        if (IsBackEvent(@event) && GetViewport().GuiGetFocusOwner() == _modListFilter && _modListFilter.Text.Length > 0)
+        {
+            if (@event.IsReleased())
+            {
+                _modListFilter.Text = "";
+                UpdateModFilter(""); // Setting Text from code doesn't emit TextChanged
+            }
+
+            AcceptEvent();
+            return;
+        }
+
         // Handle moving from the mod config list back to the mod list on back (e.g. B on Xbox controllers)
         base._Input(@event);
         if (_backButton?.IsEnabled == true) return;
@@ -374,7 +510,8 @@ public partial class NModConfigSubmenu : NSubmenu
     {
         if (!IsVisibleInTree()) return;
 
-        var focusOnModList = _leftScrollArea.IsAncestorOf(newFocus);
+        // The filter lives outside the scroll area but belongs to the mod list side
+        var focusOnModList = _leftScrollArea.IsAncestorOf(newFocus) || newFocus == _modListFilter;
 
         var focusMovedToModList = focusOnModList && !_lastFocusOnModList;
         var focusMovedToContent = !focusOnModList && _lastFocusOnModList;
@@ -390,7 +527,9 @@ public partial class NModConfigSubmenu : NSubmenu
                     listButton.SetHotkeyIconVisible(false);
             }
 
-            if (newFocus != GetActiveModButton())
+            // Land on the active mod (or the first result / the filter if it's filtered out), but leave focus alone
+            // if it's already on the filter or the target
+            if (newFocus != _modListFilter && newFocus != GetModListFocusTarget())
                 FocusActiveModButton();
         }
         else if (focusMovedToContent && _isUsingController)
@@ -485,6 +624,12 @@ public partial class NModConfigSubmenu : NSubmenu
         _contentPanel.Modulate = new Color(1f, 1f, 1f, 0f);
 
         _saveTimer = -1;
+
+        if (_modListFilter.Text.Length > 0)
+        {
+            _modListFilter.Text = "";
+            PopulateModList();
+        }
 
         // Load the most recent config, or default to BaseLib
         var baseLibConfig = ModConfigRegistry.Get<BaseLibConfig>()!;
