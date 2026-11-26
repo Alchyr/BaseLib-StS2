@@ -383,7 +383,7 @@ public abstract class ConstructedCardModel(
         return WithTip(new TooltipSource(card =>
         {
             var tipCard = ModelDb.Card<T>().ToMutable();
-            if (card.IsUpgraded) tipCard.UpgradeInternal();
+            if (card.IsUpgraded) tipCard.UpgradeInternalCompatibility();
             if (tipCard is T t) modifyTipCard?.Invoke(t, card);
             return HoverTipFactory.FromCard(tipCard);
         }));

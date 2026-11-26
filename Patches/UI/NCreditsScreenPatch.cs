@@ -27,8 +27,8 @@ public static class NCreditsScreenPatch
 
     /// <summary>Cleans up the confirm binding when the screen leaves the tree.</summary>
     [HarmonyPatch("_ExitTree"), HarmonyPostfix]
-    public static void OnExitTree()
-        => CreditsNav.RemoveBindings();
+    public static void OnExitTree(NCreditsScreen __instance)
+        => CreditsNav.RemoveBindings(__instance);
 }
 
 /// <summary>
@@ -156,11 +156,11 @@ internal static class CreditsNav
     }
 
     /// <summary>Removes the confirm binding when the screen closes, so bindings don't stack.</summary>
-    public static void RemoveBindings()
+    public static void RemoveBindings(NCreditsScreen creditsScreen)
     {
         if (_confirmBinding == null) return;
         foreach (var a in ConfirmActions)
-            NHotkeyManager.Instance?.RemoveHotkeyPressedBinding(a, _confirmBinding);
+            NHotkeyManager.Instance?.RemoveHotkeyPressedBinding(a, creditsScreen, _confirmBinding);
         _confirmBinding = null;
     }
 
@@ -169,7 +169,7 @@ internal static class CreditsNav
     /// focus neighbours, seeded focus, and a hotkey-manager confirm binding so a
     /// controller press fires the focused entry.
     /// </summary>
-    private static void BuildSideNav(GodotObject creditsScreen, Control scrollContent,
+    private static void BuildSideNav(NCreditsScreen creditsScreen, Control scrollContent,
         Control headerTpl, IReadOnlyList<(string Text, Control Target)> targets)
     {
         NavActions.Clear();
@@ -178,7 +178,7 @@ internal static class CreditsNav
 
         var nav = new VBoxContainer { Name = "ModNav" };
         nav.AddThemeConstantOverride("separation", 10);
-        ((Control)creditsScreen).AddChild(nav);
+        creditsScreen.AddChild(nav);
         nav.SetAnchorsPreset(Control.LayoutPreset.TopLeft);
         nav.Position = new Vector2(64, 260);
 
@@ -217,14 +217,14 @@ internal static class CreditsNav
             buttons[i].FocusNext           = buttons[i].GetPathTo(down);
         }
 
-        var viewport = ((Control)creditsScreen).GetViewport();
+        var viewport = creditsScreen.GetViewport();
         _confirmBinding = () =>
         {
             if (viewport?.GuiGetFocusOwner() is Button fb && NavActions.TryGetValue(fb, out var act))
                 act();
         };
         foreach (var a in ConfirmActions)
-            NHotkeyManager.Instance?.PushHotkeyPressedBinding(a, _confirmBinding);
+            NHotkeyManager.Instance?.PushHotkeyPressedBindingCompatibility(a, creditsScreen, _confirmBinding);
 
         _firstNavButton = buttons.Count > 0 ? buttons[0] : null;
         _firstNavButton?.CallDeferred(Control.MethodName.GrabFocus);

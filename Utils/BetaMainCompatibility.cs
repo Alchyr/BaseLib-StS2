@@ -1,6 +1,7 @@
 ﻿using System.Collections;
 using System.Reflection;
 using BaseLib.Extensions;
+using Godot;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Commands;
@@ -108,6 +109,58 @@ public static class BetaMainCompatibility
         (typeof(AncientEventModel), "RelicOption",
             [typeof(RelicModel), typeof(string)],
             [0, 1])
+    );
+
+    /// <summary>
+    /// Compatibility extension for versions above 114 where silent bool was added as parameter to UpgradeInternal
+    /// </summary>
+    /// <param name="card"></param>
+    /// <param name="silent"></param>
+    public static void UpgradeInternalCompatibility(this CardModel card, bool silent = false)
+    {
+        _upgradeInternal.Invoke(card, silent);
+    }
+    private static VariableMethod _upgradeInternal = new(
+        (typeof(CardModel), nameof(CardModel.UpgradeInternal),
+            [typeof(bool)],
+            [0]),
+        (typeof(CardModel), nameof(CardModel.UpgradeInternal),
+            [],
+            [])
+    );
+
+    /// <summary>
+    /// Compatibility extension for versions above 114 where owner Node was added
+    /// </summary>
+    public static long RemoveHotkeyPressedBindingCompatibility(this NHotkeyManager hotkeyManager, string hotkey,
+        Node owner, Action action)
+    {
+        return _removeHotkeyPressedBinding.Invoke<long>(hotkeyManager, hotkey, owner, action);
+    }
+    private static VariableMethod _removeHotkeyPressedBinding = new(
+        (typeof(NHotkeyManager), nameof(NHotkeyManager.RemoveHotkeyPressedBinding),
+            [typeof(string), typeof(Node), typeof(Action)],
+            [0, 1, 2]),
+        (typeof(NHotkeyManager), nameof(NHotkeyManager.RemoveHotkeyPressedBinding),
+            [typeof(string), typeof(Action)],
+            [0, 2])
+    );
+
+    /// <summary>
+    /// Compatibility extension for versions above 114 where owner Node was added
+    /// </summary>
+    public static long PushHotkeyPressedBindingCompatibility(this NHotkeyManager hotkeyManager, string hotkey,
+        Node owner, Action action, long sequence = 0)
+    {
+        return _pushHotkeyPressedBinding.Invoke<long>(hotkeyManager, hotkey, owner, action, sequence);
+    }
+    private static VariableMethod _pushHotkeyPressedBinding = new(
+        (typeof(NHotkeyManager), nameof(NHotkeyManager.PushHotkeyPressedBinding),
+            [typeof(string), typeof(Node), typeof(Action), typeof(long)],
+            [0, 1, 2, 3]),
+        (typeof(NHotkeyManager), nameof(NHotkeyManager.PushHotkeyPressedBinding),
+            [typeof(string), typeof(Action), typeof(long)],
+            [0, 2, 3])
     );
     
     /// <summary>
